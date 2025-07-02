@@ -33,14 +33,16 @@ class Config:
         self.window_size = [it // 32 for it in self.patch_size]
         self.embed_dim = 96
         self.num_heads = [4, 6, 8, 12]  # 96-[4, 6, 8, 12]
+
         self.num_classes = 3
-        self.T = 4
+        self.T = 1
         self.num_norm_groups = [8, 12, 24, 32] 
         self.num_epochs = 600
-        self.batch_size = 2
+        self.batch_size = 1
         self.k_folds = 5
+        
         self.loss_function = 'adaptive_regional' # dice, focal, adaptive_regional
-        self.loss_weights = [2.0, 1.0, 4.0] # [2.0, 1.0, 4.0]
+        # self.loss_weights = [2.0, 1.0, 4.0] # [2.0, 1.0, 4.0]
         self.train_crop_mode = "tumor_aware_random"  # tumor_aware_random, warmup_weighted_random, random, tumor_center
         self.val_crop_mode = 'tumor_aware_random' # tumor_aware_random, sliding_window, random, tumor_center
         self.overlap = 0.5

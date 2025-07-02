@@ -195,8 +195,7 @@ def train(train_loader, model, optimizer, criterion, device, monitor=None, debug
         if compute_time:
             time5 = time.time()
 
-        scaler.scale(loss).backward()
-        
+        scaler.scale(loss).backward(retain_graph=True)
         
         if compute_time:
             time6 = time.time()

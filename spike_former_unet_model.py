@@ -1,580 +1,942 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from spikingjelly.activation_based import neuron, functional, surrogate, layer, base
-from config import config as cfg
+from timm.layers import trunc_normal_, DropPath
+from spikingjelly.clock_driven.neuron import MultiStepLIFNode
 
-# 使用spikingjelly的多步模式
-# class LayerNorm3D(base.MemoryModule):
-#     """
-#     支持单步（step_mode='s'）和多步（step_mode='m'）模式。
-#     """
+# class BNAndPad3DLayer(nn.Module):
+#     def __init__(self, pad_voxels, num_features, step_mode='m', **bn_kwargs):
+#         """
+#         3D BN+ padding组合，支持单步和多步模式。
 
-#     def __init__(self, num_channels, step_mode='s'):
+#         :param pad_voxels: int，前后上下左右各方向填充的体素数
+#         :param num_features: 通道数
+#         :param bn_kwargs: 传给 BatchNorm3d 的额外参数，如 eps、momentum 等
+#         """
 #         super().__init__()
-#         self.norm = nn.LayerNorm(num_channels)
-#         assert step_mode in ('s', 'm'), "step_mode must be 's' or 'm'"
+#         self.pad_voxels = pad_voxels
+#         self.bn = layer.BatchNorm3d(num_features, step_mode=step_mode, **bn_kwargs)
 #         self.step_mode = step_mode
+
+#     def _compute_pad_value(self):
+#         if self.bn.affine:
+#             pad_value = (
+#                 self.bn.bias.detach()
+#                 - self.bn.running_mean * self.bn.weight.detach() / torch.sqrt(self.bn.running_var + self.bn.eps))
+#         else:
+#             pad_value = -self.bn.running_mean / torch.sqrt(self.bn.running_var + self.bn.eps)
+#         return pad_value.view(1, -1, 1, 1, 1)  # reshape to [1, C, 1, 1, 1]
+
+#     def _pad_tensor(self, x, pad_value):
+#         pad = [self.pad_voxels] * 6  # [W_left, W_right, H_top, H_bottom, D_front, D_back]
+#         x = F.pad(x, pad)  # 使用0填充
+#         # 再替换成 pad_value
+#         x[:, :, :self.pad_voxels, :, :] = pad_value
+#         x[:, :, -self.pad_voxels:, :, :] = pad_value
+#         x[:, :, :, :self.pad_voxels, :] = pad_value
+#         x[:, :, :, -self.pad_voxels:, :] = pad_value
+#         x[:, :, :, :, :self.pad_voxels] = pad_value
+#         x[:, :, :, :, -self.pad_voxels:] = pad_value
+#         return x
 
 #     def forward(self, x):
 #         if self.step_mode == 's':
-#             # 单步输入 [B, C, D, H, W]
-#             x = x.permute(0, 2, 3, 4, 1).contiguous()  # -> [B, D, H, W, C]
-#             x = self.norm(x)
-#             x = x.permute(0, 4, 1, 2, 3).contiguous()  # -> [B, C, D, H, W]
+#             x = self.bn(x)  # shape: [N, C, D, H, W]
+#             if self.pad_voxels > 0:
+#                 pad_value = self._compute_pad_value()
+#                 x = self._pad_tensor(x, pad_value)
 #             return x
 
 #         elif self.step_mode == 'm':
-#             # 多步输入 [T, B, C, D, H, W]
-#             T, B, C, D, H, W = x.shape
-#             x = x.view(T * B, C, D, H, W)  # 合并时间和batch
-#             x = x.permute(0, 2, 3, 4, 1).contiguous()  # -> [T*B, D, H, W, C]
-#             x = self.norm(x)
-#             x = x.permute(0, 4, 1, 2, 3).contiguous()  # -> [T*B, C, D, H, W]
-#             x = x.view(T, B, C, D, H, W)   # 拆回 [T, B, C, D, H, W]
+#             if x.dim() != 6:
+#                 raise ValueError(f"Expected input shape [T, N, C, D, H, W], but got {x.shape}")
+#             x = self.bn(x)
+#             if self.pad_voxels > 0:
+#                 pad_value = self._compute_pad_value()
+#                 # 对每个时间步进行 padding
+#                 padded = []
+#                 for t in range(x.shape[0]):
+#                     padded.append(self._pad_tensor(x[t], pad_value))
+#                 x = torch.stack(padded, dim=0)  # [T, N, C, D+2p, H+2p, W+2p]
 #             return x
 
+#     @property
+#     def weight(self):
+#         return self.bn.weight
+
+#     @property
+#     def bias(self):
+#         return self.bn.bias
+
+#     @property
+#     def running_mean(self):
+#         return self.bn.running_mean
+
+#     @property
+#     def running_var(self):
+#         return self.bn.running_var
+
+#     @property
+#     def eps(self):
+#         return self.bn.eps
 
 
-# 模型结构
-def create_3d_shift_mask(window_size, shift_size):
-    """
-    掩码生成，返回形状[N, N]的bool mask
-    """
-    D, H, W = window_size
-    Sd, Sh, Sw = shift_size
-    if Sd == 0 and Sh == 0 and Sw == 0:
-        return None  # 无需掩码
-    
-    img_mask = torch.zeros((1, D, H, W))
 
-    cnt = 0
-    d_slices = (slice(0, D - Sd), slice(D - Sd, D)) if Sd > 0 else (slice(0, D),)
-    h_slices = (slice(0, H - Sh), slice(H - Sh, H)) if Sh > 0 else (slice(0, H),)
-    w_slices = (slice(0, W - Sw), slice(W - Sw, W)) if Sw > 0 else (slice(0, W),)
-
-    for d in d_slices:
-        for h in h_slices:
-            for w in w_slices:
-                img_mask[:, d, h, w] = cnt
-                cnt += 1
-
-    mask_windows = img_mask.contiguous().view(-1)
-    attn_mask = mask_windows[:, None] != mask_windows[None, :]  # (N, N)
-    attn_mask = attn_mask.bool().unsqueeze(0).unsqueeze(0)  # -> [1, 1, N, N]
-    attn_mask_float = torch.zeros_like(attn_mask, dtype=torch.float32)
-    attn_mask_float.masked_fill_(attn_mask, float('-inf'))
-    return attn_mask_float
-
-
-class SpikingShiftedWindowAttention3D(base.MemoryModule):
-    def __init__(self, embed_dim: int, num_heads: int, window_size=(2, 2, 2), shift_size=None, dropout=0.1, step_mode='s'):
-        super().__init__()
-        self.embed_dim = embed_dim                  # 总的 embedding 维度
-        self.num_heads = num_heads                  # 多头注意力中 head 的个数
-        self.window_size = window_size              # 注意力窗口大小 (D, H, W)
-        self.shift_size = shift_size or tuple(ws // 2 for ws in window_size)
-        self.head_dim = embed_dim // num_heads      # 每个头的维度
-        # assert embed_dim % num_heads == 0, "embed_dim 必须能整除 num_heads"
-        self.scale = self.head_dim ** -0.5          # 缩放因子，防止 softmax 爆炸
-        self.step_mode = step_mode                  # 's' 单步 / 'm' 多步
-
-        assert embed_dim % num_heads == 0, "embed_dim 必须能整除 num_heads"
-        assert len(window_size) == 3, "window_size 必须为3维tuple"
-        assert len(self.shift_size) == 3, "shift_size 必须为3维tuple"
-
-        
-        # 线性变换产生 QKV
-        self.qkv = nn.Linear(embed_dim, embed_dim * 3, bias=False)
-        self.proj = nn.Linear(embed_dim, embed_dim)  # 输出投影
-
-        # dropout 和脉冲神经元（LIF）
-        self.dropout = layer.Dropout(dropout, step_mode=step_mode)
-        # self.sn = neuron.LIFNode(surrogate_function=surrogate.ATan(), step_mode=step_mode)
-        self.sn = neuron.ParametricLIFNode(
-            init_tau=2.0,
-            decay_input=True,
-            v_threshold=1.0,
-            v_reset=0.0,
-            surrogate_function=surrogate.ATan(), 
-            step_mode=step_mode)
-
-        # 创建 attention mask（用于 shifted window）
-        self.attn_mask = create_3d_shift_mask(window_size, self.shift_size)
-
-    def _window_partition(self, x: torch.Tensor):
-        """
-        将输入划分为窗口
-        输入: [B, C, D, H, W]
-        输出: [B*num_windows, window_volume, C]
-        """
-        B, C, D, H, W = x.shape
-        wd, wh, ww = self.window_size
-        x = x.view(B, C, D // wd, wd, H // wh, wh, W // ww, ww)
-        x = x.permute(0, 2, 4, 6, 1, 3, 5, 7).contiguous()
-        x = x.view(-1, C, wd * wh * ww).transpose(1, 2).contiguous()  # [B*num_win, N, C]
-        return x, B, D, H, W
-
-    def _window_reverse(self, x_windows: torch.Tensor, B, D, H, W):
-        """
-        将窗口恢复为原始图像形状
-        """
-        wd, wh, ww = self.window_size
-        C = x_windows.shape[2]
-        x_windows = x_windows.transpose(1, 2).contiguous().view(-1, C, wd, wh, ww)
-        x_windows = x_windows.view(B, D // wd, H // wh, W // ww, C, wd, wh, ww)
-        x_windows = x_windows.permute(0, 4, 1, 5, 2, 6, 3, 7).contiguous()
-        x = x_windows.view(B, C, D, H, W)
-        return x
-
-
-    def _attention_forward(self, x_windows: torch.Tensor, batch_size: int):
-        """
-        统一的注意力计算逻辑
-        x_windows: [batch_size * num_windows, N, C]
-        batch_size: 单步时是 B，多步时是 T*B
-        返回: [batch_size * num_windows, N, C] 处理后窗口张量
-        """       
-        # QKV分解
-        qkv = self.qkv(x_windows)
-        qkv = qkv.view(qkv.size(0), qkv.size(1), 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4).contiguous()
-        q, k, v = qkv[0], qkv[1], qkv[2]
-
-        attn = torch.matmul(q, k.transpose(-2, -1)) * self.scale  # [B*num_windows, H, N, N]
-
-        # # 使用相对位置索引取出偏置值：shape [N*N, H]
-        # relative_position_bias = self.relative_position_table[self.relative_position_index.view(-1)]  # (N*N, H)
-
-        # # 重新 reshape 为 [H, N, N]，即每个 head 的偏置矩阵
-        # relative_position_bias = rearrange(relative_position_bias, '(n1 n2) h -> h n1 n2', 
-        #                                    n1=self.relative_position_index.shape[0])
-
-        # # 添加到注意力矩阵中，自动广播为 [B, H, N, N]
-        # attn = attn + relative_position_bias.unsqueeze(0)  # [1, H, N, N]
-        
-        if self.attn_mask is not None:
-            attn = attn + self.attn_mask.to(attn.device)
-        attn = torch.softmax(attn, dim=-1)        
-        out = torch.matmul(attn, v)  # [batch_size*num_windows, num_heads, N, head_dim]        
-        out = out.permute(0, 2, 1, 3).contiguous().view(out.size(0), out.size(2), self.embed_dim)
-
-        out = self.proj(out)       
-        return out  # [batch_size*num_windows, N, C]
-  
-
-    def forward_single_step(self, x: torch.Tensor):
-        """
-        单步输入：[B, C, D, H, W]
-        """
-        B, C, D, H, W = x.shape
-        sd, sh, sw = self.shift_size
-
-        if any(s > 0 for s in self.shift_size):
-            x = torch.roll(x, shifts=(-sd, -sh, -sw), dims=(2, 3, 4))
-
-        x_windows, B, D, H, W = self._window_partition(x)
-
-        out = self._attention_forward(x_windows, B)
-        out = self.sn(out)
-        x = self._window_reverse(out, B, D, H, W)
-
-        if any(s > 0 for s in self.shift_size):
-            x = torch.roll(x, shifts=(sd, sh, sw), dims=(2, 3, 4))
-
-        return x
-
-    def forward_multi_step(self, x: torch.Tensor):
-        """
-        多步输入：[T, B, C, D, H, W]
-        """
-        T, B, C, D, H, W = x.shape
-        wd, wh, ww = self.window_size
-        sd, sh, sw = self.shift_size
-
-        if any(s > 0 for s in self.shift_size):
-            x = torch.roll(x, shifts=(-sd, -sh, -sw), dims=(3, 4, 5))  # shift
-
-        x = x.view(T * B, C, D, H, W)
-        x_windows, new_B, D, H, W = self._window_partition(x)
-
-        out = self._attention_forward(x_windows, T * B)
-
-        # 脉冲激活
-        # out = self.dropout(out)
-        # out = out + x_windows
-        # out = out.view(T, B, -1, self.embed_dim)
-        # out = self.sn(out)
-        # out = out.view(T * B, -1, self.embed_dim)
-
-        x = self._window_reverse(out, new_B, D, H, W)
-        x = x.view(T, B, C, D, H, W)
-
-        if any(s > 0 for s in self.shift_size):
-            x = torch.roll(x, shifts=(sd, sh, sw), dims=(3, 4, 5))  # shift back
-        return x
-
-    def forward(self, x):
-        if self.step_mode == 's':
-            return self.forward_single_step(x)
-        elif self.step_mode == 'm':
-            return self.forward_multi_step(x)
-        else:
-            raise NotImplementedError(f"Unsupported step_mode: {self.step_mode}")
-
-
-class SpikingSwinTransformerBlock3D(base.MemoryModule):
-    def __init__(self, embed_dim, mlp_dim, num_heads, window_size=(2, 2, 2), shift=False, dropout=0.1, num_groups=8, step_mode='s'):
-        super().__init__()       
-        shift_size = tuple(ws // 2 for ws in window_size) if shift else (0, 0, 0)
-
-        # self.norm1 = LayerNorm3D(embed_dim, step_mode=step_mode)
-        self.norm1 = layer.GroupNorm(num_groups=num_groups, num_channels=embed_dim, step_mode=step_mode) # 使用 GroupNorm 替代 LayerNorm
-        self.attn = SpikingShiftedWindowAttention3D(embed_dim, num_heads, window_size, shift_size, dropout, step_mode=step_mode)
-
-        # self.norm2 = LayerNorm3D(embed_dim, step_mode=step_mode)
-        self.norm2 = layer.GroupNorm(num_groups=num_groups, num_channels=embed_dim, step_mode=step_mode)
-        self.linear1 = layer.Linear(embed_dim, mlp_dim, step_mode=step_mode)
-        # self.sn1 = neuron.LIFNode(surrogate_function=surrogate.ATan(), step_mode=step_mode)
-        self.gelu = nn.GELU()  # 使用 GELU 激活函数
-        self.sn1 = neuron.ParametricLIFNode(
-            init_tau=2.0,
-            decay_input=True,
-            v_threshold=1.0,
-            v_reset=0.0,
-            surrogate_function=surrogate.ATan(), 
-            step_mode=step_mode)
-        self.linear2 = layer.Linear(mlp_dim, embed_dim, step_mode=step_mode)
-        # self.sn2 = neuron.LIFNode(surrogate_function=surrogate.ATan(), step_mode=step_mode)  
-        self.sn2 = neuron.ParametricLIFNode(
-            init_tau=2.0,
-            decay_input=True,
-            v_threshold=1.0,
-            v_reset=0.0,
-            surrogate_function=surrogate.ATan(), 
-            step_mode=step_mode)     
-        self.dropout = layer.Dropout(dropout, step_mode=step_mode)
-
-    def _linear_forward(self, x):
-        x1 = self.linear1(x)
-        #x1 = self.sn1(x1)
-        
-        # with torch.no_grad():
-        #     fire_rate1 = (x1 > 0).float().mean().item()
-        #     print(f"[Debug] sn1 firing rate: {fire_rate1:.6f}")
-        
-        x1 = self.gelu(x1)
-        x2 = self.linear2(x1)
-        # x2 = self.dropout(x2)
-        # output = self.sn2(x2)  
-        
-        # with torch.no_grad():
-        #     fire_rate2 = (output > 0).float().mean().item()
-        #     print(f"[Debug] sn2 firing rate: {fire_rate2:.6f}")
-        
-        output = self.dropout(x2)
-        return output
-
-    def forward(self, x):
-        residual = x
-        x = self.norm1(x)
-        x = self.attn(x)
-        x = x + residual # 残差连接
-        
-        # with torch.no_grad():
-        #     diff = (x - residual).abs().mean().item()
-        #     print(f"[Debug] Attention output diff from residual: {diff:.6f}")
-
-        residual = x
-        x = self.norm2(x)
-                
-        if self.step_mode == 's':
-            # 单步输入: [B, C, D, H, W]
-            B, C, D, H, W = x.shape
-            x = x.permute(0, 2, 3, 4, 1).contiguous()  # (B, D, H, W, C)
-            x = x.view(B, D * H * W, C)  # (B, N, C)
-            x = self._linear_forward(x)
-            x = x.view(B, D, H, W, C)
-            x = x.permute(0, 4, 1, 2, 3).contiguous()  # (B, C, D, H, W)
-        elif self.step_mode == 'm':
-            # 多步输入: [T, B, C, D, H, W]
-            T, B, C, D, H, W = x.shape
-            x = x.permute(0, 1, 3, 4, 5, 2).contiguous()  # (T, B, D, H, W, C)
-            x = x.view(T, B, D * H * W, C)  # (T, B, N, C)
-            x = self._linear_forward(x)
-            x = x.view(T, B, D, H, W, C)
-            x = x.permute(0, 1, 5, 2, 3, 4).contiguous()  # (T, B, C, D, H, W)
-        else:
-            raise NotImplementedError(f"Unsupported step_mode: {self.step_mode}")
-        
-        x = x + residual
-        
-        # with torch.no_grad():
-        #     diff = (x - residual).abs().mean().item()
-        #     print(f"[Debug] MLP Output diff from residual: {diff:.6f}")
-        return x
-
-class SpikingSwinTransformerStage3D(base.MemoryModule):
-    def __init__(self, embed_dim, num_heads, layers, window_size=(2, 2, 2), dropout=0.1, num_groups=8, step_mode='s'):
-        super().__init__()
-        block_list = []
-        for i in range(layers):
-            shift = (i % 2 == 1)  # 奇数 block shift=True，偶数 False
-            block_list.append(
-                SpikingSwinTransformerBlock3D(
-                    embed_dim=embed_dim,
-                    mlp_dim=embed_dim*4,
-                    num_heads=num_heads,
-                    window_size=window_size,
-                    shift=shift,
-                    dropout=dropout,
-                    num_groups=num_groups,
-                    step_mode=step_mode
-                )
-            )
-        self.blocks = nn.Sequential(*block_list)
-
-    def forward(self, x):
-        return self.blocks(x)
-
-
-class SpikingPatchEmbed3D(base.MemoryModule):
-    def __init__(self, in_channels, embed_dim, patch_size=(2, 2, 2), num_groups=8, step_mode='m'):
-        super().__init__()
-        self.proj = layer.Conv3d(in_channels, embed_dim, kernel_size=patch_size, stride=patch_size, step_mode=step_mode)
-        # self.norm = LayerNorm3D(embed_dim, step_mode=step_mode)
-        self.norm = layer.GroupNorm(num_groups=num_groups, num_channels=embed_dim, step_mode=step_mode)
-        # self.sn = neuron.LIFNode(surrogate_function=surrogate.ATan(), step_mode=step_mode)
-        self.sn = neuron.ParametricLIFNode(
-            init_tau=2.0,
-            decay_input=True,
-            v_threshold=1.0,
-            v_reset=0.0,
-            surrogate_function=surrogate.ATan(), 
-            step_mode=step_mode)
-        functional.set_step_mode(self, step_mode=step_mode)
-
-    def forward(self, x):
-        x = self.proj(x)
-        x = self.norm(x)
-        x = self.sn(x)
-        return x
-
-class SpikingPatchExpand3D(base.MemoryModule):
-    def __init__(self, in_channels, out_channels, kernel_size=(2,2,2), stride=2, dropout=0.1, num_groups=8, step_mode='s'):
-        super().__init__()
-        self.conv_transpose = layer.ConvTranspose3d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, step_mode=step_mode)
-        # self.norm = LayerNorm3D(out_channels, step_mode=step_mode)
-        self.norm = layer.GroupNorm(num_groups=num_groups, num_channels=out_channels, step_mode=step_mode)
-        # self.sn = neuron.LIFNode(surrogate_function=surrogate.ATan(), step_mode=step_mode)
-        self.sn = neuron.ParametricLIFNode(
-            init_tau=2.0,
-            decay_input=True,
-            v_threshold=1.0,
-            v_reset=0.0,
-            surrogate_function=surrogate.ATan(), 
-            step_mode=step_mode)
-        functional.set_step_mode(self, step_mode)
-
-    def forward(self, x):
-        x = self.conv_transpose(x)
-        x = self.norm(x)
-        x = self.sn(x)
-        return x
-
-
-class FinalSpikingPatchExpand3D(base.MemoryModule):
-    def __init__(self, in_channels, out_channels, kernel_size=(2,2,2), stride=2, dropout=0.1, num_groups=8, step_mode='s'):
-        super().__init__()
-        self.conv_transpose = layer.ConvTranspose3d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, step_mode=step_mode)
-        # self.norm = LayerNorm3D(out_channels, step_mode=step_mode)
-        self.norm = layer.GroupNorm(num_groups=num_groups, num_channels=out_channels, step_mode=step_mode)
-        # self.sn = neuron.LIFNode(surrogate_function=surrogate.ATan(), step_mode=step_mode)
-        self.sn = neuron.ParametricLIFNode(
-            init_tau=2.0,
-            decay_input=True,
-            v_threshold=1.0,
-            v_reset=0.0,
-            surrogate_function=surrogate.ATan(), 
-            step_mode=step_mode)
-        functional.set_step_mode(self, step_mode)
-
-    def forward(self, x):
-        x = self.conv_transpose(x)
-        x = self.norm(x)
-        x = self.sn(x)
-        return x
-
-
-# class SpikingConcatReduce3D(base.MemoryModule):
-#     def __init__(self, in_channels, out_channels, step_mode='s'):
+# class RepConv3D(nn.Module):
+#     def __init__(self, in_channel, out_channel, pad_voxels=1, bias=False, step_mode='m'):
 #         super().__init__()
-#         concat_channels = in_channels * 2
 
-#         self.norm1 = LayerNorm3D(concat_channels, step_mode=step_mode)
-#         self.conv = layer.Conv3d(concat_channels, out_channels, kernel_size=1, step_mode=step_mode)
-#         self.norm2 = LayerNorm3D(out_channels, step_mode=step_mode)
+#         # 1x1 projection conv
+#         self.proj_conv = layer.Conv3d(in_channels=in_channel, out_channels=in_channel,
+#                                       kernel_size=1, stride=1, padding=0, bias=bias, step_mode=step_mode)
 
-#         functional.set_step_mode(self, step_mode)
+#         # BN + Padding
+#         self.bn_pad = BNAndPad3DLayer(pad_voxels=pad_voxels, num_features=in_channel, step_mode=step_mode)
 
-#     def forward(self, x1, x2):
-#         x = torch.cat([x1, x2], dim=1)  # Concatenate along channel dimension
-#         x = self.norm1(x)
-#         x = self.conv(x)
-#         x = self.norm2(x)
+#         # Depthwise 3x3 conv
+#         self.dw_conv3x3 = layer.Conv3d(in_channels=in_channel, out_channels=in_channel,
+#                                        kernel_size=3, stride=1, padding=0, bias=bias,
+#                                        groups=in_channel, step_mode=step_mode)
+
+#         # Pointwise 1x1 conv
+#         self.pw_conv1x1 = layer.Conv3d(in_channels=in_channel, out_channels=out_channel,
+#                                        kernel_size=1, stride=1, padding=0, bias=bias,
+#                                        step_mode=step_mode)
+
+#         # Output BatchNorm
+#         self.out_bn = layer.BatchNorm3d(num_features=out_channel, step_mode=step_mode)
+
+#     def forward(self, x):  
+#         x = self.proj_conv(x)          # 1×1 conv
+#         x = self.bn_pad(x)             # BN + padding
+#         x = self.dw_conv3x3(x)         # depthwise 3×3 conv
+#         x = self.pw_conv1x1(x)         # pointwise 1×1 conv
+#         x = self.out_bn(x)             # output BN
 #         return x
 
-    
 
-class SpikingAddConverge3D(base.MemoryModule):
-    def __init__(self, channels, num_groups=8, step_mode='s'):
+# class SepConv3D(nn.Module):
+#     """
+#     Spiking 3D version of inverted separable convolution from MobileNetV2.
+#     Input: [T, B, C, D, H, W]
+#     """
+
+#     def __init__(
+#         self,
+#         dim,
+#         expansion_ratio=2,
+#         kernel_size=7,
+#         padding=3,
+#         tau=2.0,
+#         step_mode='m',
+#         bias=False):
+#         super().__init__()
+#         med_channels = int(expansion_ratio * dim)
+
+#         # spike layer 1
+#         self.lif1 = neuron.ParametricLIFNode(
+#             init_tau=tau,
+#             decay_input=True,
+#             detach_reset=True,
+#             v_threshold=1.0,
+#             v_reset=0.0,
+#             surrogate_function=surrogate.ATan(), 
+#             step_mode=step_mode,
+#             backend='cupy')
+
+#         # pointwise conv 1
+#         self.pwconv1 = layer.Conv3d(dim, med_channels, kernel_size=1, stride=1,
+#                                     bias=bias, step_mode=step_mode)
+#         self.bn1 = layer.BatchNorm3d(med_channels, step_mode=step_mode)
+
+#         # spike layer 2
+#         self.lif2 = neuron.ParametricLIFNode(
+#             init_tau=tau,
+#             decay_input=True,
+#             detach_reset=True,
+#             v_threshold=1.0,
+#             v_reset=0.0,
+#             surrogate_function=surrogate.ATan(), 
+#             step_mode=step_mode,
+#             backend='cupy')
+
+#         # depthwise conv
+#         self.dwconv = layer.Conv3d(med_channels, med_channels, kernel_size=kernel_size,
+#                                    padding=padding, groups=med_channels,
+#                                    bias=bias, step_mode=step_mode)
+
+#         # pointwise conv 2
+#         self.pwconv2 = layer.Conv3d(med_channels, dim, kernel_size=1, stride=1,
+#                                     bias=bias, step_mode=step_mode)
+#         self.bn2 = layer.BatchNorm3d(dim, step_mode=step_mode)
+
+#     def forward(self, x):
+#         # x: [T, B, C, D, H, W]
+#         x = self.lif1(x)
+#         x = self.pwconv1(x)
+#         x = self.bn1(x)
+#         x = self.lif2(x)
+#         x = self.dwconv(x)
+#         x = self.pwconv2(x)
+#         x = self.bn2(x)
+#         return x
+
+
+# class MS_ConvBlock3D(nn.Module):
+#     def __init__(
+#         self,
+#         dim,
+#         mlp_ratio=4.0,
+#         tau=2.0,
+#         step_mode='m'):
+#         super().__init__()
+#         hidden_dim = int(dim * mlp_ratio)
+
+#         self.conv = SepConv3D(dim=dim, step_mode=step_mode)
+
+#         # Spike + Conv + BN block1
+#         self.lif1 = neuron.ParametricLIFNode(
+#             init_tau=tau,
+#             decay_input=True,
+#             detach_reset=True,
+#             v_threshold=1.0,
+#             v_reset=0.0,
+#             surrogate_function=surrogate.ATan(), 
+#             step_mode=step_mode,
+#             backend='cupy')
+        
+#         self.conv1 = layer.Conv3d(in_channels=dim, out_channels=hidden_dim,
+#                                   kernel_size=3, padding=1, bias=False,
+#                                   step_mode=step_mode)
+#         self.bn1 = layer.BatchNorm3d(num_features=hidden_dim, step_mode=step_mode)
+
+#         # Spike + Conv + BN block2
+#         self.lif2 = neuron.ParametricLIFNode(
+#             init_tau=tau,
+#             decay_input=True,
+#             detach_reset=True,
+#             v_threshold=1.0,
+#             v_reset=0.0,
+#             surrogate_function=surrogate.ATan(), 
+#             step_mode=step_mode,
+#             backend='cupy')
+        
+#         self.conv2 = layer.Conv3d(in_channels=hidden_dim, out_channels=dim,
+#                                   kernel_size=3, padding=1, bias=False,
+#                                   step_mode=step_mode)
+#         self.bn2 = layer.BatchNorm3d(num_features=dim, step_mode=step_mode)
+
+#     def forward(self, x):
+#         # x: [T, B, C, D, H, W]
+
+#         # Branch 1: Lightweight convolution block + residual
+#         x = self.conv(x) + x
+#         x_feat = x
+
+#         # Branch 2: MLP-like spike conv
+#         x = self.lif1(x)
+#         x = self.conv1(x)
+#         x = self.bn1(x)
+
+#         x = self.lif2(x)
+#         x = self.conv2(x)
+#         x = self.bn2(x)
+
+#         # Final residual
+#         x = x_feat + x
+
+#         return x
+
+
+# class MS_MLP3D(nn.Module):
+#     def __init__(
+#         self,
+#         in_features,
+#         hidden_features=None,
+#         out_features=None,
+#         tau=2.0,
+#         step_mode='m'):
+#         super().__init__()
+#         out_features = out_features or in_features
+#         hidden_features = hidden_features or in_features
+
+#         # 用1x1x1卷积实现“全连接”操作
+#         self.fc1_conv = layer.Conv3d(in_features, hidden_features, kernel_size=1,
+#                                     stride=1, padding=0, bias=False, step_mode=step_mode)
+#         self.fc1_bn = layer.BatchNorm3d(hidden_features, step_mode=step_mode)
+#         self.fc1_lif = neuron.ParametricLIFNode(
+#             init_tau=tau,
+#             decay_input=True,
+#             detach_reset=True,
+#             v_threshold=1.0,
+#             v_reset=0.0,
+#             surrogate_function=surrogate.ATan(), 
+#             step_mode=step_mode,
+#             backend='cupy')
+
+#         self.fc2_conv = layer.Conv3d(hidden_features, out_features, kernel_size=1,
+#                                     stride=1, padding=0, bias=False, step_mode=step_mode)
+#         self.fc2_bn = layer.BatchNorm3d(out_features, step_mode=step_mode)
+#         self.fc2_lif = neuron.ParametricLIFNode(
+#             init_tau=tau,
+#             decay_input=True,
+#             detach_reset=True,
+#             v_threshold=1.0,
+#             v_reset=0.0,
+#             surrogate_function=surrogate.ATan(), 
+#             step_mode=step_mode,
+#             backend='cupy')
+
+#     def forward(self, x):
+#         # x: [T, B, C, D, H, W]
+#         x = self.fc1_lif(x)
+#         x = self.fc1_conv(x)
+#         x = self.fc1_bn(x)
+
+#         x = self.fc2_lif(x)
+#         x = self.fc2_conv(x)
+#         x = self.fc2_bn(x)
+#         return x
+
+
+# class MS_Attention_RepConv3D_qkv_id(nn.Module):
+#     def __init__(
+#         self,
+#         dim,
+#         num_heads=8,
+#         qkv_bias=False,
+#         qk_scale=None,
+#         attn_drop=0.0,
+#         proj_drop=0.0,
+#         sr_ratio=1,
+#         tau=2.0,
+#         step_mode='m'):
+#         super().__init__()
+#         assert dim % num_heads == 0, f"dim {dim} should be divisible by num_heads {num_heads}."
+#         self.dim = dim
+#         self.num_heads = num_heads
+#         self.scale = 0.125 if qk_scale is None else qk_scale
+
+#         self.head_lif = neuron.ParametricLIFNode(
+#             init_tau=tau,
+#             decay_input=True,
+#             detach_reset=True,
+#             v_threshold=1.0,
+#             v_reset=0.0,
+#             surrogate_function=surrogate.ATan(), 
+#             step_mode=step_mode,
+#             backend='cupy')
+
+#         self.q_conv = nn.Sequential(
+#             RepConv3D(dim, dim, bias=False, step_mode=step_mode),
+#             layer.BatchNorm3d(dim, step_mode=step_mode))
+#         self.k_conv = nn.Sequential(
+#             RepConv3D(dim, dim, bias=False, step_mode=step_mode),
+#             layer.BatchNorm3d(dim, step_mode=step_mode))
+#         self.v_conv = nn.Sequential(
+#             RepConv3D(dim, dim, bias=False, step_mode=step_mode),
+#             layer.BatchNorm3d(dim, step_mode=step_mode))
+
+#         self.q_lif = neuron.ParametricLIFNode(
+#             init_tau=tau,
+#             decay_input=True,
+#             detach_reset=True,
+#             v_threshold=1.0,
+#             v_reset=0.0,
+#             surrogate_function=surrogate.ATan(), 
+#             step_mode=step_mode,
+#             backend='cupy')
+        
+#         self.k_lif = neuron.ParametricLIFNode(
+#             init_tau=tau,
+#             decay_input=True,
+#             detach_reset=True,
+#             v_threshold=1.0,
+#             v_reset=0.0,
+#             surrogate_function=surrogate.ATan(), 
+#             step_mode=step_mode,
+#             backend='cupy')
+        
+#         self.v_lif = neuron.ParametricLIFNode(
+#             init_tau=tau,
+#             decay_input=True,
+#             detach_reset=True,
+#             v_threshold=1.0,
+#             v_reset=0.0,
+#             surrogate_function=surrogate.ATan(), 
+#             step_mode=step_mode,
+#             backend='cupy')
+
+#         self.attn_lif = neuron.ParametricLIFNode(
+#             init_tau=tau,
+#             decay_input=True,
+#             detach_reset=True,
+#             v_threshold=0.5,
+#             v_reset=0.0,
+#             surrogate_function=surrogate.ATan(), 
+#             step_mode=step_mode,
+#             backend='cupy')
+
+#         self.proj_conv = nn.Sequential(
+#             RepConv3D(dim, dim, bias=False, step_mode=step_mode),
+#             layer.BatchNorm3d(dim, step_mode=step_mode))
+
+#     def forward(self, x):
+#         # x: [T, B, C, D, H, W]
+#         T, B, C, D, H, W = x.shape
+#         N = D * H * W
+
+#         x = self.head_lif(x)
+#         q = self.q_conv(x)
+#         k = self.k_conv(x)
+#         v = self.v_conv(x)
+
+#         # LIF激活 + 拉平空间维到 N
+#         q = self.q_lif(q).flatten(3)  # [T, B, C, N]
+#         q = q.transpose(-1, -2).reshape(T, B, N, self.num_heads, C // self.num_heads)
+#         q = q.permute(0, 1, 3, 2, 4).contiguous()  # [T, B, heads, N, head_dim]
+
+#         k = self.k_lif(k).flatten(3)
+#         k = k.transpose(-1, -2).reshape(T, B, N, self.num_heads, C // self.num_heads)
+#         k = k.permute(0, 1, 3, 2, 4).contiguous()
+
+#         v = self.v_lif(v).flatten(3)
+#         v = v.transpose(-1, -2).reshape(T, B, N, self.num_heads, C // self.num_heads)
+#         v = v.permute(0, 1, 3, 2, 4).contiguous()
+
+#         # 注意力计算：k^T @ v
+#         attn_kv = torch.matmul(k.transpose(-2, -1), v)  # [T, B, heads, head_dim, head_dim]
+#         x = torch.matmul(q, attn_kv) * self.scale  # [T, B, heads, N, head_dim]
+
+#         # 恢复空间维度
+#         x = x.transpose(3, 4).reshape(T, B, C, N).contiguous()
+#         x = self.attn_lif(x).reshape(T, B, C, D, H, W)
+
+#         # 投影卷积
+#         x = self.proj_conv(x)
+
+#         return x
+
+
+# class MS_Block3D(nn.Module):
+#     def __init__(
+#         self,
+#         dim,
+#         num_heads,
+#         mlp_ratio=4.0,
+#         qkv_bias=False,
+#         qk_scale=None,
+#         drop=0.0,
+#         attn_drop=0.0,
+#         drop_path=0.0,
+#         sr_ratio=1,
+#         tau=2.0,
+#         step_mode='m'):
+#         super().__init__()
+
+#         self.attn = MS_Attention_RepConv3D_qkv_id(
+#             dim=dim,
+#             num_heads=num_heads,
+#             qkv_bias=qkv_bias,
+#             qk_scale=qk_scale,
+#             attn_drop=attn_drop,
+#             proj_drop=drop,
+#             sr_ratio=sr_ratio,
+#             tau=tau,
+#             step_mode=step_mode)
+
+#         self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
+
+#         mlp_hidden_dim = int(dim * mlp_ratio)
+#         self.mlp = MS_MLP3D(
+#             in_features=dim,
+#             hidden_features=mlp_hidden_dim,
+#             out_features=dim,
+#             tau=tau,
+#             step_mode=step_mode
+#         )
+
+#     def forward(self, x):
+#         # x: [T, B, C, D, H, W]
+#         # x = x + self.drop_path(self.attn(x))
+#         # x = x + self.drop_path(self.mlp(x))
+#         x = x + self.attn(x)
+#         x = x + self.mlp(x)
+#         return x
+
+
+class MS_DownSampling3D(nn.Module):
+    def __init__(
+        self,
+        in_channels=4,
+        embed_dims=96,
+        kernel_size=3,
+        stride=2,
+        padding=1,
+        first_layer=True,
+        tau=2.0,
+        step_mode='m'):
         super().__init__()
-        # self.norm = LayerNorm3D(channels, step_mode=step_mode)
-        self.norm = layer.GroupNorm(num_groups=num_groups, num_channels=channels, step_mode=step_mode)
-        functional.set_step_mode(self, step_mode)
+
+        self.encode_conv = layer.Conv3d(
+            in_channels,
+            embed_dims,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            bias=True,
+            step_mode=step_mode
+        )
+
+        self.encode_bn = layer.GroupNorm(num_groups=8, num_channels=embed_dims, step_mode=step_mode)
+
+        self.use_lif = not first_layer
+        if self.use_lif:
+            self.encode_lif = neuron.LIFNode(surrogate_function=surrogate.ATan(), step_mode=step_mode)
+            # self.encode_lif = neuron.ParametricLIFNode(
+            #     init_tau=tau,
+            #     decay_input=True,
+            #     #detach_reset=True,
+            #     v_threshold=1.0,
+            #     v_reset=0.0,
+            #     surrogate_function=surrogate.ATan(), 
+            #     step_mode=step_mode,
+            #     backend='torch'
+            #     )
+            
+    def forward(self, x):
+        # x: [T, B, C, D, H, W]
+        if self.use_lif:
+            x = self.encode_lif(x)
+        x = self.encode_conv(x)
+        x = self.encode_bn(x)
+        return x
+    
+    
+class MS_UpSampling3D(nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=3,
+        stride=2,
+        padding=1,
+        output_padding=1,
+        last_layer=False,
+        tau=2.0,
+        step_mode='m'
+    ):
+        super().__init__()
+
+        self.decode_conv = layer.ConvTranspose3d(
+            in_channels,
+            out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            output_padding=output_padding,
+            bias=True,
+            step_mode=step_mode
+        )
+
+        self.decode_bn = layer.GroupNorm(num_groups=8, num_channels=out_channels, step_mode=step_mode)
+
+        self.use_lif = not last_layer
+        if self.use_lif:
+            self.decode_lif = neuron.LIFNode(surrogate_function=surrogate.ATan(), step_mode=step_mode)
+            # self.decode_lif = neuron.ParametricLIFNode(
+            #     init_tau=tau,
+            #     decay_input=True,
+            #     #detach_reset=True,
+            #     v_threshold=1.0,
+            #     v_reset=0.0,
+            #     surrogate_function=surrogate.ATan(),
+            #     step_mode=step_mode,
+            #     backend='torch'
+            # )
+
+    def forward(self, x):
+        # x: [T, B, C, D, H, W]
+        x = self.decode_conv(x)
+        x = self.decode_bn(x)
+        if self.use_lif:
+            x = self.decode_lif(x)
+        return x    
+    
+ 
+class AddConverge3D(base.MemoryModule):
+    def __init__(self, channels, step_mode='m'):
+        super().__init__()
+        self.norm = layer.GroupNorm(num_groups=8, num_channels=channels, step_mode=step_mode)
 
     def forward(self, x1, x2):
         x = x1 + x2  # skip connection by addition
         x = self.norm(x)
+        return x 
+ 
+    
+
+class Spike_Former_Unet3D(nn.Module):
+    def __init__(
+        self,
+        in_channels=4,
+        num_classes=3,
+        embed_dim=[64, 128, 256, 512],
+        num_heads=[1, 2, 4, 8],
+        mlp_ratios=[4, 4, 4, 4],
+        qkv_bias=False,
+        qk_scale=None,
+        drop_rate=0.0,
+        attn_drop_rate=0.0,
+        drop_path_rate=0.0,
+        depths=[8, 8, 8, 8],
+        layers=[2, 2, 6, 2],
+        sr_ratios=[8, 4, 2, 1],
+        T=4,
+        step_mode='m'):
+        super().__init__()
+        self.T = T
+
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
+
+        # Encode-Stage 1
+        self.downsample1_a = MS_DownSampling3D(
+            in_channels=in_channels,
+            embed_dims=embed_dim[0] // 2,
+            kernel_size=7,
+            stride=2,
+            padding=3,
+            first_layer=False,
+            step_mode=step_mode)
+        
+        # self.encode_block1_a = nn.ModuleList([
+        #     MS_ConvBlock3D(dim=embed_dim[0] // 2, mlp_ratio=mlp_ratios[0], step_mode=step_mode)])
+
+        self.downsample1_b = MS_DownSampling3D(
+            in_channels=embed_dim[0] // 2,
+            embed_dims=embed_dim[0],
+            kernel_size=3,
+            stride=2,
+            padding=1,
+            first_layer=False,
+            step_mode=step_mode)
+        
+        # self.encode_block1_b = nn.ModuleList([
+        #     MS_ConvBlock3D(dim=embed_dim[0], mlp_ratio=mlp_ratios[0], step_mode=step_mode)])
+
+        # Encode-Stage 2
+        self.downsample2 = MS_DownSampling3D(
+            in_channels=embed_dim[0],
+            embed_dims=embed_dim[1],
+            kernel_size=3,
+            stride=2,
+            padding=1,
+            first_layer=False,
+            step_mode=step_mode)
+                
+        # self.encode_block2_a = nn.ModuleList([
+        #     MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], step_mode=step_mode)])
+       
+        # self.encode_block2_b = nn.ModuleList([
+        #     MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], step_mode=step_mode)])
+
+        # Encode-Stage 3
+        self.downsample3 = MS_DownSampling3D(
+            in_channels=embed_dim[1],
+            embed_dims=embed_dim[2],
+            kernel_size=3,
+            stride=2,
+            padding=1,
+            first_layer=False,
+            step_mode=step_mode)
+        
+        # self.encode_block3 = nn.ModuleList([
+        #     MS_Block3D(
+        #         dim=embed_dim[2],
+        #         num_heads=num_heads[2],
+        #         mlp_ratio=mlp_ratios[2],
+        #         qkv_bias=qkv_bias,
+        #         qk_scale=qk_scale,
+        #         drop=drop_rate,
+        #         attn_drop=attn_drop_rate,
+        #         drop_path=dpr[i],
+        #         sr_ratio=sr_ratios[2],
+        #         step_mode=step_mode
+        #     ) for i in range(layers[2])])
+
+        # feature-Stage
+        self.feature_downsample = MS_DownSampling3D(
+            in_channels=embed_dim[2],
+            embed_dims=embed_dim[3],
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            first_layer=False,
+            step_mode=step_mode)
+        
+        # self.feature_block = nn.ModuleList([
+        #     MS_Block3D(
+        #         dim=embed_dim[3],
+        #         num_heads=num_heads[3],
+        #         mlp_ratio=mlp_ratios[3],
+        #         qkv_bias=qkv_bias,
+        #         qk_scale=qk_scale,
+        #         drop=drop_rate,
+        #         attn_drop=attn_drop_rate,
+        #         drop_path=dpr[i],
+        #         sr_ratio=sr_ratios[3],
+        #         step_mode=step_mode
+        #     ) for i in range(layers[3])
+        # ])
+        
+        # Decode-Stage 3
+        self.upsample3 = MS_UpSampling3D(
+            in_channels=embed_dim[3],
+            out_channels=embed_dim[2],
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            output_padding=0,
+            last_layer=False,
+            step_mode=step_mode)
+        
+        # self.decode_block3 = nn.ModuleList([
+        #     MS_Block3D(
+        #         dim=embed_dim[2],
+        #         num_heads=num_heads[2],
+        #         mlp_ratio=mlp_ratios[2],
+        #         qkv_bias=qkv_bias,
+        #         qk_scale=qk_scale,
+        #         drop=drop_rate,
+        #         attn_drop=attn_drop_rate,
+        #         drop_path=dpr[i],
+        #         sr_ratio=sr_ratios[2],
+        #         step_mode=step_mode
+        #     ) for i in range(layers[2])])
+
+        
+        self.converge3 = AddConverge3D(channels=embed_dim[2], step_mode=step_mode)        
+        
+        # Decode-Stage 2
+        self.upsample2 = MS_UpSampling3D(
+            in_channels=embed_dim[2],
+            out_channels=embed_dim[1],
+            kernel_size=3,
+            stride=2,
+            padding=1,
+            last_layer=False,
+            step_mode=step_mode)
+                
+        # self.decode_block2_a = nn.ModuleList([
+        #     MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], step_mode=step_mode)])
+       
+        # self.decode_block2_b = nn.ModuleList([
+        #     MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], step_mode=step_mode)])
+        
+        self.converge2 = AddConverge3D(channels=embed_dim[1], step_mode=step_mode)  
+                   
+        # Decode-Stage 1
+        self.upsample1_b = MS_UpSampling3D(
+            in_channels=embed_dim[1],
+            out_channels= embed_dim[0],
+            kernel_size=3,
+            stride=2,
+            padding=1,
+            last_layer=False,
+            step_mode=step_mode)
+        
+        # self.decode_block1_b = nn.ModuleList([
+        #     MS_ConvBlock3D(dim=embed_dim[0], mlp_ratio=mlp_ratios[0], step_mode=step_mode)])
+        
+        self.upsample1_a = MS_UpSampling3D(
+            in_channels=embed_dim[0],
+            out_channels=embed_dim[0] // 2,
+            kernel_size=7,
+            stride=2,
+            padding=3,
+            last_layer=False,
+            step_mode=step_mode)
+        
+        # self.decode_block1_a = nn.ModuleList([
+        #     MS_ConvBlock3D(dim=embed_dim[0] // 2, mlp_ratio=mlp_ratios[0], step_mode=step_mode)])
+
+
+        self.converge1 = AddConverge3D(channels=embed_dim[0], step_mode=step_mode)  
+        
+        self.final_upsample = MS_UpSampling3D(
+            in_channels=embed_dim[0] // 2,
+            out_channels=embed_dim[0] // 4,
+            kernel_size=3,
+            stride=2,
+            padding=1,
+            last_layer=True,
+            step_mode=step_mode)
+        
+        
+        self.lif = neuron.ParametricLIFNode(
+            init_tau=2.0,
+            decay_input=True,
+            detach_reset=True,
+            v_threshold=1.0,
+            v_reset=0.0,
+            surrogate_function=surrogate.ATan(), 
+            step_mode=step_mode,
+            backend='torch')
+        
+        self.readout = layer.Conv3d(embed_dim[0] // 4, num_classes, kernel_size=1, step_mode=step_mode)
+
+        self.apply(self._init_weights)
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            trunc_normal_(m.weight, std=0.02)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.LayerNorm):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
+
+    def print_mem(self, name, x):
+        size_MB = x.numel() * x.element_size() / 1024 ** 2
+        print(f"[{name}] shape: {x.shape}, mem: {size_MB:.2f} MB")
         return x
 
 
-
-class SpikingSwinUNet3D(base.MemoryModule):
-    def __init__(self, in_channels=4, num_classes=3, embed_dim=cfg.embed_dim, layers=[2, 2, 4, 2], num_heads=cfg.num_heads,
-                 window_size=(4,4,4), dropout=0.1, T=8, num_norm_groups=cfg.num_norm_groups, step_mode='s'):
-        super().__init__()
-        self.T = T
-        self.step_mode = step_mode
-
-        self.patch_embed1 = SpikingPatchEmbed3D(
-            in_channels, embed_dim, patch_size=(4,4,4), num_groups=num_norm_groups[0], step_mode=step_mode)
-        self.down_stage1 = SpikingSwinTransformerStage3D(
-            embed_dim, num_heads[0], layers[0], window_size, dropout, num_groups=num_norm_groups[0], step_mode=step_mode)
-
-        self.patch_embed2 = SpikingPatchEmbed3D(
-            embed_dim, embed_dim * 2, patch_size=(2,2,2), num_groups=num_norm_groups[1], step_mode=step_mode)
-        self.down_stage2 = SpikingSwinTransformerStage3D(
-            embed_dim * 2, num_heads[1], layers[1], window_size, dropout, num_groups=num_norm_groups[1], step_mode=step_mode)
-
-        self.patch_embed3 = SpikingPatchEmbed3D(
-            embed_dim * 2, embed_dim * 4, patch_size=(2,2,2), num_groups=num_norm_groups[2], step_mode=step_mode)
-        self.down_stage3 = SpikingSwinTransformerStage3D(
-            embed_dim * 4, num_heads[2], layers[2], window_size, dropout, num_groups=num_norm_groups[2], step_mode=step_mode) 
+    def forward_encoder_decoder(self, x):         # input shape: [T, B, 4, 128, 128, 128]
+        # Encode-stage 1
+        e1 = self.downsample1_a(x)          # Downsample1_a output shape: [T, B, 48, 64, 64, 64]
+        # for blk in self.encode_block1_a:
+        #     e1 = blk(e1)                     # shape: [T, B, 48, 64, 64, 64]
         
-        self.patch_embed4 = SpikingPatchEmbed3D(
-            embed_dim * 4, embed_dim * 8, patch_size=(2,2,2), num_groups=num_norm_groups[3], step_mode=step_mode)
-        self.feature_stage = SpikingSwinTransformerStage3D(
-            embed_dim * 8, num_heads[3], layers[3], window_size, dropout, num_groups=num_norm_groups[3], step_mode=step_mode)
-
-        self.patch_expand3 = SpikingPatchExpand3D(
-            embed_dim * 8, embed_dim * 4, dropout=dropout, num_groups=num_norm_groups[2], step_mode=step_mode)
-        self.up_stage3 = SpikingSwinTransformerStage3D(
-            embed_dim * 4, num_heads[2], layers[2], window_size, dropout, num_groups=num_norm_groups[2], step_mode=step_mode)
-        self.converge3 = SpikingAddConverge3D(embed_dim * 4, num_groups=num_norm_groups[2], step_mode=step_mode)
+        e1 = self.downsample1_b(e1)          # Downsample1_b output shape: [T, B, 96, 32, 32, 32]
+        # for blk in self.encode_block1_b:
+        #     e1 = blk(e1)
+        #self.print_mem("After-Encode-Stage 1", e1) 
+        skip1 = e1                 # Skip2 shape: [T, B, 96, 32, 32, 32]
+        #self.print_mem("Skip1", skip1)
+        # Encode-stage 2
+        e2 = self.downsample2(e1)            # Downsample2 output shape: [T, B, 192, 16, 16, 16]
+        # for blk in self.encode_block2_a:
+        #     e2 = blk(e2)
+        # for blk in self.encode_block2_b:
+        #     e2 = blk(e2)
+        #self.print_mem("After-Encode-Stage 2", e2)
+        skip2 = e2                  # Skip3 shape: [T, B, 192, 16, 16, 16]
+        # self.print_mem("Skip2", skip2)
+        # # Encode-stage 3
+        # e3 = self.downsample3(e2)            # Downsample3 output shape: [T, B, 384, 8, 8, 8]
+        # # for blk in self.encode_block3:
+        # #     e3 = blk(e3)
+        # self.print_mem("After-Encode-Stage 3", e3)
+        # skip3 = e3                  # Skip4 shape: [T, B, 384, 8, 8, 8]
+        # self.print_mem("Skip3", skip3)
+        # # Encode-stage 4
+        # e4 = self.feature_downsample(e3)     # Downsample4 output shape: [T, B, 480, 8, 8, 8]
+        # # for blk in self.feature_block:
+        # #     e4 = blk(e4)                     # After Encode-Stage 4: [T, B, 480, 8, 8, 8]
+        # self.print_mem("After-Encode-Stage 4", e4)
         
-        self.patch_expand2 = SpikingPatchExpand3D(
-            embed_dim * 4, embed_dim * 2, dropout=dropout, num_groups=num_norm_groups[1], step_mode=step_mode)
-        self.up_stage2 = SpikingSwinTransformerStage3D(
-            embed_dim * 2, num_heads[1], layers[1], window_size, dropout, num_groups=num_norm_groups[1], step_mode=step_mode)
-        self.converge2 = SpikingAddConverge3D(embed_dim * 2, num_groups=num_norm_groups[1], step_mode=step_mode)
-
-        self.patch_expand1 = SpikingPatchExpand3D(
-            embed_dim * 2, embed_dim, dropout=dropout, num_groups=num_norm_groups[0], step_mode=step_mode)
-        self.up_stage1 = SpikingSwinTransformerStage3D(
-            embed_dim, num_heads[0], layers[0], window_size, dropout, num_groups=num_norm_groups[0], step_mode=step_mode)
-        self.converge1 = SpikingAddConverge3D(embed_dim, num_groups=num_norm_groups[0], step_mode=step_mode)
-
-
-        self.final_expand = FinalSpikingPatchExpand3D(
-            embed_dim, embed_dim // 3, kernel_size=4, stride=4, dropout=dropout, num_groups=4, step_mode=step_mode)
-
-        self.readout = layer.Conv3d(embed_dim // 3, num_classes, kernel_size=1, step_mode=step_mode)
+        # # Decode-Stage 3
+        # d3 = self.upsample3(e4)              # Upsample3 output shape: [T, B, 384, 8, 8, 8]
+        # d3 = self.converge3(d3, skip3)       # converge3 output shape: [T, B, 384, 8, 8, 8]
+        # # for blk in self.decode_block3:
+        # #     d3 = blk(d3)                     # After Decode-Stage3: [T, B, 384, 8, 8, 8]
+        # self.print_mem("After-Decode-Stage 3", d3)
         
-        functional.set_step_mode(self, step_mode)
+        # # Decode-Stage 2
+        # d2 = self.upsample2(d3)              # Upsample2 output shape: [T, B, 192, 16, 16, 16]
+        # d2 = self.converge2(d2, skip2)       # Converge2 output shape: [T, B, 192, 16, 16, 16]
+        # # for blk in self.decode_block2_a:
+        # #     d2 = blk(d2)
+        # # for blk in self.decode_block2_b:
+        # #     d2 = blk(d2)                     # After Decode-Stage2: [T, B, 192, 16, 16, 16]
+        # self.print_mem("After-Decode-Stage 2", d2)
 
-    def forward(self, x_seq):
-        functional.reset_net(self)
+        # Decode-Stage 1
+        d1 = self.upsample1_b(e2)            # Upsample1_b output shape: [T, B, 96, 32, 32, 32]
+        d1 = self.converge1(d1, skip1)       # Converge1 output shape: [T, B, 96, 32, 32, 32]
+        # for blk in self.decode_block1_b:
+        #     d1 = blk(d1)
         
-        # step_mode = 's': x shape is [B, C, D, H, W]       
-        if self.step_mode == 's':
-        
-            spike_sum = None
-
-            for t in range(self.T):
-                x = x_seq[t]
-                if x.dim() == 4:
-                    x = x.unsqueeze(0)
-                elif x.dim() != 5:
-                    raise ValueError(f"Input shape must be 4D or 5D, but got {x.dim()}D")
-                
-                e1 = self.patch_embed1(x)          # x shape: [B, 4, 128, 128, 128]
-                e1 = self.down_stage1(e1)               # e1 shape: [B, 96, 32, 32, 32]
-                e2 = self.patch_embed2(e1)
-                e2 = self.down_stage2(e2)               # e2 shape: [B, 192, 16, 16, 16]
-                e3 = self.patch_embed3(e2)
-                e3 = self.down_stage3(e3)               # e3 shape: [B, 384, 8, 8, 8]
-
-                feature = self.patch_embed4(e3)
-                feature = self.feature_stage(feature)       # e3 shape: [B, 768, 4, 4, 4]
-
-                d3 = self.patch_expand3(feature)      # d3 shape: [B, 384, 8, 8, 8]
-                d3 = self.up_stage3(d3)              # d3 shape after decode: [B, 384, 8, 8, 8]
-                d3 = self.converge3(d3,e3)        # d3 shape after converge: [B, 384, 8, 8, 8]
-                
-                d2 = self.patch_expand2(d3)      # d3 shape: [B, 192, 16, 16, 16]
-                d2 = self.up_stage2(d2)              # d3 shape after decode: [B, 192, 16, 16, 16]
-                d2 = self.converge2(d2,e2)        # d3 shape after converge: [B, 192, 16, 16, 16]
-
-                d1 = self.patch_expand1(d2)            # d2 shape: [B, 96, 32, 32, 32] 
-                d1 = self.up_stage1(d1)                 # d2 shape after decode: [B, 96, 32, 32, 32]  
-                d1 = self.converge1(d1,e1)       # d2 shape after converge: [B, 96, 32, 32, 32]
-
-                d0 = self.final_expand(d1)            # d1 shape: [B, 32, 128, 128, 128]
-
-                out_t = self.readout(d0)          # out_t shape: [B, 3, 128, 128, 128]
-                spike_sum = out_t if spike_sum is None else spike_sum + out_t
-
-            return spike_sum / self.T
-        
-        # step_mode = 'm': x shape is [T, B, C, D, H, W]
-        elif self.step_mode == 'm':
-            x = x_seq
+        d1 = self.upsample1_a(d1)            # Upsample1_a output shape: [T, B, 48, 64, 64, 64]
+        # for blk in self.decode_block1_a:
+        #     d1 = blk(d1)
             
-            if x.dim() != 6:
-                raise ValueError(f"Input shape must be 6D, but got {x.dim()}D")
+        out =self.final_upsample(d1)          # Final Upsample output shape: [T, B, 24, 128, 128, 128]
+        #self.print_mem("After-Final-Upsample", out)
 
-            e1 = self.patch_embed1(x)
-            e1 = self.down_stage1(e1)
-            e2 = self.patch_embed2(e1)
-            e2 = self.down_stage2(e2)
+        return out
 
-            e3 = self.patch_embed3(e2)
-            e3 = self.down_stage3(e3)
+    def forward(self, x):
+        out = self.forward_encoder_decoder(x)
 
-            feature = self.patch_embed4(e3)
-            feature = self.feature_stage(feature)
+        # Readout
+        # out_lif = self.lif(out) 
+        output = self.readout(out).mean(0)  # [3, 128, 128, 128]
 
-            d3 = self.patch_expand3(feature)
-            d3 = self.up_stage3(d3)
-            d3 = self.converge3(d3, e3)
-            
-            d2 = self.patch_expand2(d3)
-            d2 = self.up_stage2(d2)
-            d2 = self.converge2(d2, e2)
+        return output
 
-            d1 = self.patch_expand1(d2)
-            d1 = self.up_stage1(d1)
-            d1 = self.converge1(d1, e1)
 
-            d0 = self.final_expand(d1)
-            out = self.readout(d0)
-            out = out.mean(0)
-            return out
-        
+    
+def spike_former_unet3D_8_384(in_channels=4, num_classes=3, T=4, step_mode='m',**kwargs):
+    model = Spike_Former_Unet3D(
+        in_channels=in_channels,
+        num_classes=num_classes,
+        embed_dim=[96, 192, 384, 480],
+        num_heads=[8, 8, 8, 8],
+        mlp_ratios=[4, 4, 4, 4],
+        qkv_bias=False,
+        depths=[8, 8, 8, 8],
+        sr_ratios=[1, 1, 1, 1],
+        T=T,
+        step_mode=step_mode,
+        **kwargs
+    )
+    return model
+
+
+def spike_former_unet3D_8_512(in_channels=4, num_classes=3, T=4, step_mode='m',**kwargs):
+    model = Spike_Former_Unet3D(
+        in_channels=in_channels,
+        num_classes=num_classes,
+        embed_dim=[128, 256, 512, 640],
+        num_heads=[8, 8, 8, 8],
+        mlp_ratios=[4, 4, 4, 4],
+        qkv_bias=False,
+        depths=[8, 8, 8, 8],
+        sr_ratios=[1, 1, 1, 1],
+        T=T,
+        step_mode=step_mode,
+        **kwargs,
+    )
+    return model
+
+
+def spike_former_unet3D_8_768(in_channels=4, num_classes=3, T=4, step_mode='m',**kwargs):
+    model = Spike_Former_Unet3D(
+        in_channels=in_channels,
+        num_classes=num_classes,
+        embed_dim=[192, 384, 768, 960],
+        num_heads=[8, 8, 8, 8],
+        mlp_ratios=[4, 4, 4, 4],
+        qkv_bias=False,
+        depths=[8, 8, 8, 8],
+        sr_ratios=[1, 1, 1, 1],
+        T=T,
+        step_mode=step_mode,
+        **kwargs,
+    )
+    return model    
+    
+    
         
 def main():
     # 测试模型
-    model = SpikingSwinUNet3D(in_channels=4, num_classes=3, embed_dim=96, layers=[2, 2, 4, 2], num_heads=[3, 6, 12, 24], window_size=(4, 4, 4), dropout=0.1, T=2, step_mode='s')
-    x = torch.randn(2, 1, 4, 128, 128, 128)  # 假设输入是一个 batch 的数据
+    device = torch.device("cuda:1")
+    model = spike_former_unet3D_8_384().to(device)
+    x = torch.randn(2, 4, 128, 128, 128)  # 假设输入是一个 batch 的数据
+    x = x.to(device)
     output = model(x)
     print(output.shape)  # 输出形状应该是 [1, 3, 128, 128, 128]
     

@@ -1,10 +1,11 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import torch
 import torch.optim as optim
 from sklearn.model_selection import KFold
-from spike_former_unet_model import SpikingSwinUNet3D
+from spike_former_unet_model import spike_former_unet3D_8_384
+from spiking_simple_unet_model_groupnorm import SpikingSwinUNet3D
 from losses import BratsDiceLoss, BratsFocalLoss, AdaptiveRegionalLoss
 from utils import init_weights, save_metrics_to_file
 from train import train_fold, get_scheduler, EarlyStopping
@@ -29,6 +30,7 @@ def setseed(seed):
 
 # 主执行流程：5折交叉验证
 def main():
+    torch.autograd.set_detect_anomaly(True)
     # 设置随机种子
     setseed(cfg.seed)
     
@@ -69,16 +71,19 @@ def main():
     # print("weights device:", criterion.weights.device)
     # 开始交叉验证
     for fold, (train_idx, val_idx) in enumerate(kf.split(case_dirs)):
+        # model = spike_former_unet3D_8_384(
+        #     num_classes=cfg.num_classes,
+        #     T=cfg.T,
+        #     step_mode=cfg.step_mode).to(cfg.device)  # 模型
         model = SpikingSwinUNet3D(
             num_classes=cfg.num_classes,
             window_size=cfg.window_size,
             T=cfg.T,
-            step_mode=cfg.step_mode).to(cfg.device)  # 模型
-        model.apply(init_weights)
+            step_mode=cfg.step_mode).to(cfg.device) 
         optimizer = optim.AdamW(model.parameters(), lr=cfg.base_lr, eps=1e-8, weight_decay=1e-4)
         scheduler = get_scheduler(optimizer, cfg.num_warmup_epochs, cfg.num_epochs, 
                                   cfg.base_lr, cfg.min_lr, cfg.scheduler, cfg.power)
-        early_stopping = EarlyStopping(patience=cfg.early_stop_patience, delta=0.0001)
+        early_stopping = EarlyStopping(patience=cfg.early_stop_patience, delta=0)
 
         # 根据交叉验证划分数据集
         train_case_dirs = [case_dirs[i] for i in train_idx]
