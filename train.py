@@ -28,7 +28,7 @@ class SpikeRateMonitor:
     def register_hooks(self, model):
         self.reset()
         for name, module in model.named_modules():
-            # 可根据你模型的结构筛选 spiking 层
+            # 可根据模型的结构筛选 spiking 层
             if isinstance(module, torch.nn.Module) and 'Spiking' in str(type(module)):
                 handle = module.register_forward_hook(self._hook_fn(name))
                 self.handles.append(handle)

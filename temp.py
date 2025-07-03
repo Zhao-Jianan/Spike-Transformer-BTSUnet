@@ -1,85 +1,77 @@
-class MS_Attention_RepConv_qkv_id(nn.Module):
-    def __init__(
-        self,
-        dim,
-        num_heads=8,
-        qkv_bias=False,
-        qk_scale=None,
-        attn_drop=0.0,
-        proj_drop=0.0,
-        sr_ratio=1,
-    ):
+class BNAndPad3DLayer(nn.Module):
+    def __init__(self, pad_voxels, num_features, step_mode='m', **bn_kwargs):
+        """
+        3D BN+ padding组合，支持单步和多步模式。
+
+        :param pad_voxels: int，前后上下左右各方向填充的体素数
+        :param num_features: 通道数
+        :param bn_kwargs: 传给 BatchNorm3d 的额外参数，如 eps、momentum 等
+        """
         super().__init__()
-        assert (
-            dim % num_heads == 0
-        ), f"dim {dim} should be divided by num_heads {num_heads}."
-        self.dim = dim
-        self.num_heads = num_heads
-        self.scale = 0.125
+        self.pad_voxels = pad_voxels
+        # self.bn = layer.BatchNorm3d(num_features, step_mode=step_mode, **bn_kwargs)
+        self.bn = layer.GroupNorm(num_groups=8, num_channels=num_features, step_mode=step_mode)
+        
+        self.step_mode = step_mode
 
-        self.head_lif = MultiStepLIFNode(tau=2.0, detach_reset=True, backend="cupy")
+    def _compute_pad_value(self):
+        if self.bn.affine:
+            pad_value = (
+                self.bn.bias.detach()
+                - self.bn.running_mean * self.bn.weight.detach() / torch.sqrt(self.bn.running_var + self.bn.eps))
+        else:
+            pad_value = -self.bn.running_mean / torch.sqrt(self.bn.running_var + self.bn.eps)
+        return pad_value.view(1, -1, 1, 1, 1)  # reshape to [1, C, 1, 1, 1]
 
-        self.q_conv = nn.Sequential(RepConv(dim, dim, bias=False), nn.BatchNorm2d(dim))
-
-        self.k_conv = nn.Sequential(RepConv(dim, dim, bias=False), nn.BatchNorm2d(dim))
-
-        self.v_conv = nn.Sequential(RepConv(dim, dim, bias=False), nn.BatchNorm2d(dim))
-
-        self.q_lif = MultiStepLIFNode(tau=2.0, detach_reset=True, backend="cupy")
-
-        self.k_lif = MultiStepLIFNode(tau=2.0, detach_reset=True, backend="cupy")
-
-        self.v_lif = MultiStepLIFNode(tau=2.0, detach_reset=True, backend="cupy")
-
-        self.attn_lif = MultiStepLIFNode(
-            tau=2.0, v_threshold=0.5, detach_reset=True, backend="cupy"
-        )
-
-        self.proj_conv = nn.Sequential(
-            RepConv(dim, dim, bias=False), nn.BatchNorm2d(dim)
-        )
+    def _pad_tensor(self, x, pad_value):
+        pad = [self.pad_voxels] * 6  # [W_left, W_right, H_top, H_bottom, D_front, D_back]
+        x = F.pad(x, pad)  # 使用0填充
+        # 再替换成 pad_value
+        x[:, :, :self.pad_voxels, :, :] = pad_value
+        x[:, :, -self.pad_voxels:, :, :] = pad_value
+        x[:, :, :, :self.pad_voxels, :] = pad_value
+        x[:, :, :, -self.pad_voxels:, :] = pad_value
+        x[:, :, :, :, :self.pad_voxels] = pad_value
+        x[:, :, :, :, -self.pad_voxels:] = pad_value
+        return x
 
     def forward(self, x):
-        T, B, C, H, W = x.shape
-        N = H * W
+        if self.step_mode == 's':
+            x = self.bn(x)  # shape: [N, C, D, H, W]
+            if self.pad_voxels > 0:
+                pad_value = self._compute_pad_value()
+                x = self._pad_tensor(x, pad_value)
+            return x
 
-        x = self.head_lif(x)
+        elif self.step_mode == 'm':
+            if x.dim() != 6:
+                raise ValueError(f"Expected input shape [T, N, C, D, H, W], but got {x.shape}")
+            x = self.bn(x)
+            if self.pad_voxels > 0:
+                pad_value = self._compute_pad_value()
+                # 对每个时间步进行 padding
+                padded = []
+                for t in range(x.shape[0]):
+                    padded.append(self._pad_tensor(x[t], pad_value))
+                x = torch.stack(padded, dim=0)  # [T, N, C, D+2p, H+2p, W+2p]
+            return x
 
-        q = self.q_conv(x.flatten(0, 1)).reshape(T, B, C, H, W)
-        k = self.k_conv(x.flatten(0, 1)).reshape(T, B, C, H, W)
-        v = self.v_conv(x.flatten(0, 1)).reshape(T, B, C, H, W)
+    @property
+    def weight(self):
+        return self.bn.weight
 
-        q = self.q_lif(q).flatten(3)
-        q = (
-            q.transpose(-1, -2)
-            .reshape(T, B, N, self.num_heads, C // self.num_heads)
-            .permute(0, 1, 3, 2, 4)
-            .contiguous()
-        )
+    @property
+    def bias(self):
+        return self.bn.bias
 
-        k = self.k_lif(k).flatten(3)
-        k = (
-            k.transpose(-1, -2)
-            .reshape(T, B, N, self.num_heads, C // self.num_heads)
-            .permute(0, 1, 3, 2, 4)
-            .contiguous()
-        )
+    @property
+    def running_mean(self):
+        return self.bn.running_mean
 
-        v = self.v_lif(v).flatten(3)
-        v = (
-            v.transpose(-1, -2)
-            .reshape(T, B, N, self.num_heads, C // self.num_heads)
-            .permute(0, 1, 3, 2, 4)
-            .contiguous()
-        )
+    @property
+    def running_var(self):
+        return self.bn.running_var
 
-        x = k.transpose(-2, -1) @ v
-        x = (q @ x) * self.scale
-
-        x = x.transpose(3, 4).reshape(T, B, C, N).contiguous()
-        x = self.attn_lif(x).reshape(T, B, C, H, W)
-        x = x.reshape(T, B, C, H, W)
-        x = x.flatten(0, 1)
-        x = self.proj_conv(x).reshape(T, B, C, H, W)
-
-        return x
+    @property
+    def eps(self):
+        return self.bn.eps

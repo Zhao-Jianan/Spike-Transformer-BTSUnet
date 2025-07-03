@@ -1,0 +1,17 @@
+[Finish]
+
+
+[Running]
+[1]
+nohup python spikeformerunet1/main.py > New-1-log_bra18_4T_basespikeunet_1batch_1e3_1e6_poly20_paralif_regionloss.out 2>&1 &
+[2]
+nohup python spikeformerunet2/main.py > New-2-log_bra18_simpleunet_1batch_1e3_1e6_poly20_paralif_regionloss.out 2>&1 &
+[3]
+nohup python spikeformerunet3/main.py > New-3-log_bra18_4T_spikeformerunet_64p2b_5e4_1e6_poly20_paralif_regionloss.out 2>&1 &
+[4]
+nohup python spikeformerunet4/main.py > New-4-log_bra18_4T_basespikeunet_64p2b_5e4_1e6_poly20_paralif_regionloss.out 2>&1 &
+
+ps -u $USER -f | grep python
+pgrep -u $USER -a python
+pkill -f filename.py
+pkill -f snnproject10/main.py

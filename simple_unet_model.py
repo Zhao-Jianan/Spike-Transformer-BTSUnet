@@ -536,26 +536,12 @@ class MS_DownSampling3D(nn.Module):
         self.encode_norm = layer.GroupNorm(num_groups=8, num_channels=embed_dims, step_mode=step_mode)
 
         self.relu = TimeDistributed(nn.ReLU())
-        self.use_lif = not first_layer
-        if self.use_lif:
-            # self.encode_lif = neuron.LIFNode(surrogate_function=surrogate.ATan(), step_mode=step_mode)
-            self.encode_lif = neuron.ParametricLIFNode(
-                init_tau=tau,
-                decay_input=True,
-                detach_reset=True,
-                v_threshold=1.0,
-                v_reset=0.0,
-                surrogate_function=surrogate.ATan(), 
-                step_mode=step_mode,
-                #backend='cupy'
-                )
             
     def forward(self, x):
         # x: [T, B, C, D, H, W]
-        if self.use_lif:
-            x = self.encode_lif(x)
         x = self.encode_conv(x)
         x = self.encode_norm(x)
+        x = self.relu(x)
         return x
     
     
@@ -586,28 +572,14 @@ class MS_UpSampling3D(nn.Module):
         )
 
         self.decode_norm = layer.GroupNorm(num_groups=8, num_channels=out_channels, step_mode=step_mode)
-
-        self.use_lif = not last_layer
-        if self.use_lif:
-            # self.decode_lif = neuron.LIFNode(surrogate_function=surrogate.ATan(), step_mode=step_mode)
-            self.decode_lif = neuron.ParametricLIFNode(
-                init_tau=tau,
-                decay_input=True,
-                detach_reset=True,
-                v_threshold=1.0,
-                v_reset=0.0,
-                surrogate_function=surrogate.ATan(),
-                step_mode=step_mode,
-                #backend='cupy'
-            )
+        self.relu = TimeDistributed(nn.ReLU())
 
     def forward(self, x):
         # x: [T, B, C, D, H, W]
         x = self.decode_conv(x)
         x = self.decode_norm(x)
-        if self.use_lif:
-            x = self.decode_lif(x)
-        return x    
+        x = self.relu(x)
+        return x 
     
  
 class AddConverge3D(base.MemoryModule):
@@ -920,7 +892,6 @@ def spike_former_unet3D_8_384(in_channels=4, num_classes=3, T=4, step_mode='m',*
         mlp_ratios=[4, 4, 4, 4],
         qkv_bias=False,
         depths=[8, 8, 8, 8],
-        layers=[2, 2, 6, 2],
         sr_ratios=[1, 1, 1, 1],
         T=T,
         step_mode=step_mode,
@@ -962,7 +933,8 @@ def spike_former_unet3D_8_768(in_channels=4, num_classes=3, T=4, step_mode='m',*
     )
     return model    
     
-       
+    
+        
 def main():
     # 测试模型
     device = torch.device("cuda:0")

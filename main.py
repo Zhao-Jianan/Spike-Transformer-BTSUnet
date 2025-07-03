@@ -1,22 +1,20 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import torch
 import torch.optim as optim
 from sklearn.model_selection import KFold
 from spike_former_unet_model import spike_former_unet3D_8_384
-from spiking_simple_unet_model_groupnorm import SpikingSwinUNet3D
+# from simple_unet_model import spike_former_unet3D_8_384
 from losses import BratsDiceLoss, BratsFocalLoss, AdaptiveRegionalLoss
 from utils import init_weights, save_metrics_to_file
 from train import train_fold, get_scheduler, EarlyStopping
 from plot import plot_metrics
 from data_loader import get_data_loaders
-from config import config as cfg
+from config import config as cfg        
 from glob import glob
-import time
 import random
 import numpy as np
-from monai.utils import set_determinism
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy("file_system")
 
@@ -30,11 +28,9 @@ def setseed(seed):
 
 # 主执行流程：5折交叉验证
 def main():
-    torch.autograd.set_detect_anomaly(True)
     # 设置随机种子
     setseed(cfg.seed)
     
-    # case_dirs = [os.path.join(cfg.root_dir, d) for d in os.listdir(cfg.root_dir) if os.path.isdir(os.path.join(cfg.root_dir, d))]
     case_dirs = []
     for root in cfg.root_dirs:  # e.g., ['./data/HGG', './data/LGG']
         if not os.path.isdir(root):
@@ -71,15 +67,10 @@ def main():
     # print("weights device:", criterion.weights.device)
     # 开始交叉验证
     for fold, (train_idx, val_idx) in enumerate(kf.split(case_dirs)):
-        # model = spike_former_unet3D_8_384(
-        #     num_classes=cfg.num_classes,
-        #     T=cfg.T,
-        #     step_mode=cfg.step_mode).to(cfg.device)  # 模型
-        model = SpikingSwinUNet3D(
+        model = spike_former_unet3D_8_384(
             num_classes=cfg.num_classes,
-            window_size=cfg.window_size,
             T=cfg.T,
-            step_mode=cfg.step_mode).to(cfg.device) 
+            step_mode=cfg.step_mode).to(cfg.device)  # 模型
         optimizer = optim.AdamW(model.parameters(), lr=cfg.base_lr, eps=1e-8, weight_decay=1e-4)
         scheduler = get_scheduler(optimizer, cfg.num_warmup_epochs, cfg.num_epochs, 
                                   cfg.base_lr, cfg.min_lr, cfg.scheduler, cfg.power)

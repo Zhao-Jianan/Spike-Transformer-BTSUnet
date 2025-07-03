@@ -29,16 +29,16 @@ class Config:
         
         self.encode_method = 'none'  # poisson, latency, weighted_phase, none
 
-        self.patch_size = [128, 128, 128]
-        self.window_size = [it // 32 for it in self.patch_size]
-        self.embed_dim = 96
-        self.num_heads = [4, 6, 8, 12]  # 96-[4, 6, 8, 12]
+        self.patch_size = [64, 64, 64]# [128, 128, 128]
+        # self.window_size = [it // 32 for it in self.patch_size]
+        # self.embed_dim = 96
+        # self.num_heads = [4, 6, 8, 12]  # 96-[4, 6, 8, 12]
 
         self.num_classes = 3
-        self.T = 1
-        self.num_norm_groups = [8, 12, 24, 32] 
+        self.T = 4
+        # self.num_norm_groups = [8, 12, 24, 32] 
         self.num_epochs = 600
-        self.batch_size = 1
+        self.batch_size = 2
         self.k_folds = 5
         
         self.loss_function = 'adaptive_regional' # dice, focal, adaptive_regional
@@ -53,9 +53,9 @@ class Config:
         self.scheduler = 'polynomial' # cosine, polynomial
         self.power = 2.0  # 300-2.0
         self.num_warmup_epochs = -1  # -1表示不使用warmup
-        self.early_stop_patience = 80
+        self.early_stop_patience = 50
         
-        self.base_lr = 1e-3
+        self.base_lr = 5e-4 # 1e-3
         self.min_lr = 1e-6
 
         self.step_mode = 'm'

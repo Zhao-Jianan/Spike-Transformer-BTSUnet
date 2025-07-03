@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from monai.losses import DiceLoss as MonaiDiceLoss
 
 class DiceCrossEntropyLoss(nn.Module):
     def __init__(self, weight=None, dice_weight=1.0, smooth=1e-6):
@@ -38,50 +37,7 @@ class DiceCrossEntropyLoss(nn.Module):
 
         return ce + self.dice_weight * dice_loss
     
-
-class DiceLoss(nn.Module):
-    def __init__(self, smooth=1e-6):
-        """
-        :param smooth: smoothing to avoid division by zero
-        """
-        super(DiceLoss, self).__init__()
-        self.smooth = smooth
-        self.weights = {
-            1: 2.0,   # Tumor Core (TC)
-            2: 1.0,   # Edema
-            3: 2.5    # Enhancing Tumor (ET)
-        }
-
-    def forward(self, pred, target):
-        """
-        :param pred: model prediction logits of shape [B, C, D, H, W]
-        :param target: ground truth labels of shape [B, D, H, W]
-        """
-        num_classes = pred.shape[1]
-        
-        # Convert target to one-hot format: shape [B, C, D, H, W]
-        target_onehot = F.one_hot(target, num_classes).permute(0, 4, 1, 2, 3).contiguous().float()
-
-        # Apply softmax to logits to get probabilities
-        pred_soft = F.softmax(pred, dim=1)
-
-        # Compute Dice loss
-        dims = (0, 2, 3, 4)  # batch and spatial dims
-        intersection = torch.sum(pred_soft * target_onehot, dims)
-        cardinality = torch.sum(pred_soft + target_onehot, dims)
-        dice_per_class = (2. * intersection + self.smooth) / (cardinality + self.smooth)
-
-        # Skip background class if needed (i.e., dice_per_class[1:])
-        loss = 0.0
-        total_weight = 0.0
-        for cls in range(1, num_classes):
-            weight = self.weights.get(cls, 1.0)  # 若未设定权重，默认权重为 1.0
-            loss += weight * (1.0 - dice_per_class[cls])
-            total_weight += weight
-
-        return loss / total_weight
-    
-    
+  
     
 class BratsDiceLoss(nn.Module):
     def __init__(self, 
