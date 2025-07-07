@@ -28,8 +28,8 @@ def find_best_val_mean_dice(json_path):
 
 def main():
     root_path = "./Result/"
-    experiment_name = "49-entile18_T4_aware_1e3_1e6_poly20_214_noposembed_groupnorm_aug_2drop"
-    fold_num = "1"
+    experiment_name = "7-bra18_4T_transspikeunet_64p2b_5e4_1e6_poly20_paralif_regionloss"
+    fold_num = "5"
     file_path = f"{root_path}{experiment_name}/fold_{fold_num}_metrics.json"
 
     find_best_val_mean_dice(file_path)

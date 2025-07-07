@@ -4,7 +4,6 @@ import torch.nn.functional as F
 from spikingjelly.activation_based import neuron, functional, surrogate, layer, base
 from timm.layers import trunc_normal_, DropPath
 
-
 class NormAndPad3DLayer(nn.Module):
     def __init__(self, pad_voxels, num_features, norm_type='group', step_mode='m', num_groups=8, **norm_kwargs):
         """
@@ -59,6 +58,29 @@ class NormAndPad3DLayer(nn.Module):
         x[:, :, :, :, :self.pad_voxels] = pad_value
         x[:, :, :, :, -self.pad_voxels:] = pad_value
         return x
+    
+    def _pad_tensor_batch(self, x, pad_value):
+        # 输入x形状: [T, N, C, D, H, W]
+        T, N, C, D, H, W = x.shape
+
+        # 将时间和批量维度合并，方便一次pad
+        x = x.view(T * N, C, D, H, W)
+
+        pad = [self.pad_voxels] * 6  # pad格式：左右、上下、前后
+
+        x = F.pad(x, pad)  # 先用0填充
+
+        # 用计算的pad_value替换边缘voxels
+        x[:, :, :self.pad_voxels, :, :] = pad_value  # D轴前面
+        x[:, :, -self.pad_voxels:, :, :] = pad_value  # D轴后面
+        x[:, :, :, :self.pad_voxels, :] = pad_value  # H轴上面
+        x[:, :, :, -self.pad_voxels:, :] = pad_value  # H轴下面
+        x[:, :, :, :, :self.pad_voxels] = pad_value  # W轴左边
+        x[:, :, :, :, -self.pad_voxels:] = pad_value  # W轴右边
+
+        # 恢复成原始6维形状，包含pad后尺寸
+        x = x.view(T, N, C, D + 2 * self.pad_voxels, H + 2 * self.pad_voxels, W + 2 * self.pad_voxels)
+        return x
 
     def forward(self, x):
         if self.step_mode == 's':
@@ -74,8 +96,7 @@ class NormAndPad3DLayer(nn.Module):
             x = self.norm(x)
             if self.pad_voxels > 0:
                 pad_value = self._compute_pad_value()
-                padded = [self._pad_tensor(x[t], pad_value) for t in range(x.shape[0])]
-                x = torch.stack(padded, dim=0)
+                x = self._pad_tensor_batch(x, pad_value)
             return x
 
     @property
@@ -93,7 +114,7 @@ class NormAndPad3DLayer(nn.Module):
 
 
 class RepConv3D(nn.Module):
-    def __init__(self, in_channel, out_channel, pad_voxels=1, bias=False, step_mode='m'):
+    def __init__(self, in_channel, out_channel, pad_voxels=1, norm_type='group', bias=False, step_mode='m'):
         super().__init__()
 
         # 1x1 projection conv
@@ -101,7 +122,7 @@ class RepConv3D(nn.Module):
                                       kernel_size=1, stride=1, padding=0, bias=bias, step_mode=step_mode)
 
         # Norm + Padding
-        self.norm_pad = NormAndPad3DLayer(pad_voxels=pad_voxels, num_features=in_channel, step_mode=step_mode)
+        self.norm_pad = NormAndPad3DLayer(pad_voxels=pad_voxels, num_features=in_channel, step_mode=step_mode, norm_type=norm_type)
 
         # Depthwise 3x3 conv
         self.dw_conv3x3 = layer.Conv3d(in_channels=in_channel, out_channels=in_channel,
@@ -114,8 +135,10 @@ class RepConv3D(nn.Module):
                                        step_mode=step_mode)
 
         # Output Norm
-        # self.out_norm = layer.BatchNorm3d(num_features=out_channel, step_mode=step_mode)
-        self.out_norm = layer.GroupNorm(num_groups=8, num_channels=out_channel, step_mode=step_mode)
+        if norm_type == 'batch':
+            self.out_norm = layer.BatchNorm3d(num_features=out_channel, step_mode=step_mode)
+        elif norm_type == 'group':
+            self.out_norm = layer.GroupNorm(num_groups=8, num_channels=out_channel, step_mode=step_mode)
 
     def forward(self, x):  
         x = self.proj_conv(x)          # 1×1 conv
@@ -140,11 +163,21 @@ class SepConv3D(nn.Module):
         padding=3,
         tau=2.0,
         step_mode='m',
+        norm_type='group',
         bias=False):
         super().__init__()
         med_channels = int(expansion_ratio * dim)
 
         # spike layer 1
+        # self.lif1 = neuron.LIFNode(
+        #     tau=tau,
+        #     decay_input=True,
+        #     detach_reset=True,
+        #     v_threshold=1.0,
+        #     v_reset=0.0,
+        #     surrogate_function=surrogate.ATan(), 
+        #     step_mode=step_mode
+        # )
         self.lif1 = neuron.ParametricLIFNode(
             init_tau=tau,
             decay_input=True,
@@ -159,11 +192,25 @@ class SepConv3D(nn.Module):
         # pointwise conv 1
         self.pwconv1 = layer.Conv3d(dim, med_channels, kernel_size=1, stride=1,
                                     bias=bias, step_mode=step_mode)
-        # self.norm1 = layer.BatchNorm3d(med_channels, step_mode=step_mode)
-        self.norm1 = layer.GroupNorm(num_groups=8, num_channels=med_channels, step_mode=step_mode)
+        
+        # norm layer 1
+        if norm_type == 'batch':
+            self.norm1 = layer.BatchNorm3d(med_channels, step_mode=step_mode)
+        elif norm_type == 'group':
+            self.norm1 = layer.GroupNorm(num_groups=8, num_channels=med_channels, step_mode=step_mode)
         
 
         # spike layer 2
+        # self.lif2 = neuron.LIFNode(
+        #     tau=tau,
+        #     decay_input=True,
+        #     detach_reset=True,
+        #     v_threshold=1.0,
+        #     v_reset=0.0,
+        #     surrogate_function=surrogate.ATan(), 
+        #     step_mode=step_mode
+        # )
+        
         self.lif2 = neuron.ParametricLIFNode(
             init_tau=tau,
             decay_input=True,
@@ -183,8 +230,12 @@ class SepConv3D(nn.Module):
         # pointwise conv 2
         self.pwconv2 = layer.Conv3d(med_channels, dim, kernel_size=1, stride=1,
                                     bias=bias, step_mode=step_mode)
-        # self.norm2 = layer.BatchNorm3d(dim, step_mode=step_mode)
-        self.norm2 = layer.GroupNorm(num_groups=8, num_channels=dim, step_mode=step_mode)
+        
+        # norm layer 2
+        if norm_type == 'batch':
+            self.norm2 = layer.BatchNorm3d(dim, step_mode=step_mode)
+        elif norm_type == 'group':
+            self.norm2 = layer.GroupNorm(num_groups=8, num_channels=dim, step_mode=step_mode)
 
     def forward(self, x):
         # x: [T, B, C, D, H, W]
@@ -204,13 +255,23 @@ class MS_ConvBlock3D(nn.Module):
         dim,
         mlp_ratio=4.0,
         tau=2.0,
+        norm_type='group',
         step_mode='m'):
         super().__init__()
         hidden_dim = int(dim * mlp_ratio)
 
-        self.conv = SepConv3D(dim=dim, step_mode=step_mode)
+        self.sep_conv = SepConv3D(dim=dim, step_mode=step_mode)
 
         # Spike + Conv + Norm block1
+        # self.lif1 = neuron.LIFNode(
+        #     tau=tau,
+        #     decay_input=True,
+        #     detach_reset=True,
+        #     v_threshold=1.0,
+        #     v_reset=0.0,
+        #     surrogate_function=surrogate.ATan(), 
+        #     step_mode=step_mode
+        # )
         self.lif1 = neuron.ParametricLIFNode(
             init_tau=tau,
             decay_input=True,
@@ -219,15 +280,28 @@ class MS_ConvBlock3D(nn.Module):
             v_reset=0.0,
             surrogate_function=surrogate.ATan(), 
             step_mode=step_mode,
-            backend='cupy')
+            # backend='cupy'
+            )
         
         self.conv1 = layer.Conv3d(in_channels=dim, out_channels=hidden_dim,
                                   kernel_size=3, padding=1, bias=False,
                                   step_mode=step_mode)
-        # self.norm1 = layer.BatchNorm3d(num_features=hidden_dim, step_mode=step_mode)
-        self.norm1 = layer.GroupNorm(num_groups=8, num_channels=hidden_dim, step_mode=step_mode)
+        
+        if norm_type == 'batch':
+            self.norm1 = layer.BatchNorm3d(num_features=hidden_dim, step_mode=step_mode)
+        elif norm_type == 'group':
+            self.norm1 = layer.GroupNorm(num_groups=8, num_channels=hidden_dim, step_mode=step_mode)
 
         # Spike + Conv + Norm block2
+        # self.lif2 = neuron.LIFNode(
+        #     tau=tau,
+        #     decay_input=True,
+        #     detach_reset=True,
+        #     v_threshold=1.0,
+        #     v_reset=0.0,
+        #     surrogate_function=surrogate.ATan(), 
+        #     step_mode=step_mode
+        # )
         self.lif2 = neuron.ParametricLIFNode(
             init_tau=tau,
             decay_input=True,
@@ -242,14 +316,17 @@ class MS_ConvBlock3D(nn.Module):
         self.conv2 = layer.Conv3d(in_channels=hidden_dim, out_channels=dim,
                                   kernel_size=3, padding=1, bias=False,
                                   step_mode=step_mode)
-        # self.norm2 = layer.BatchNorm3d(num_features=dim, step_mode=step_mode)
-        self.norm2 = layer.GroupNorm(num_groups=8, num_channels=dim, step_mode=step_mode)
+        
+        if norm_type == 'batch':
+            self.norm2 = layer.BatchNorm3d(num_features=dim, step_mode=step_mode)
+        elif norm_type == 'group':
+            self.norm2 = layer.GroupNorm(num_groups=8, num_channels=dim, step_mode=step_mode)
 
     def forward(self, x):
         # x: [T, B, C, D, H, W]
 
         # Branch 1: Lightweight convolution block + residual
-        x = self.conv(x) + x
+        x = self.sep_conv(x) + x
         x_feat = x
 
         # Branch 2: MLP-like spike conv
@@ -274,6 +351,7 @@ class MS_MLP3D(nn.Module):
         hidden_features=None,
         out_features=None,
         tau=2.0,
+        norm_type='group',
         step_mode='m'):
         super().__init__()
         out_features = out_features or in_features
@@ -282,8 +360,22 @@ class MS_MLP3D(nn.Module):
         # 用1x1x1卷积实现“全连接”操作
         self.fc1_conv = layer.Conv3d(in_features, hidden_features, kernel_size=1,
                                     stride=1, padding=0, bias=False, step_mode=step_mode)
-        # self.fc1_norm = layer.BatchNorm3d(hidden_features, step_mode=step_mode)
-        self.fc1_norm = layer.GroupNorm(num_groups=8, num_channels=hidden_features, step_mode=step_mode)
+        
+        if norm_type == 'batch':
+            self.fc1_norm = layer.BatchNorm3d(hidden_features, step_mode=step_mode)
+        elif norm_type == 'group':
+            self.fc1_norm = layer.GroupNorm(num_groups=8, num_channels=hidden_features, step_mode=step_mode)
+            
+            
+        # self.fc1_lif = neuron.LIFNode(
+        #     tau=tau,
+        #     decay_input=True,
+        #     detach_reset=True,
+        #     v_threshold=1.0,
+        #     v_reset=0.0,
+        #     surrogate_function=surrogate.ATan(), 
+        #     step_mode=step_mode
+        # )
         self.fc1_lif = neuron.ParametricLIFNode(
             init_tau=tau,
             decay_input=True,
@@ -297,8 +389,21 @@ class MS_MLP3D(nn.Module):
 
         self.fc2_conv = layer.Conv3d(hidden_features, out_features, kernel_size=1,
                                     stride=1, padding=0, bias=False, step_mode=step_mode)
-        # self.fc2_norm = layer.BatchNorm3d(out_features, step_mode=step_mode)
-        self.fc2_norm = layer.GroupNorm(num_groups=8, num_channels=out_features, step_mode=step_mode)
+        if norm_type == 'batch':
+            self.fc2_norm = layer.BatchNorm3d(out_features, step_mode=step_mode)
+        elif norm_type == 'group':
+            self.fc2_norm = layer.GroupNorm(num_groups=8, num_channels=out_features, step_mode=step_mode)
+            
+        # self.fc2_lif = neuron.LIFNode(
+        #     tau=tau,
+        #     decay_input=True,
+        #     detach_reset=True,
+        #     v_threshold=1.0,
+        #     v_reset=0.0,
+        #     surrogate_function=surrogate.ATan(), 
+        #     step_mode=step_mode
+        # )
+        
         self.fc2_lif = neuron.ParametricLIFNode(
             init_tau=tau,
             decay_input=True,
@@ -333,6 +438,7 @@ class MS_Attention_RepConv3D_qkv_id(nn.Module):
         proj_drop=0.0,
         sr_ratio=1,
         tau=2.0,
+        norm_type='group',
         step_mode='m'):
         super().__init__()
         assert dim % num_heads == 0, f"dim {dim} should be divisible by num_heads {num_heads}."
@@ -340,6 +446,15 @@ class MS_Attention_RepConv3D_qkv_id(nn.Module):
         self.num_heads = num_heads
         self.scale = 0.125 if qk_scale is None else qk_scale
 
+        # self.head_lif = neuron.LIFNode(
+        #     tau=tau,
+        #     decay_input=True,
+        #     detach_reset=True,
+        #     v_threshold=1.0,
+        #     v_reset=0.0,
+        #     surrogate_function=surrogate.ATan(), 
+        #     step_mode=step_mode
+        # )
         self.head_lif = neuron.ParametricLIFNode(
             init_tau=tau,
             decay_input=True,
@@ -350,20 +465,41 @@ class MS_Attention_RepConv3D_qkv_id(nn.Module):
             step_mode=step_mode,
             #backend='cupy'
             )
+        
+        if norm_type == 'batch':
+            q_norm = layer.BatchNorm3d(dim, step_mode=step_mode)
+            k_norm = layer.BatchNorm3d(dim, step_mode=step_mode)
+            v_norm = layer.BatchNorm3d(dim, step_mode=step_mode)
+            proj_norm = layer.BatchNorm3d(dim, step_mode=step_mode)
+        elif norm_type == 'group':
+            q_norm = layer.GroupNorm(num_groups=8, num_channels=dim, step_mode=step_mode)
+            k_norm = layer.GroupNorm(num_groups=8, num_channels=dim, step_mode=step_mode)
+            v_norm = layer.GroupNorm(num_groups=8, num_channels=dim, step_mode=step_mode)
+            proj_norm = layer.GroupNorm(num_groups=8, num_channels=dim, step_mode=step_mode)
+        else:
+            raise ValueError(f"Unsupported norm_type: {norm_type}")
 
         self.q_conv = nn.Sequential(
             RepConv3D(dim, dim, bias=False, step_mode=step_mode),
-            # layer.BatchNorm3d(dim, step_mode=step_mode),
-            layer.GroupNorm(num_groups=8, num_channels=dim, step_mode=step_mode))
+            q_norm)
         self.k_conv = nn.Sequential(
             RepConv3D(dim, dim, bias=False, step_mode=step_mode),
-            # layer.BatchNorm3d(dim, step_mode=step_mode),
-            layer.GroupNorm(num_groups=8, num_channels=dim, step_mode=step_mode))
+            k_norm)
         self.v_conv = nn.Sequential(
             RepConv3D(dim, dim, bias=False, step_mode=step_mode),
-            # layer.BatchNorm3d(dim, step_mode=step_mode),
-            layer.GroupNorm(num_groups=8, num_channels=dim, step_mode=step_mode))
+            v_norm)
 
+
+        # self.q_lif = neuron.LIFNode(
+        #     tau=tau,
+        #     decay_input=True,
+        #     detach_reset=True,
+        #     v_threshold=1.0,
+        #     v_reset=0.0,
+        #     surrogate_function=surrogate.ATan(), 
+        #     step_mode=step_mode
+        # )
+        
         self.q_lif = neuron.ParametricLIFNode(
             init_tau=tau,
             decay_input=True,
@@ -375,6 +511,15 @@ class MS_Attention_RepConv3D_qkv_id(nn.Module):
             #backend='cupy'
             )
         
+        # self.k_lif = neuron.LIFNode(
+        #     tau=tau,
+        #     decay_input=True,
+        #     detach_reset=True,
+        #     v_threshold=1.0,
+        #     v_reset=0.0,
+        #     surrogate_function=surrogate.ATan(), 
+        #     step_mode=step_mode
+        # )
         self.k_lif = neuron.ParametricLIFNode(
             init_tau=tau,
             decay_input=True,
@@ -386,6 +531,15 @@ class MS_Attention_RepConv3D_qkv_id(nn.Module):
             #backend='cupy'
             )
         
+        # self.v_lif = neuron.LIFNode(
+        #     tau=tau,
+        #     decay_input=True,
+        #     detach_reset=True,
+        #     v_threshold=1.0,
+        #     v_reset=0.0,
+        #     surrogate_function=surrogate.ATan(), 
+        #     step_mode=step_mode
+        # )
         self.v_lif = neuron.ParametricLIFNode(
             init_tau=tau,
             decay_input=True,
@@ -397,6 +551,15 @@ class MS_Attention_RepConv3D_qkv_id(nn.Module):
             #backend='cupy'
             )
 
+        # self.attn_lif = neuron.LIFNode(
+        #     tau=tau,
+        #     decay_input=True,
+        #     detach_reset=True,
+        #     v_threshold=1.0,
+        #     v_reset=0.0,
+        #     surrogate_function=surrogate.ATan(), 
+        #     step_mode=step_mode
+        # )
         self.attn_lif = neuron.ParametricLIFNode(
             init_tau=tau,
             decay_input=True,
@@ -410,8 +573,7 @@ class MS_Attention_RepConv3D_qkv_id(nn.Module):
 
         self.proj_conv = nn.Sequential(
             RepConv3D(dim, dim, bias=False, step_mode=step_mode),
-            # layer.BatchNorm3d(dim, step_mode=step_mode),
-            layer.GroupNorm(num_groups=8, num_channels=dim, step_mode=step_mode))
+            proj_norm)
 
     def forward(self, x):
         # x: [T, B, C, D, H, W]
@@ -463,6 +625,7 @@ class MS_Block3D(nn.Module):
         drop_path=0.0,
         sr_ratio=1,
         tau=2.0,
+        norm_type='group',
         step_mode='m'):
         super().__init__()
 
@@ -475,6 +638,7 @@ class MS_Block3D(nn.Module):
             proj_drop=drop,
             sr_ratio=sr_ratio,
             tau=tau,
+            norm_type=norm_type,
             step_mode=step_mode)
 
         self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
@@ -485,6 +649,7 @@ class MS_Block3D(nn.Module):
             hidden_features=mlp_hidden_dim,
             out_features=dim,
             tau=tau,
+            norm_type=norm_type,
             step_mode=step_mode
         )
 
@@ -520,6 +685,7 @@ class MS_DownSampling3D(nn.Module):
         padding=1,
         first_layer=True,
         tau=2.0,
+        norm_type='group',
         step_mode='m'):
         super().__init__()
 
@@ -533,12 +699,23 @@ class MS_DownSampling3D(nn.Module):
             step_mode=step_mode
         )
 
-        self.encode_norm = layer.GroupNorm(num_groups=8, num_channels=embed_dims, step_mode=step_mode)
+        if norm_type == 'batch':
+            self.encode_norm = layer.BatchNorm3d(num_features=embed_dims, step_mode=step_mode)
+        elif norm_type == 'group':
+            self.encode_norm = layer.GroupNorm(num_groups=8, num_channels=embed_dims, step_mode=step_mode)
 
-        self.relu = TimeDistributed(nn.ReLU())
+        # self.relu = TimeDistributed(nn.ReLU())
         self.use_lif = not first_layer
         if self.use_lif:
-            # self.encode_lif = neuron.LIFNode(surrogate_function=surrogate.ATan(), step_mode=step_mode)
+            # self.encode_lif = neuron.LIFNode(
+            #     tau=tau,
+            #     decay_input=True,
+            #     detach_reset=True,
+            #     v_threshold=1.0,
+            #     v_reset=0.0,
+            #     surrogate_function=surrogate.ATan(), 
+            #     step_mode=step_mode
+            # )
             self.encode_lif = neuron.ParametricLIFNode(
                 init_tau=tau,
                 decay_input=True,
@@ -570,6 +747,7 @@ class MS_UpSampling3D(nn.Module):
         output_padding=1,
         last_layer=False,
         tau=2.0,
+        norm_type='group',
         step_mode='m'
     ):
         super().__init__()
@@ -585,11 +763,22 @@ class MS_UpSampling3D(nn.Module):
             step_mode=step_mode
         )
 
-        self.decode_norm = layer.GroupNorm(num_groups=8, num_channels=out_channels, step_mode=step_mode)
+        if norm_type == 'batch':
+            self.decode_norm = layer.BatchNorm3d(num_features=out_channels, step_mode=step_mode)
+        elif norm_type == 'group':
+            self.decode_norm = layer.GroupNorm(num_groups=8, num_channels=out_channels, step_mode=step_mode)
 
         self.use_lif = not last_layer
         if self.use_lif:
-            # self.decode_lif = neuron.LIFNode(surrogate_function=surrogate.ATan(), step_mode=step_mode)
+            # self.decode_lif = neuron.LIFNode(
+            #     tau=tau,
+            #     decay_input=True,
+            #     detach_reset=True,
+            #     v_threshold=1.0,
+            #     v_reset=0.0,
+            #     surrogate_function=surrogate.ATan(), 
+            #     step_mode=step_mode
+            # )
             self.decode_lif = neuron.ParametricLIFNode(
                 init_tau=tau,
                 decay_input=True,
@@ -611,9 +800,12 @@ class MS_UpSampling3D(nn.Module):
     
  
 class AddConverge3D(base.MemoryModule):
-    def __init__(self, channels, step_mode='m'):
+    def __init__(self, channels, norm_type='group', step_mode='m'):
         super().__init__()
-        self.norm = layer.GroupNorm(num_groups=8, num_channels=channels, step_mode=step_mode)
+        if norm_type == 'batch':
+            self.norm = layer.BatchNorm3d(num_features=channels, step_mode=step_mode)
+        elif norm_type == 'group':
+            self.norm = layer.GroupNorm(num_groups=8, num_channels=channels, step_mode=step_mode)
 
     def forward(self, x1, x2):
         x = x1 + x2  # skip connection by addition
@@ -638,6 +830,7 @@ class Spike_Former_Unet3D(nn.Module):
         layers=[2, 2, 6, 2],
         sr_ratios=[8, 4, 2, 1],
         T=4,
+        norm_type='group',
         step_mode='m'):
         super().__init__()
         self.T = T
@@ -652,10 +845,11 @@ class Spike_Former_Unet3D(nn.Module):
             stride=2,
             padding=3,
             first_layer=True,
+            norm_type=norm_type,
             step_mode=step_mode)
         
         self.encode_block1_a = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[0] // 2, mlp_ratio=mlp_ratios[0], step_mode=step_mode)])
+            MS_ConvBlock3D(dim=embed_dim[0] // 2, mlp_ratio=mlp_ratios[0], norm_type=norm_type, step_mode=step_mode)])
 
         self.downsample1_b = MS_DownSampling3D(
             in_channels=embed_dim[0] // 2,
@@ -664,10 +858,11 @@ class Spike_Former_Unet3D(nn.Module):
             stride=2,
             padding=1,
             first_layer=False,
+            norm_type=norm_type,
             step_mode=step_mode)
         
         self.encode_block1_b = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[0], mlp_ratio=mlp_ratios[0], step_mode=step_mode)])
+            MS_ConvBlock3D(dim=embed_dim[0], mlp_ratio=mlp_ratios[0], norm_type=norm_type, step_mode=step_mode)])
 
         # Encode-Stage 2
         self.downsample2 = MS_DownSampling3D(
@@ -677,13 +872,14 @@ class Spike_Former_Unet3D(nn.Module):
             stride=2,
             padding=1,
             first_layer=False,
+            norm_type=norm_type,
             step_mode=step_mode)
                 
         self.encode_block2_a = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], step_mode=step_mode)])
+            MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], norm_type=norm_type, step_mode=step_mode)])
        
         self.encode_block2_b = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], step_mode=step_mode)])
+            MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], norm_type=norm_type, step_mode=step_mode)])
 
         # Encode-Stage 3
         self.downsample3 = MS_DownSampling3D(
@@ -693,6 +889,7 @@ class Spike_Former_Unet3D(nn.Module):
             stride=2,
             padding=1,
             first_layer=False,
+            norm_type=norm_type,
             step_mode=step_mode)
         
         self.encode_block3 = nn.ModuleList([
@@ -706,6 +903,7 @@ class Spike_Former_Unet3D(nn.Module):
                 attn_drop=attn_drop_rate,
                 drop_path=dpr[i],
                 sr_ratio=sr_ratios[2],
+                norm_type=norm_type,
                 step_mode=step_mode
             ) for i in range(layers[2])])
 
@@ -717,6 +915,7 @@ class Spike_Former_Unet3D(nn.Module):
             stride=1,
             padding=1,
             first_layer=False,
+            norm_type=norm_type,
             step_mode=step_mode)
         
         self.feature_block = nn.ModuleList([
@@ -730,6 +929,7 @@ class Spike_Former_Unet3D(nn.Module):
                 attn_drop=attn_drop_rate,
                 drop_path=dpr[i],
                 sr_ratio=sr_ratios[3],
+                norm_type=norm_type,
                 step_mode=step_mode
             ) for i in range(layers[3])
         ])
@@ -743,6 +943,7 @@ class Spike_Former_Unet3D(nn.Module):
             padding=1,
             output_padding=0,
             last_layer=False,
+            norm_type=norm_type,
             step_mode=step_mode)
         
         self.decode_block3 = nn.ModuleList([
@@ -756,11 +957,12 @@ class Spike_Former_Unet3D(nn.Module):
                 attn_drop=attn_drop_rate,
                 drop_path=dpr[i],
                 sr_ratio=sr_ratios[2],
+                norm_type=norm_type,
                 step_mode=step_mode
             ) for i in range(layers[2])])
 
         
-        self.converge3 = AddConverge3D(channels=embed_dim[2], step_mode=step_mode)        
+        self.converge3 = AddConverge3D(channels=embed_dim[2], norm_type=norm_type, step_mode=step_mode)        
         
         # Decode-Stage 2
         self.upsample2 = MS_UpSampling3D(
@@ -770,15 +972,16 @@ class Spike_Former_Unet3D(nn.Module):
             stride=2,
             padding=1,
             last_layer=False,
+            norm_type=norm_type,
             step_mode=step_mode)
                 
         self.decode_block2_a = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], step_mode=step_mode)])
+            MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], norm_type=norm_type, step_mode=step_mode)])
        
         self.decode_block2_b = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], step_mode=step_mode)])
+            MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], norm_type=norm_type, step_mode=step_mode)])
         
-        self.converge2 = AddConverge3D(channels=embed_dim[1], step_mode=step_mode)  
+        self.converge2 = AddConverge3D(channels=embed_dim[1], norm_type=norm_type, step_mode=step_mode)  
                    
         # Decode-Stage 1
         self.upsample1_b = MS_UpSampling3D(
@@ -788,10 +991,11 @@ class Spike_Former_Unet3D(nn.Module):
             stride=2,
             padding=1,
             last_layer=False,
+            norm_type=norm_type,
             step_mode=step_mode)
         
         self.decode_block1_b = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[0], mlp_ratio=mlp_ratios[0], step_mode=step_mode)])
+            MS_ConvBlock3D(dim=embed_dim[0], mlp_ratio=mlp_ratios[0], norm_type=norm_type, step_mode=step_mode)])
         
         self.upsample1_a = MS_UpSampling3D(
             in_channels=embed_dim[0],
@@ -800,13 +1004,14 @@ class Spike_Former_Unet3D(nn.Module):
             stride=2,
             padding=3,
             last_layer=False,
+            norm_type=norm_type,
             step_mode=step_mode)
         
         self.decode_block1_a = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[0] // 2, mlp_ratio=mlp_ratios[0], step_mode=step_mode)])
+            MS_ConvBlock3D(dim=embed_dim[0] // 2, mlp_ratio=mlp_ratios[0], norm_type=norm_type, step_mode=step_mode)])
 
 
-        self.converge1 = AddConverge3D(channels=embed_dim[0], step_mode=step_mode)  
+        self.converge1 = AddConverge3D(channels=embed_dim[0], norm_type=norm_type, step_mode=step_mode)  
         
         self.final_upsample = MS_UpSampling3D(
             in_channels=embed_dim[0] // 2,
@@ -815,6 +1020,7 @@ class Spike_Former_Unet3D(nn.Module):
             stride=2,
             padding=1,
             last_layer=True,
+            norm_type=norm_type,
             step_mode=step_mode)
         
         
@@ -847,53 +1053,53 @@ class Spike_Former_Unet3D(nn.Module):
     def forward_encoder_decoder(self, x):         # input shape: [T, B, 4, 128, 128, 128]
         # Encode-stage 1
         e1 = self.downsample1_a(x)          # Downsample1_a output shape: [T, B, 48, 64, 64, 64]
-        # for blk in self.encode_block1_a:
-        #     e1 = blk(e1)                     # shape: [T, B, 48, 64, 64, 64]
+        for blk in self.encode_block1_a:
+            e1 = blk(e1)                     # shape: [T, B, 48, 64, 64, 64]
         
         e1 = self.downsample1_b(e1)          # Downsample1_b output shape: [T, B, 96, 32, 32, 32]
-        # for blk in self.encode_block1_b:
-        #     e1 = blk(e1)
+        for blk in self.encode_block1_b:
+            e1 = blk(e1)
         skip1 = e1                 # Skip2 shape: [T, B, 96, 32, 32, 32]
         # Encode-stage 2
         e2 = self.downsample2(e1)            # Downsample2 output shape: [T, B, 192, 16, 16, 16]
-        # for blk in self.encode_block2_a:
-        #     e2 = blk(e2)
-        # for blk in self.encode_block2_b:
-        #     e2 = blk(e2)
+        for blk in self.encode_block2_a:
+            e2 = blk(e2)
+        for blk in self.encode_block2_b:
+            e2 = blk(e2)
         skip2 = e2                  # Skip3 shape: [T, B, 192, 16, 16, 16]
         # Encode-stage 3
         e3 = self.downsample3(e2)            # Downsample3 output shape: [T, B, 384, 8, 8, 8]
-        # for blk in self.encode_block3:
-        #     e3 = blk(e3)
+        for blk in self.encode_block3:
+            e3 = blk(e3)
         skip3 = e3                  # Skip4 shape: [T, B, 384, 8, 8, 8]
         # Encode-stage 4
         e4 = self.feature_downsample(e3)     # Downsample4 output shape: [T, B, 480, 8, 8, 8]
-        # for blk in self.feature_block:
-        #     e4 = blk(e4)                     # After Encode-Stage 4: [T, B, 480, 8, 8, 8]
+        for blk in self.feature_block:
+            e4 = blk(e4)                     # After Encode-Stage 4: [T, B, 480, 8, 8, 8]
         
         # Decode-Stage 3
         d3 = self.upsample3(e4)              # Upsample3 output shape: [T, B, 384, 8, 8, 8]
         d3 = self.converge3(d3, skip3)       # converge3 output shape: [T, B, 384, 8, 8, 8]
-        # for blk in self.decode_block3:
-        #     d3 = blk(d3)                     # After Decode-Stage3: [T, B, 384, 8, 8, 8]
+        for blk in self.decode_block3:
+            d3 = blk(d3)                     # After Decode-Stage3: [T, B, 384, 8, 8, 8]
         
         # Decode-Stage 2
         d2 = self.upsample2(d3)              # Upsample2 output shape: [T, B, 192, 16, 16, 16]
         d2 = self.converge2(d2, skip2)       # Converge2 output shape: [T, B, 192, 16, 16, 16]
-        # for blk in self.decode_block2_a:
-        #     d2 = blk(d2)
-        # for blk in self.decode_block2_b:
-        #     d2 = blk(d2)                     # After Decode-Stage2: [T, B, 192, 16, 16, 16]
+        for blk in self.decode_block2_a:
+            d2 = blk(d2)
+        for blk in self.decode_block2_b:
+            d2 = blk(d2)                     # After Decode-Stage2: [T, B, 192, 16, 16, 16]
 
         # Decode-Stage 1
         d1 = self.upsample1_b(e2)            # Upsample1_b output shape: [T, B, 96, 32, 32, 32]
         d1 = self.converge1(d1, skip1)       # Converge1 output shape: [T, B, 96, 32, 32, 32]
-        # for blk in self.decode_block1_b:
-        #     d1 = blk(d1)
+        for blk in self.decode_block1_b:
+            d1 = blk(d1)
         
         d1 = self.upsample1_a(d1)            # Upsample1_a output shape: [T, B, 48, 64, 64, 64]
-        # for blk in self.decode_block1_a:
-        #     d1 = blk(d1)
+        for blk in self.decode_block1_a:
+            d1 = blk(d1)
             
         out =self.final_upsample(d1)          # Final Upsample output shape: [T, B, 24, 128, 128, 128]
 
@@ -911,7 +1117,7 @@ class Spike_Former_Unet3D(nn.Module):
 
 
     
-def spike_former_unet3D_8_384(in_channels=4, num_classes=3, T=4, step_mode='m',**kwargs):
+def spike_former_unet3D_8_384(in_channels=4, num_classes=3, T=4, norm_type='group', step_mode='m',**kwargs):
     model = Spike_Former_Unet3D(
         in_channels=in_channels,
         num_classes=num_classes,
@@ -923,13 +1129,14 @@ def spike_former_unet3D_8_384(in_channels=4, num_classes=3, T=4, step_mode='m',*
         layers=[2, 2, 6, 2],
         sr_ratios=[1, 1, 1, 1],
         T=T,
+        norm_type=norm_type,
         step_mode=step_mode,
         **kwargs
     )
     return model
 
 
-def spike_former_unet3D_8_512(in_channels=4, num_classes=3, T=4, step_mode='m',**kwargs):
+def spike_former_unet3D_8_512(in_channels=4, num_classes=3, T=4, norm_type='group', step_mode='m',**kwargs):
     model = Spike_Former_Unet3D(
         in_channels=in_channels,
         num_classes=num_classes,
@@ -940,13 +1147,14 @@ def spike_former_unet3D_8_512(in_channels=4, num_classes=3, T=4, step_mode='m',*
         depths=[8, 8, 8, 8],
         sr_ratios=[1, 1, 1, 1],
         T=T,
+        norm_type=norm_type,
         step_mode=step_mode,
         **kwargs,
     )
     return model
 
 
-def spike_former_unet3D_8_768(in_channels=4, num_classes=3, T=4, step_mode='m',**kwargs):
+def spike_former_unet3D_8_768(in_channels=4, num_classes=3, T=4, norm_type='group', step_mode='m',**kwargs):
     model = Spike_Former_Unet3D(
         in_channels=in_channels,
         num_classes=num_classes,
@@ -957,6 +1165,7 @@ def spike_former_unet3D_8_768(in_channels=4, num_classes=3, T=4, step_mode='m',*
         depths=[8, 8, 8, 8],
         sr_ratios=[1, 1, 1, 1],
         T=T,
+        norm_type=norm_type,
         step_mode=step_mode,
         **kwargs,
     )

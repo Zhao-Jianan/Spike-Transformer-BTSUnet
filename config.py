@@ -6,6 +6,7 @@ class Config:
         self.device = torch.device(self.gpu_name if torch.cuda.is_available() else "cpu")
         self.seed =  3407 # 42, 3407
         self.use_amp = True  # 使用自动混合精度训练
+        
         # BraTS2018
         self.root_dirs = ['./data/HGG', './data/LGG']       # ['./data/HGG', './data/LGG'] 
         self.modalities = ['t1', 't1ce', 't2', 'flair']
@@ -36,9 +37,10 @@ class Config:
 
         self.num_classes = 3
         self.T = 4
-        # self.num_norm_groups = [8, 12, 24, 32] 
+        self.norm_type = 'group'  # group, batch
+        # self.num_norm_groups = [8, 12, 24, 32]
         self.num_epochs = 600
-        self.batch_size = 2
+        self.batch_size = 4
         self.k_folds = 5
         
         self.loss_function = 'adaptive_regional' # dice, focal, adaptive_regional
@@ -53,7 +55,7 @@ class Config:
         self.scheduler = 'polynomial' # cosine, polynomial
         self.power = 2.0  # 300-2.0
         self.num_warmup_epochs = -1  # -1表示不使用warmup
-        self.early_stop_patience = 50
+        self.early_stop_patience = 80
         
         self.base_lr = 5e-4 # 1e-3
         self.min_lr = 1e-6
