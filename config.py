@@ -30,7 +30,8 @@ class Config:
         
         self.encode_method = 'none'  # poisson, latency, weighted_phase, none
 
-        self.patch_size = [64, 64, 64]# [128, 128, 128]
+        self.patch_size = [64, 64, 64] # [128, 128, 128]
+        self.inference_patch_size = [128, 128, 128]  # 推理时的patch大小
         # self.window_size = [it // 32 for it in self.patch_size]
         # self.embed_dim = 96
         # self.num_heads = [4, 6, 8, 12]  # 96-[4, 6, 8, 12]
@@ -47,7 +48,7 @@ class Config:
         # self.loss_weights = [2.0, 1.0, 4.0] # [2.0, 1.0, 4.0]
         self.train_crop_mode = "tumor_aware_random"  # tumor_aware_random, warmup_weighted_random, random, tumor_center
         self.val_crop_mode = 'tumor_aware_random' # tumor_aware_random, sliding_window, random, tumor_center
-        self.overlap = 0.5
+        self.overlap = 0.25
         self.num_workers = 8
 
         self.compute_hd = False

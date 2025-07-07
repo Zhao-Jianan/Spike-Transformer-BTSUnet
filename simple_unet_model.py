@@ -211,15 +211,16 @@ class MS_ConvBlock3D(nn.Module):
         self.conv = SepConv3D(dim=dim, step_mode=step_mode)
 
         # Spike + Conv + Norm block1
-        self.lif1 = neuron.ParametricLIFNode(
-            init_tau=tau,
-            decay_input=True,
-            detach_reset=True,
-            v_threshold=1.0,
-            v_reset=0.0,
-            surrogate_function=surrogate.ATan(), 
-            step_mode=step_mode,
-            backend='cupy')
+        self.relu1 = TimeDistributed(nn.ReLU())
+        # self.lif1 = neuron.ParametricLIFNode(
+        #     init_tau=tau,
+        #     decay_input=True,
+        #     detach_reset=True,
+        #     v_threshold=1.0,
+        #     v_reset=0.0,
+        #     surrogate_function=surrogate.ATan(), 
+        #     step_mode=step_mode,
+        #     backend='cupy')
         
         self.conv1 = layer.Conv3d(in_channels=dim, out_channels=hidden_dim,
                                   kernel_size=3, padding=1, bias=False,
@@ -228,16 +229,17 @@ class MS_ConvBlock3D(nn.Module):
         self.norm1 = layer.GroupNorm(num_groups=8, num_channels=hidden_dim, step_mode=step_mode)
 
         # Spike + Conv + Norm block2
-        self.lif2 = neuron.ParametricLIFNode(
-            init_tau=tau,
-            decay_input=True,
-            detach_reset=True,
-            v_threshold=1.0,
-            v_reset=0.0,
-            surrogate_function=surrogate.ATan(), 
-            step_mode=step_mode,
-            #backend='cupy'
-            )
+        self.relu2 = TimeDistributed(nn.ReLU())
+        # self.lif2 = neuron.ParametricLIFNode(
+        #     init_tau=tau,
+        #     decay_input=True,
+        #     detach_reset=True,
+        #     v_threshold=1.0,
+        #     v_reset=0.0,
+        #     surrogate_function=surrogate.ATan(), 
+        #     step_mode=step_mode,
+        #     #backend='cupy'
+        #     )
         
         self.conv2 = layer.Conv3d(in_channels=hidden_dim, out_channels=dim,
                                   kernel_size=3, padding=1, bias=False,
@@ -819,19 +821,19 @@ class Spike_Former_Unet3D(nn.Module):
     def forward_encoder_decoder(self, x):         # input shape: [T, B, 4, 128, 128, 128]
         # Encode-stage 1
         e1 = self.downsample1_a(x)          # Downsample1_a output shape: [T, B, 48, 64, 64, 64]
-        # for blk in self.encode_block1_a:
-        #     e1 = blk(e1)                     # shape: [T, B, 48, 64, 64, 64]
+        for blk in self.encode_block1_a:
+            e1 = blk(e1)                     # shape: [T, B, 48, 64, 64, 64]
         
         e1 = self.downsample1_b(e1)          # Downsample1_b output shape: [T, B, 96, 32, 32, 32]
-        # for blk in self.encode_block1_b:
-        #     e1 = blk(e1)
+        for blk in self.encode_block1_b:
+            e1 = blk(e1)
         skip1 = e1                 # Skip2 shape: [T, B, 96, 32, 32, 32]
         # Encode-stage 2
         e2 = self.downsample2(e1)            # Downsample2 output shape: [T, B, 192, 16, 16, 16]
-        # for blk in self.encode_block2_a:
-        #     e2 = blk(e2)
-        # for blk in self.encode_block2_b:
-        #     e2 = blk(e2)
+        for blk in self.encode_block2_a:
+            e2 = blk(e2)
+        for blk in self.encode_block2_b:
+            e2 = blk(e2)
         skip2 = e2                  # Skip3 shape: [T, B, 192, 16, 16, 16]
         # Encode-stage 3
         e3 = self.downsample3(e2)            # Downsample3 output shape: [T, B, 384, 8, 8, 8]
@@ -852,20 +854,20 @@ class Spike_Former_Unet3D(nn.Module):
         # Decode-Stage 2
         d2 = self.upsample2(d3)              # Upsample2 output shape: [T, B, 192, 16, 16, 16]
         d2 = self.converge2(d2, skip2)       # Converge2 output shape: [T, B, 192, 16, 16, 16]
-        # for blk in self.decode_block2_a:
-        #     d2 = blk(d2)
-        # for blk in self.decode_block2_b:
-        #     d2 = blk(d2)                     # After Decode-Stage2: [T, B, 192, 16, 16, 16]
+        for blk in self.decode_block2_a:
+            d2 = blk(d2)
+        for blk in self.decode_block2_b:
+            d2 = blk(d2)                     # After Decode-Stage2: [T, B, 192, 16, 16, 16]
 
         # Decode-Stage 1
         d1 = self.upsample1_b(e2)            # Upsample1_b output shape: [T, B, 96, 32, 32, 32]
         d1 = self.converge1(d1, skip1)       # Converge1 output shape: [T, B, 96, 32, 32, 32]
-        # for blk in self.decode_block1_b:
-        #     d1 = blk(d1)
+        for blk in self.decode_block1_b:
+            d1 = blk(d1)
         
         d1 = self.upsample1_a(d1)            # Upsample1_a output shape: [T, B, 48, 64, 64, 64]
-        # for blk in self.decode_block1_a:
-        #     d1 = blk(d1)
+        for blk in self.decode_block1_a:
+            d1 = blk(d1)
             
         out =self.final_upsample(d1)          # Final Upsample output shape: [T, B, 24, 128, 128, 128]
 
