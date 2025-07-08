@@ -860,7 +860,7 @@ class Spike_Former_Unet3D(nn.Module):
         #     d2 = blk(d2)                     # After Decode-Stage2: [T, B, 192, 16, 16, 16]
 
         # Decode-Stage 1
-        d1 = self.upsample1_b(e2)            # Upsample1_b output shape: [T, B, 96, 32, 32, 32]
+        d1 = self.upsample1_b(d2)            # Upsample1_b output shape: [T, B, 96, 32, 32, 32]
         d1 = self.converge1(d1, skip1)       # Converge1 output shape: [T, B, 96, 32, 32, 32]
         # for blk in self.decode_block1_b:
         #     d1 = blk(d1)
