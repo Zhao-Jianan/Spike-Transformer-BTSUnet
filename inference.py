@@ -240,7 +240,7 @@ def main():
     model = spike_former_unet3D_8_384(
         num_classes=cfg.num_classes,
         T=cfg.T,
-        norm_type=cfg.norm_type,
+        #norm_type=cfg.norm_type,
         step_mode=cfg.step_mode).to(cfg.device)  # 模型.to(cfg.device)
     model.load_state_dict(torch.load(model_ckpt, map_location=cfg.device))
     model.eval()
@@ -248,7 +248,7 @@ def main():
     inference_engine = TemporalSlidingWindowInference(
         patch_size=cfg.inference_patch_size,
         overlap=cfg.overlap, # cfg.overlap
-        sw_batch_size=1,
+        sw_batch_size=16,
         mode="constant", # "gaussian", "constant"
         encode_method=cfg.encode_method,
         T= cfg.T, # cfg.T

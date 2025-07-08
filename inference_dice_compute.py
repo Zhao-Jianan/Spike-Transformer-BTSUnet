@@ -102,12 +102,12 @@ def batch_compute_dice(gt_dir, pred_dir):
 
 
 def main():
-    batch_compute = False
+    batch_compute = True
     
     if batch_compute:
         # 批量计算 Dice
-        gt_dir = './val_pred/nnUNetTrainer'
-        pred_dir = './val_pred/test_pred'
+        gt_dir = './Pred/nnUNetTrainer'
+        pred_dir = './Pred/test_pred'
         batch_compute_dice(gt_dir, pred_dir)
     else:
         # compute single case Dice

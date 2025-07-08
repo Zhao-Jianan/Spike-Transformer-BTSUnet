@@ -31,7 +31,7 @@ class Config:
         self.encode_method = 'none'  # poisson, latency, weighted_phase, none
 
         self.patch_size = [64, 64, 64] # [128, 128, 128]
-        self.inference_patch_size = [128, 128, 128]  # 推理时的patch大小
+        self.inference_patch_size = [64, 64, 64]  # 推理时的patch大小
         # self.window_size = [it // 32 for it in self.patch_size]
         # self.embed_dim = 96
         # self.num_heads = [4, 6, 8, 12]  # 96-[4, 6, 8, 12]

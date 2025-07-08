@@ -78,8 +78,8 @@ def plot_modalities_with_masks(t1, t1ce, t2, flair, gt_mask, pred_mask, slice_id
 
 def main():
     # 设置数据目录和文件路径
-    data_dir = './data/MICCAI_BraTS_2018_Data_Training/HGG/Brats18_2013_27_1'
-    pred_dir = './pred'
+    data_dir = 'C:/Users/ajhz839/code/Python_Projects/SNN-brain-tumor-project/data/val/Brats18_UAB_3455_1'
+    pred_dir = './visulise'
     case_name = os.path.basename(data_dir)
 
     t1_path = os.path.join(data_dir, case_name + '_t1.nii')
@@ -91,12 +91,12 @@ def main():
     
     # case_name = os.path.basename(data_dir)
 
-    # t1_path = os.path.join(data_dir,'t1.nii.gz')
-    # t1ce_path = os.path.join(data_dir, 't1ce.nii.gz')
-    # t2_path = os.path.join(data_dir, 't2.nii.gz')
-    # flair_path = os.path.join(data_dir, 'flair.nii.gz')
-    # gt_mask_path = os.path.join('./val_pred/nnUNetTrainer', case_name + '.nii.gz')     # ground truth
-    # pred_mask_path = os.path.join('./val_pred/test_pred', case_name + '_pred_mask.nii.gz') # model prediction   
+    t1_path = os.path.join(data_dir,'t1.nii.gz')
+    t1ce_path = os.path.join(data_dir, 't1ce.nii.gz')
+    t2_path = os.path.join(data_dir, 't2.nii.gz')
+    flair_path = os.path.join(data_dir, 'flair.nii.gz')
+    gt_mask_path = os.path.join('./Pred/nnUNetTrainer', case_name + '.nii.gz')     # ground truth
+    pred_mask_path = os.path.join('./Pred/test_pred', case_name + '_pred_mask.nii.gz') # model prediction   
     
 
     # 加载图像数据
@@ -106,7 +106,7 @@ def main():
     flair = load_nifti_image(flair_path)
     gt_mask = load_nifti_image(gt_mask_path).astype(np.uint8)
     pred_mask = load_nifti_image(pred_mask_path).astype(np.uint8)
-    save_dir = './inference/'
+    save_dir = './visulise/'
     save_path = os.path.join(save_dir, case_name + '_output1.png')
 
     # 可视化中间层 (中间 slice 通常是肿瘤区域)
