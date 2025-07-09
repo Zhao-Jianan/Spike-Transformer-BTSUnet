@@ -162,6 +162,7 @@ class SepConv3D(nn.Module):
         kernel_size=7,
         padding=3,
         tau=2.0,
+        lif_type='para_lif',
         step_mode='m',
         norm_type='group',
         bias=False):
@@ -169,25 +170,27 @@ class SepConv3D(nn.Module):
         med_channels = int(expansion_ratio * dim)
 
         # spike layer 1
-        # self.lif1 = neuron.LIFNode(
-        #     tau=tau,
-        #     decay_input=True,
-        #     detach_reset=True,
-        #     v_threshold=1.0,
-        #     v_reset=0.0,
-        #     surrogate_function=surrogate.ATan(), 
-        #     step_mode=step_mode
-        # )
-        self.lif1 = neuron.ParametricLIFNode(
-            init_tau=tau,
-            decay_input=True,
-            detach_reset=True,
-            v_threshold=1.0,
-            v_reset=0.0,
-            surrogate_function=surrogate.ATan(), 
-            step_mode=step_mode,
-            #backend='cupy'
+        if lif_type == 'lif':
+            self.lif1 = neuron.LIFNode(
+                tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode
             )
+        elif lif_type == 'para_lif':
+            self.lif1 = neuron.ParametricLIFNode(
+                init_tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode,
+                #backend='cupy'
+                )
 
         # pointwise conv 1
         self.pwconv1 = layer.Conv3d(dim, med_channels, kernel_size=1, stride=1,
@@ -200,27 +203,28 @@ class SepConv3D(nn.Module):
             self.norm1 = layer.GroupNorm(num_groups=8, num_channels=med_channels, step_mode=step_mode)
         
 
-        # spike layer 2
-        # self.lif2 = neuron.LIFNode(
-        #     tau=tau,
-        #     decay_input=True,
-        #     detach_reset=True,
-        #     v_threshold=1.0,
-        #     v_reset=0.0,
-        #     surrogate_function=surrogate.ATan(), 
-        #     step_mode=step_mode
-        # )
-        
-        self.lif2 = neuron.ParametricLIFNode(
-            init_tau=tau,
-            decay_input=True,
-            detach_reset=True,
-            v_threshold=1.0,
-            v_reset=0.0,
-            surrogate_function=surrogate.ATan(), 
-            step_mode=step_mode,
-            #backend='cupy'
+        # spike layer 2        
+        if lif_type == 'lif':
+            self.lif2 = neuron.LIFNode(
+                tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode
             )
+        elif lif_type == 'para_lif':
+            self.lif2 = neuron.ParametricLIFNode(
+                init_tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode,
+                #backend='cupy'
+                )
 
         # depthwise conv
         self.dwconv = layer.Conv3d(med_channels, med_channels, kernel_size=kernel_size,
@@ -255,6 +259,7 @@ class MS_ConvBlock3D(nn.Module):
         dim,
         mlp_ratio=4.0,
         tau=2.0,
+        lif_type='para_lif',
         norm_type='group',
         step_mode='m'):
         super().__init__()
@@ -262,26 +267,27 @@ class MS_ConvBlock3D(nn.Module):
 
         self.sep_conv = SepConv3D(dim=dim, step_mode=step_mode)
 
-        # Spike + Conv + Norm block1
-        # self.lif1 = neuron.LIFNode(
-        #     tau=tau,
-        #     decay_input=True,
-        #     detach_reset=True,
-        #     v_threshold=1.0,
-        #     v_reset=0.0,
-        #     surrogate_function=surrogate.ATan(), 
-        #     step_mode=step_mode
-        # )
-        self.lif1 = neuron.ParametricLIFNode(
-            init_tau=tau,
-            decay_input=True,
-            detach_reset=True,
-            v_threshold=1.0,
-            v_reset=0.0,
-            surrogate_function=surrogate.ATan(), 
-            step_mode=step_mode,
-            # backend='cupy'
+        if lif_type == 'lif':
+            self.lif1 = neuron.LIFNode(
+                tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode
             )
+        elif lif_type == 'para_lif':
+            self.lif1 = neuron.ParametricLIFNode(
+                init_tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode,
+                #backend='cupy'
+                )
         
         self.conv1 = layer.Conv3d(in_channels=dim, out_channels=hidden_dim,
                                   kernel_size=3, padding=1, bias=False,
@@ -293,25 +299,27 @@ class MS_ConvBlock3D(nn.Module):
             self.norm1 = layer.GroupNorm(num_groups=8, num_channels=hidden_dim, step_mode=step_mode)
 
         # Spike + Conv + Norm block2
-        # self.lif2 = neuron.LIFNode(
-        #     tau=tau,
-        #     decay_input=True,
-        #     detach_reset=True,
-        #     v_threshold=1.0,
-        #     v_reset=0.0,
-        #     surrogate_function=surrogate.ATan(), 
-        #     step_mode=step_mode
-        # )
-        self.lif2 = neuron.ParametricLIFNode(
-            init_tau=tau,
-            decay_input=True,
-            detach_reset=True,
-            v_threshold=1.0,
-            v_reset=0.0,
-            surrogate_function=surrogate.ATan(), 
-            step_mode=step_mode,
-            #backend='cupy'
+        if lif_type == 'lif':
+            self.lif2 = neuron.LIFNode(
+                tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode
             )
+        elif lif_type == 'para_lif':
+            self.lif2 = neuron.ParametricLIFNode(
+                init_tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode,
+                #backend='cupy'
+                )
         
         self.conv2 = layer.Conv3d(in_channels=hidden_dim, out_channels=dim,
                                   kernel_size=3, padding=1, bias=False,
@@ -351,6 +359,7 @@ class MS_MLP3D(nn.Module):
         hidden_features=None,
         out_features=None,
         tau=2.0,
+        lif_type='para_lif',
         norm_type='group',
         step_mode='m'):
         super().__init__()
@@ -366,26 +375,27 @@ class MS_MLP3D(nn.Module):
         elif norm_type == 'group':
             self.fc1_norm = layer.GroupNorm(num_groups=8, num_channels=hidden_features, step_mode=step_mode)
             
-            
-        # self.fc1_lif = neuron.LIFNode(
-        #     tau=tau,
-        #     decay_input=True,
-        #     detach_reset=True,
-        #     v_threshold=1.0,
-        #     v_reset=0.0,
-        #     surrogate_function=surrogate.ATan(), 
-        #     step_mode=step_mode
-        # )
-        self.fc1_lif = neuron.ParametricLIFNode(
-            init_tau=tau,
-            decay_input=True,
-            detach_reset=True,
-            v_threshold=1.0,
-            v_reset=0.0,
-            surrogate_function=surrogate.ATan(), 
-            step_mode=step_mode,
-            #backend='cupy'
+        if lif_type == 'lif':    
+            self.fc1_lif = neuron.LIFNode(
+                tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode
             )
+        elif lif_type == 'para_lif':
+            self.fc1_lif = neuron.ParametricLIFNode(
+                init_tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode,
+                #backend='cupy'
+                )
 
         self.fc2_conv = layer.Conv3d(hidden_features, out_features, kernel_size=1,
                                     stride=1, padding=0, bias=False, step_mode=step_mode)
@@ -393,27 +403,28 @@ class MS_MLP3D(nn.Module):
             self.fc2_norm = layer.BatchNorm3d(out_features, step_mode=step_mode)
         elif norm_type == 'group':
             self.fc2_norm = layer.GroupNorm(num_groups=8, num_channels=out_features, step_mode=step_mode)
-            
-        # self.fc2_lif = neuron.LIFNode(
-        #     tau=tau,
-        #     decay_input=True,
-        #     detach_reset=True,
-        #     v_threshold=1.0,
-        #     v_reset=0.0,
-        #     surrogate_function=surrogate.ATan(), 
-        #     step_mode=step_mode
-        # )
-        
-        self.fc2_lif = neuron.ParametricLIFNode(
-            init_tau=tau,
-            decay_input=True,
-            detach_reset=True,
-            v_threshold=1.0,
-            v_reset=0.0,
-            surrogate_function=surrogate.ATan(), 
-            step_mode=step_mode,
-            #backend='cupy'
+ 
+        if lif_type == 'lif':           
+            self.fc2_lif = neuron.LIFNode(
+                tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode
             )
+        elif lif_type == 'para_lif':
+            self.fc2_lif = neuron.ParametricLIFNode(
+                init_tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode,
+                #backend='cupy'
+                )
 
     def forward(self, x):
         # x: [T, B, C, D, H, W]
@@ -438,6 +449,7 @@ class MS_Attention_RepConv3D_qkv_id(nn.Module):
         proj_drop=0.0,
         sr_ratio=1,
         tau=2.0,
+        lif_type='para_lif',
         norm_type='group',
         step_mode='m'):
         super().__init__()
@@ -446,25 +458,27 @@ class MS_Attention_RepConv3D_qkv_id(nn.Module):
         self.num_heads = num_heads
         self.scale = 0.125 if qk_scale is None else qk_scale
 
-        # self.head_lif = neuron.LIFNode(
-        #     tau=tau,
-        #     decay_input=True,
-        #     detach_reset=True,
-        #     v_threshold=1.0,
-        #     v_reset=0.0,
-        #     surrogate_function=surrogate.ATan(), 
-        #     step_mode=step_mode
-        # )
-        self.head_lif = neuron.ParametricLIFNode(
-            init_tau=tau,
-            decay_input=True,
-            detach_reset=True,
-            v_threshold=1.0,
-            v_reset=0.0,
-            surrogate_function=surrogate.ATan(), 
-            step_mode=step_mode,
-            #backend='cupy'
+        if lif_type == 'lif':
+            self.head_lif = neuron.LIFNode(
+                tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode
             )
+        elif lif_type == 'para_lif':
+            self.head_lif = neuron.ParametricLIFNode(
+                init_tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode,
+                #backend='cupy'
+                )
         
         if norm_type == 'batch':
             q_norm = layer.BatchNorm3d(dim, step_mode=step_mode)
@@ -489,87 +503,91 @@ class MS_Attention_RepConv3D_qkv_id(nn.Module):
             RepConv3D(dim, dim, bias=False, step_mode=step_mode),
             v_norm)
 
+        if lif_type == 'lif':
+            self.q_lif = neuron.LIFNode(
+                tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode
+            )
+            
+            self.k_lif = neuron.LIFNode(
+                tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode
+            )           
+            
+            self.v_lif = neuron.LIFNode(
+                tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode
+            )
+            
+            self.attn_lif = neuron.LIFNode(
+                tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode
+            )
+                                   
+        elif lif_type == 'para_lif':
+            self.q_lif = neuron.ParametricLIFNode(
+                init_tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode,
+                #backend='cupy'
+                )
+        
+            self.k_lif = neuron.ParametricLIFNode(
+                init_tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode,
+                #backend='cupy'
+                )
+        
+            self.v_lif = neuron.ParametricLIFNode(
+                init_tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode,
+                #backend='cupy'
+                )
 
-        # self.q_lif = neuron.LIFNode(
-        #     tau=tau,
-        #     decay_input=True,
-        #     detach_reset=True,
-        #     v_threshold=1.0,
-        #     v_reset=0.0,
-        #     surrogate_function=surrogate.ATan(), 
-        #     step_mode=step_mode
-        # )
-        
-        self.q_lif = neuron.ParametricLIFNode(
-            init_tau=tau,
-            decay_input=True,
-            detach_reset=True,
-            v_threshold=1.0,
-            v_reset=0.0,
-            surrogate_function=surrogate.ATan(), 
-            step_mode=step_mode,
-            #backend='cupy'
-            )
-        
-        # self.k_lif = neuron.LIFNode(
-        #     tau=tau,
-        #     decay_input=True,
-        #     detach_reset=True,
-        #     v_threshold=1.0,
-        #     v_reset=0.0,
-        #     surrogate_function=surrogate.ATan(), 
-        #     step_mode=step_mode
-        # )
-        self.k_lif = neuron.ParametricLIFNode(
-            init_tau=tau,
-            decay_input=True,
-            detach_reset=True,
-            v_threshold=1.0,
-            v_reset=0.0,
-            surrogate_function=surrogate.ATan(), 
-            step_mode=step_mode,
-            #backend='cupy'
-            )
-        
-        # self.v_lif = neuron.LIFNode(
-        #     tau=tau,
-        #     decay_input=True,
-        #     detach_reset=True,
-        #     v_threshold=1.0,
-        #     v_reset=0.0,
-        #     surrogate_function=surrogate.ATan(), 
-        #     step_mode=step_mode
-        # )
-        self.v_lif = neuron.ParametricLIFNode(
-            init_tau=tau,
-            decay_input=True,
-            detach_reset=True,
-            v_threshold=1.0,
-            v_reset=0.0,
-            surrogate_function=surrogate.ATan(), 
-            step_mode=step_mode,
-            #backend='cupy'
-            )
-
-        # self.attn_lif = neuron.LIFNode(
-        #     tau=tau,
-        #     decay_input=True,
-        #     detach_reset=True,
-        #     v_threshold=1.0,
-        #     v_reset=0.0,
-        #     surrogate_function=surrogate.ATan(), 
-        #     step_mode=step_mode
-        # )
-        self.attn_lif = neuron.ParametricLIFNode(
-            init_tau=tau,
-            decay_input=True,
-            detach_reset=True,
-            v_threshold=0.5,
-            v_reset=0.0,
-            surrogate_function=surrogate.ATan(), 
-            step_mode=step_mode,
-            #backend='cupy'
-            )
+            self.attn_lif = neuron.ParametricLIFNode(
+                init_tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=0.5,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode,
+                #backend='cupy'
+                )
 
         self.proj_conv = nn.Sequential(
             RepConv3D(dim, dim, bias=False, step_mode=step_mode),
@@ -625,6 +643,7 @@ class MS_Block3D(nn.Module):
         drop_path=0.0,
         sr_ratio=1,
         tau=2.0,
+        lif_type='para_lif',
         norm_type='group',
         step_mode='m'):
         super().__init__()
@@ -638,6 +657,7 @@ class MS_Block3D(nn.Module):
             proj_drop=drop,
             sr_ratio=sr_ratio,
             tau=tau,
+            lif_type=lif_type,
             norm_type=norm_type,
             step_mode=step_mode)
 
@@ -649,6 +669,7 @@ class MS_Block3D(nn.Module):
             hidden_features=mlp_hidden_dim,
             out_features=dim,
             tau=tau,
+            lif_type=lif_type,
             norm_type=norm_type,
             step_mode=step_mode
         )
@@ -685,6 +706,7 @@ class MS_DownSampling3D(nn.Module):
         padding=1,
         first_layer=True,
         tau=2.0,
+        lif_type='para_lif',
         norm_type='group',
         step_mode='m'):
         super().__init__()
@@ -707,25 +729,27 @@ class MS_DownSampling3D(nn.Module):
         # self.relu = TimeDistributed(nn.ReLU())
         self.use_lif = not first_layer
         if self.use_lif:
-            # self.encode_lif = neuron.LIFNode(
-            #     tau=tau,
-            #     decay_input=True,
-            #     detach_reset=True,
-            #     v_threshold=1.0,
-            #     v_reset=0.0,
-            #     surrogate_function=surrogate.ATan(), 
-            #     step_mode=step_mode
-            # )
-            self.encode_lif = neuron.ParametricLIFNode(
-                init_tau=tau,
-                decay_input=True,
-                detach_reset=True,
-                v_threshold=1.0,
-                v_reset=0.0,
-                surrogate_function=surrogate.ATan(), 
-                step_mode=step_mode,
-                #backend='cupy'
+            if lif_type == 'lif':
+                self.encode_lif = neuron.LIFNode(
+                    tau=tau,
+                    decay_input=True,
+                    detach_reset=True,
+                    v_threshold=1.0,
+                    v_reset=0.0,
+                    surrogate_function=surrogate.ATan(), 
+                    step_mode=step_mode
                 )
+            elif lif_type == 'para_lif':
+                self.encode_lif = neuron.ParametricLIFNode(
+                    init_tau=tau,
+                    decay_input=True,
+                    detach_reset=True,
+                    v_threshold=1.0,
+                    v_reset=0.0,
+                    surrogate_function=surrogate.ATan(), 
+                    step_mode=step_mode,
+                    #backend='cupy'
+                    )
             
     def forward(self, x):
         # x: [T, B, C, D, H, W]
@@ -747,6 +771,7 @@ class MS_UpSampling3D(nn.Module):
         output_padding=1,
         last_layer=False,
         tau=2.0,
+        lif_type='para_lif',
         norm_type='group',
         step_mode='m'
     ):
@@ -770,25 +795,27 @@ class MS_UpSampling3D(nn.Module):
 
         self.use_lif = not last_layer
         if self.use_lif:
-            # self.decode_lif = neuron.LIFNode(
-            #     tau=tau,
-            #     decay_input=True,
-            #     detach_reset=True,
-            #     v_threshold=1.0,
-            #     v_reset=0.0,
-            #     surrogate_function=surrogate.ATan(), 
-            #     step_mode=step_mode
-            # )
-            self.decode_lif = neuron.ParametricLIFNode(
-                init_tau=tau,
-                decay_input=True,
-                detach_reset=True,
-                v_threshold=1.0,
-                v_reset=0.0,
-                surrogate_function=surrogate.ATan(),
-                step_mode=step_mode,
-                #backend='cupy'
-            )
+            if lif_type == 'lif':
+                self.decode_lif = neuron.LIFNode(
+                    tau=tau,
+                    decay_input=True,
+                    detach_reset=True,
+                    v_threshold=1.0,
+                    v_reset=0.0,
+                    surrogate_function=surrogate.ATan(), 
+                    step_mode=step_mode
+                )
+            elif lif_type == 'para_lif':
+                self.decode_lif = neuron.ParametricLIFNode(
+                    init_tau=tau,
+                    decay_input=True,
+                    detach_reset=True,
+                    v_threshold=1.0,
+                    v_reset=0.0,
+                    surrogate_function=surrogate.ATan(),
+                    step_mode=step_mode,
+                    #backend='cupy'
+                )
 
     def forward(self, x):
         # x: [T, B, C, D, H, W]
@@ -811,6 +838,47 @@ class AddConverge3D(base.MemoryModule):
         x = x1 + x2  # skip connection by addition
         x = self.norm(x)
         return x 
+    
+    
+class CatConverge3D(base.MemoryModule):
+    def __init__(self, channels, norm_type='group', tau=2.0, lif_type='para_lif', step_mode='m'):
+        super().__init__()
+        if lif_type == 'lif':
+            self.lif = neuron.LIFNode(
+                tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode
+            )
+        elif lif_type == 'para_lif':
+            self.lif = neuron.ParametricLIFNode(
+                init_tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode,
+                #backend='cupy'
+            )
+            
+        self.conv = layer.Conv3d(channels*2, channels, kernel_size=1, step_mode=step_mode)
+        
+        if norm_type == 'batch':
+            self.norm = layer.BatchNorm3d(num_features=channels, step_mode=step_mode)
+        elif norm_type == 'group':
+            self.norm = layer.GroupNorm(num_groups=8, num_channels=channels, step_mode=step_mode)
+
+    def forward(self, x1, x2):
+        x1 = self.lif(x1)
+        x2 = self.lif(x2)
+        x = torch.cat((x1, x2), dim=2)
+        x = self.conv(x)
+        x = self.norm(x)
+        return x 
  
     
 class Spike_Former_Unet3D(nn.Module):
@@ -829,7 +897,9 @@ class Spike_Former_Unet3D(nn.Module):
         depths=[8, 8, 8, 8],
         layers=[2, 2, 6, 2],
         sr_ratios=[8, 4, 2, 1],
+        skip_connection='cat',
         T=4,
+        lif_type='para_lif',
         norm_type='group',
         step_mode='m'):
         super().__init__()
@@ -845,11 +915,12 @@ class Spike_Former_Unet3D(nn.Module):
             stride=2,
             padding=3,
             first_layer=True,
+            lif_type=lif_type,
             norm_type=norm_type,
             step_mode=step_mode)
         
         self.encode_block1_a = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[0] // 2, mlp_ratio=mlp_ratios[0], norm_type=norm_type, step_mode=step_mode)])
+            MS_ConvBlock3D(dim=embed_dim[0] // 2, mlp_ratio=mlp_ratios[0], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
 
         self.downsample1_b = MS_DownSampling3D(
             in_channels=embed_dim[0] // 2,
@@ -858,11 +929,12 @@ class Spike_Former_Unet3D(nn.Module):
             stride=2,
             padding=1,
             first_layer=False,
+            lif_type=lif_type,
             norm_type=norm_type,
             step_mode=step_mode)
         
         self.encode_block1_b = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[0], mlp_ratio=mlp_ratios[0], norm_type=norm_type, step_mode=step_mode)])
+            MS_ConvBlock3D(dim=embed_dim[0], mlp_ratio=mlp_ratios[0], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
 
         # Encode-Stage 2
         self.downsample2 = MS_DownSampling3D(
@@ -872,14 +944,15 @@ class Spike_Former_Unet3D(nn.Module):
             stride=2,
             padding=1,
             first_layer=False,
+            lif_type=lif_type,
             norm_type=norm_type,
             step_mode=step_mode)
                 
         self.encode_block2_a = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], norm_type=norm_type, step_mode=step_mode)])
+            MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
        
         self.encode_block2_b = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], norm_type=norm_type, step_mode=step_mode)])
+            MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
 
         # Encode-Stage 3
         self.downsample3 = MS_DownSampling3D(
@@ -889,6 +962,7 @@ class Spike_Former_Unet3D(nn.Module):
             stride=2,
             padding=1,
             first_layer=False,
+            lif_type=lif_type,
             norm_type=norm_type,
             step_mode=step_mode)
         
@@ -903,6 +977,7 @@ class Spike_Former_Unet3D(nn.Module):
                 attn_drop=attn_drop_rate,
                 drop_path=dpr[i],
                 sr_ratio=sr_ratios[2],
+                lif_type=lif_type,
                 norm_type=norm_type,
                 step_mode=step_mode
             ) for i in range(layers[2])])
@@ -915,6 +990,7 @@ class Spike_Former_Unet3D(nn.Module):
             stride=1,
             padding=1,
             first_layer=False,
+            lif_type=lif_type,
             norm_type=norm_type,
             step_mode=step_mode)
         
@@ -929,6 +1005,7 @@ class Spike_Former_Unet3D(nn.Module):
                 attn_drop=attn_drop_rate,
                 drop_path=dpr[i],
                 sr_ratio=sr_ratios[3],
+                lif_type=lif_type,
                 norm_type=norm_type,
                 step_mode=step_mode
             ) for i in range(layers[3])
@@ -943,6 +1020,7 @@ class Spike_Former_Unet3D(nn.Module):
             padding=1,
             output_padding=0,
             last_layer=False,
+            lif_type=lif_type,
             norm_type=norm_type,
             step_mode=step_mode)
         
@@ -957,12 +1035,15 @@ class Spike_Former_Unet3D(nn.Module):
                 attn_drop=attn_drop_rate,
                 drop_path=dpr[i],
                 sr_ratio=sr_ratios[2],
+                lif_type=lif_type,
                 norm_type=norm_type,
                 step_mode=step_mode
             ) for i in range(layers[2])])
 
-        
-        self.converge3 = AddConverge3D(channels=embed_dim[2], norm_type=norm_type, step_mode=step_mode)        
+        if skip_connection == 'add':
+            self.converge3 = AddConverge3D(channels=embed_dim[2], norm_type=norm_type, step_mode=step_mode)
+        elif skip_connection == 'cat':
+            self.converge3 = CatConverge3D(channels=embed_dim[2], norm_type=norm_type, lif_type=lif_type, step_mode=step_mode)        
         
         # Decode-Stage 2
         self.upsample2 = MS_UpSampling3D(
@@ -972,16 +1053,21 @@ class Spike_Former_Unet3D(nn.Module):
             stride=2,
             padding=1,
             last_layer=False,
+            lif_type=lif_type,
             norm_type=norm_type,
             step_mode=step_mode)
                 
         self.decode_block2_a = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], norm_type=norm_type, step_mode=step_mode)])
+            MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
        
         self.decode_block2_b = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], norm_type=norm_type, step_mode=step_mode)])
+            MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
         
-        self.converge2 = AddConverge3D(channels=embed_dim[1], norm_type=norm_type, step_mode=step_mode)  
+
+        if skip_connection == 'add':
+            self.converge2 = AddConverge3D(channels=embed_dim[1], norm_type=norm_type, step_mode=step_mode)
+        elif skip_connection == 'cat':
+            self.converge2 = CatConverge3D(channels=embed_dim[1], norm_type=norm_type, lif_type=lif_type, step_mode=step_mode)                     
                    
         # Decode-Stage 1
         self.upsample1_b = MS_UpSampling3D(
@@ -991,11 +1077,12 @@ class Spike_Former_Unet3D(nn.Module):
             stride=2,
             padding=1,
             last_layer=False,
+            lif_type=lif_type,
             norm_type=norm_type,
             step_mode=step_mode)
         
         self.decode_block1_b = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[0], mlp_ratio=mlp_ratios[0], norm_type=norm_type, step_mode=step_mode)])
+            MS_ConvBlock3D(dim=embed_dim[0], mlp_ratio=mlp_ratios[0], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
         
         self.upsample1_a = MS_UpSampling3D(
             in_channels=embed_dim[0],
@@ -1004,14 +1091,18 @@ class Spike_Former_Unet3D(nn.Module):
             stride=2,
             padding=3,
             last_layer=False,
+            lif_type=lif_type,
             norm_type=norm_type,
             step_mode=step_mode)
         
         self.decode_block1_a = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[0] // 2, mlp_ratio=mlp_ratios[0], norm_type=norm_type, step_mode=step_mode)])
+            MS_ConvBlock3D(dim=embed_dim[0] // 2, mlp_ratio=mlp_ratios[0], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
 
 
-        self.converge1 = AddConverge3D(channels=embed_dim[0], norm_type=norm_type, step_mode=step_mode)  
+        if skip_connection == 'add':
+            self.converge1 = AddConverge3D(channels=embed_dim[0], norm_type=norm_type, step_mode=step_mode)
+        elif skip_connection == 'cat':
+            self.converge1 = CatConverge3D(channels=embed_dim[0], norm_type=norm_type, lif_type=lif_type, step_mode=step_mode)   
         
         self.final_upsample = MS_UpSampling3D(
             in_channels=embed_dim[0] // 2,
@@ -1020,6 +1111,7 @@ class Spike_Former_Unet3D(nn.Module):
             stride=2,
             padding=1,
             last_layer=True,
+            lif_type=lif_type,
             norm_type=norm_type,
             step_mode=step_mode)
         
@@ -1128,7 +1220,9 @@ def spike_former_unet3D_8_384(in_channels=4, num_classes=3, T=4, norm_type='grou
         depths=[8, 8, 8, 8],
         layers=[2, 2, 6, 2],
         sr_ratios=[1, 1, 1, 1],
+        skip_connection='cat',
         T=T,
+        lif_type='para_lif',
         norm_type=norm_type,
         step_mode=step_mode,
         **kwargs
@@ -1146,7 +1240,9 @@ def spike_former_unet3D_8_512(in_channels=4, num_classes=3, T=4, norm_type='grou
         qkv_bias=False,
         depths=[8, 8, 8, 8],
         sr_ratios=[1, 1, 1, 1],
+        skip_connection='cat',
         T=T,
+        lif_type='para_lif',
         norm_type=norm_type,
         step_mode=step_mode,
         **kwargs,
@@ -1164,7 +1260,9 @@ def spike_former_unet3D_8_768(in_channels=4, num_classes=3, T=4, norm_type='grou
         qkv_bias=False,
         depths=[8, 8, 8, 8],
         sr_ratios=[1, 1, 1, 1],
+        skip_connection='cat',
         T=T,
+        lif_type='para_lif',
         norm_type=norm_type,
         step_mode=step_mode,
         **kwargs,
