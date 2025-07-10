@@ -594,6 +594,23 @@ class AddConverge3D(base.MemoryModule):
         x = self.norm(x)
         return x 
  
+ 
+class CatConverge3D(base.MemoryModule):
+    def __init__(self, channels, norm_type='group', step_mode='m'):
+        super().__init__()            
+        self.conv = layer.Conv3d(channels*2, channels, kernel_size=1, step_mode=step_mode)
+        
+        if norm_type == 'batch':
+            self.norm = layer.BatchNorm3d(num_features=channels, step_mode=step_mode)
+        elif norm_type == 'group':
+            self.norm = layer.GroupNorm(num_groups=8, num_channels=channels, step_mode=step_mode)
+
+    def forward(self, x1, x2):
+        x = torch.cat((x1, x2), dim=2)
+        x = self.conv(x)
+        x = self.norm(x)
+        return x 
+ 
     
 class Spike_Former_Unet3D(nn.Module):
     def __init__(
@@ -734,7 +751,7 @@ class Spike_Former_Unet3D(nn.Module):
             ) for i in range(layers[2])])
 
         
-        self.converge3 = AddConverge3D(channels=embed_dim[2], step_mode=step_mode)        
+        self.converge3 = CatConverge3D(channels=embed_dim[2], step_mode=step_mode)        
         
         # Decode-Stage 2
         self.upsample2 = MS_UpSampling3D(
@@ -752,7 +769,7 @@ class Spike_Former_Unet3D(nn.Module):
         self.decode_block2_b = nn.ModuleList([
             MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], step_mode=step_mode)])
         
-        self.converge2 = AddConverge3D(channels=embed_dim[1], step_mode=step_mode)  
+        self.converge2 = CatConverge3D(channels=embed_dim[1], step_mode=step_mode)  
                    
         # Decode-Stage 1
         self.upsample1_b = MS_UpSampling3D(
@@ -780,7 +797,7 @@ class Spike_Former_Unet3D(nn.Module):
             MS_ConvBlock3D(dim=embed_dim[0] // 2, mlp_ratio=mlp_ratios[0], step_mode=step_mode)])
 
 
-        self.converge1 = AddConverge3D(channels=embed_dim[0], step_mode=step_mode)  
+        self.converge1 = CatConverge3D(channels=embed_dim[0], step_mode=step_mode)  
         
         self.final_upsample = MS_UpSampling3D(
             in_channels=embed_dim[0] // 2,
@@ -791,16 +808,6 @@ class Spike_Former_Unet3D(nn.Module):
             last_layer=True,
             step_mode=step_mode)
         
-        
-        # self.lif = neuron.ParametricLIFNode(
-        #     init_tau=2.0,
-        #     decay_input=True,
-        #     detach_reset=True,
-        #     v_threshold=1.0,
-        #     v_reset=0.0,
-        #     surrogate_function=surrogate.ATan(), 
-        #     step_mode=step_mode,
-        #     backend='cupy')
         
         self.readout = layer.Conv3d(embed_dim[0] // 4, num_classes, kernel_size=1, step_mode=step_mode)
 
