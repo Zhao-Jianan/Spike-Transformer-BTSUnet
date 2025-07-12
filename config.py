@@ -44,8 +44,8 @@ class Config:
         self.batch_size = 4
         self.k_folds = 5
         
-        self.loss_function = 'adaptive_regional' # dice, focal, adaptive_regional
-        # self.loss_weights = [2.0, 1.0, 4.0] # [2.0, 1.0, 4.0]
+        self.loss_function = 'dice' # dice, focal, adaptive_regional
+        self.loss_weights = [2.0, 1.0, 4.0] # [2.0, 1.0, 4.0] [1.0, 1.0, 1.0]
         self.train_crop_mode = "tumor_aware_random"  # tumor_aware_random, warmup_weighted_random, random, tumor_center
         self.val_crop_mode = 'tumor_aware_random' # tumor_aware_random, sliding_window, random, tumor_center
         self.overlap = 0.25
@@ -53,9 +53,9 @@ class Config:
 
         self.compute_hd = False
 
-        self.scheduler = 'polynomial' # cosine, polynomial
+        self.scheduler = 'cosine' # cosine, polynomial
         self.power = 2.0  # 300-2.0
-        self.num_warmup_epochs = -1  # -1表示不使用warmup
+        self.num_warmup_epochs = 10  # -1表示不使用warmup
         self.early_stop_patience = 80
         
         self.base_lr = 5e-4 # 1e-3

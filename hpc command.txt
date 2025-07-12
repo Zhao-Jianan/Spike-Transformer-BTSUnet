@@ -19,12 +19,6 @@ nohup python spikeformerunet2/main.py > New-9-log_bra18_4T_transspikeunet_noconv
 nohup python spikeformerunet3/main.py > New-10-log_bra18_4T_transspikeunet_64p4b_5e4_1e6_poly20_lif_regionloss.out 2>&1 &
 [-]
 nohup python spikeformerunet1/main.py > New-8-log_bra18_4T_transspikeunet_64p2b_5e4_1e6_poly20_batchnorm_paralif_regionloss.out 2>&1 &
-[16]
-nohup python spikeformerunet9/main.py > New-16-log_bra18_4T_simpleunet_64p4b_5e4_1e6_poly20_paralif_regionloss.out 2>&1 &
-
-
-
-[Running]
 [10]stopped
 nohup python spikeformerunet3/main.py > New-10-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_poly20_batchnorm_paralif_regionloss.out 2>&1 &
 [11]
@@ -37,18 +31,38 @@ nohup python spikeformerunet6/main.py > New-13-log_bra18_4T_spikeformerunet_64p4
 nohup python spikeformerunet7/main.py > New-14-log_bra18_4T_cnnspikeunet_64p4b_5e4_1e6_poly20_paralif_regionloss.out 2>&1 &
 [15]
 nohup python spikeformerunet8/main.py > New-15-log_bra18_4T_basespikeunet_64p4b_5e4_1e6_poly20_paralif_regionloss_newdecode.out 2>&1 &
+[16]
+nohup python spikeformerunet9/main.py > New-16-log_bra18_4T_simpleunet_64p4b_5e4_1e6_poly20_paralif_regionloss.out 2>&1 &
 [17]
 nohup python spikeformerunet10/main.py > New-17-log_bra18_1T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_regionloss.out 2>&1 &
-[18]
-nohup python spikeformerunet1/main.py > New-18-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_regionloss_warmup.out 2>&1 &
 [19]
 nohup python spikeformerunet2/main.py > New-19-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_regionloss_catskip.out 2>&1 &
 [20]
 nohup python spikeformerunet5/main.py > New-20-log_bra18_4T_transspikeunet_noconv_64p4b_5e4_1e6_poly20_paralif_regionloss_catskip.out 2>&1 &
 [21]
 nohup python spikeformerunet11/main.py > New-21-log_bra18_4T_basespikeunet_64p4b_5e4_1e6_poly20_paralif_regionloss_catskip.out 2>&1 &
+
+[Running]
+[18]
+nohup python spikeformerunet1/main.py > New-18-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_regionloss_warmup.out 2>&1 &
 [22]
 nohup python spikeformerunet12/main.py > New-22-log_bra18_4T_simpleunet_64p4b_5e4_1e6_poly20_paralif_regionloss_catskip.out 2>&1 &
+[23]
+nohup python spikeformerunet8/main.py > New-23-log_bra18_1T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_regionloss_catskip.out 2>&1 &
+[24]
+nohup python spikeformerunet9/main.py > New-24-log_bra21_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_regionloss_catskip.out 2>&1 &
+[25]
+nohup python spikeformerunet3/main.py > New-25-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_diceloss214_catskip.out 2>&1 &
+[26]
+nohup python spikeformerunet2/main.py > New-26-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_diceloss111_catskip.out 2>&1 &
+[27]
+nohup python spikeformerunet10/main.py > New-27-log_bra18_4T_cnnspikeunet_64p4b_5e4_1e6_poly20_paralif_regionloss_catskip.out 2>&1 &
+[28]
+nohup python spikeformerunet7/main.py > New-28-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_diceloss214warm_catskip.out 2>&1 &
+[29]
+nohup python spikeformerunet4/main.py > New-29-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_cosdecay_paralif_diceloss214warm_catskip.out 2>&1 &
+
+6 11
 
 ps -u $USER -f | grep python
 pgrep -u $USER -a python
