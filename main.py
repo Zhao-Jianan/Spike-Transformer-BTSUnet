@@ -1,10 +1,10 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import torch
 import torch.optim as optim
 from sklearn.model_selection import KFold
-from spike_former_unet_model import spike_former_unet3D_8_384
+from spike_former_unet_model import spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
 # from simple_unet_model import spike_former_unet3D_8_384
 from losses import BratsDiceLoss, BratsFocalLoss, AdaptiveRegionalLoss
 from utils import init_weights, save_metrics_to_file
@@ -67,11 +67,26 @@ def main():
     # print("weights device:", criterion.weights.device)
     # 开始交叉验证
     for fold, (train_idx, val_idx) in enumerate(kf.split(case_dirs)):
-        model = spike_former_unet3D_8_384(
-            num_classes=cfg.num_classes,
-            T=cfg.T,
-            norm_type=cfg.norm_type,
-            step_mode=cfg.step_mode).to(cfg.device)  # 模型
+        if cfg.model_type == 'spike_former_unet3D_8_384':
+            model = spike_former_unet3D_8_384(
+                num_classes=cfg.num_classes,
+                T=cfg.T,
+                norm_type=cfg.norm_type,
+                step_mode=cfg.step_mode).to(cfg.device)  # 模型
+        elif cfg.model_type == 'spike_former_unet3D_8_512':
+            model = spike_former_unet3D_8_512(
+                num_classes=cfg.num_classes,
+                T=cfg.T,
+                norm_type=cfg.norm_type,
+                step_mode=cfg.step_mode).to(cfg.device)
+        elif cfg.model_type == 'spike_former_unet3D_8_768':
+            model = spike_former_unet3D_8_768(
+                num_classes=cfg.num_classes,
+                T=cfg.T,
+                norm_type=cfg.norm_type,
+                step_mode=cfg.step_mode).to(cfg.device)
+        else:
+            raise ValueError(f"Unsupported model type: {cfg.model_type}")
         optimizer = optim.AdamW(model.parameters(), lr=cfg.base_lr, eps=1e-8, weight_decay=1e-4)
         scheduler = get_scheduler(optimizer, cfg.num_warmup_epochs, cfg.num_epochs, 
                                   cfg.base_lr, cfg.min_lr, cfg.scheduler, cfg.power)
