@@ -7,7 +7,7 @@ class Config:
         self.seed =  3407 # 42, 3407
         self.use_amp = True  # 使用自动混合精度训练
         
-        # # BraTS2018
+        # # # BraTS2018
         # self.root_dirs = ['./data/HGG', './data/LGG']       # ['./data/HGG', './data/LGG'] 
         # self.modalities = ['t1', 't1ce', 't2', 'flair']
         # self.modality_separator = "_"
@@ -22,7 +22,7 @@ class Config:
         # self.et_label = 4
         
         # BraTS2023
-        self.root_dir = './data/BraTS2023/'
+        self.root_dirs = ['./data/BraTS2023/']
         self.modalities = ['t1n', 't1c', 't2w', 't2f']
         self.modality_separator = "-" 
         self.image_suffix = ".nii.gz"    
@@ -38,7 +38,7 @@ class Config:
 
         self.num_classes = 3
         self.model_type = 'spike_former_unet3D_8_384'  # spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
-        self.T = 4
+        self.T = 1
         self.norm_type = 'group'  # group, batch
         # self.num_norm_groups = [8, 12, 24, 32]
         self.num_epochs = 600

@@ -11,7 +11,7 @@ class TemporalSlidingWindowInference:
         overlap=0.25,
         sw_batch_size=1,
         mode="gaussian",
-        encode_method='poisson',
+        encode_method='none',
         T=4,
         num_classes=3
     ):

@@ -17,7 +17,7 @@ from monai.utils import TransformBackends
 import random
 
 class BraTSDataset(MonaiDataset):
-    def __init__(self, data_dicts, T=8, patch_size=(128,128,128), num_classes=4, mode="train", encode_method='poisson', debug=False):
+    def __init__(self, data_dicts, T=8, patch_size=(128,128,128), num_classes=4, mode="train", encode_method='none', debug=False):
         """
         data_dicts: list of dict, 每个 dict 形如：
           {

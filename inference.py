@@ -169,10 +169,14 @@ def pred_single_case(case_dir, inference_dir, model, inference_engine, device, T
     # 用cfg.modalities拼4模态路径
     case_name = os.path.basename(case_dir)
     print(f"Processing case: {case_name}")
-    #image_paths = [os.path.join(case_dir, f"{case_name}_{mod}.nii") for mod in cfg.modalities]
-    #print("Image paths:", image_paths)
+    # image_paths = [os.path.join(case_dir, f"{case_name}_{mod}.nii") for mod in cfg.modalities]
     image_paths = [os.path.join(case_dir, f"{mod}.nii.gz") for mod in cfg.modalities]
-
+    print("Image paths:", image_paths)
+        
+    # prefix = 'masked_20220114_35320313_BSR'
+    
+    # image_paths = [os.path.join(case_dir, f"{prefix}_{case_name}_{mod}.nii.gz") for mod in cfg.modalities]
+    
     # 预处理，返回 (T, C, D, H, W) Tensor
     x_seq = preprocess_for_inference(image_paths, T=T)
     x_seq = x_seq.to(device)
@@ -234,13 +238,13 @@ def run_inference_on_folder(case_root: str, save_dir: str, model, inference_engi
 
 def main():
     case_dir = "/hpc/ajhz839/validation/val/"
-    model_ckpt = "./checkpoint/best_model_fold_inference.pth"
+    model_ckpt = "./checkpoint/brats18_best_model_inference.pth"
     inference_dir = "/hpc/ajhz839/validation/test_pred/"
     
     model = spike_former_unet3D_8_384(
         num_classes=cfg.num_classes,
         T=cfg.T,
-        #norm_type=cfg.norm_type,
+        norm_type=cfg.norm_type,
         step_mode=cfg.step_mode).to(cfg.device)  # 模型.to(cfg.device)
     model.load_state_dict(torch.load(model_ckpt, map_location=cfg.device))
     model.eval()
