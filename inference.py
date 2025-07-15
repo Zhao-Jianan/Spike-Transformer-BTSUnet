@@ -4,7 +4,7 @@ import torch
 import nibabel as nib
 import numpy as np
 from einops import rearrange
-from spike_former_unet_model import spike_former_unet3D_8_384
+from spike_former_unet_model_parathreshold import spike_former_unet3D_8_384
 import torch.nn.functional as F
 from config import config as cfg
 from spikingjelly.activation_based.encoding import PoissonEncoder

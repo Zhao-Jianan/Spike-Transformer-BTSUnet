@@ -107,23 +107,29 @@ class EarlyStopping:
         self.counter = 0
         self.early_stop = False
 
-    def __call__(self, val_loss, current_epoch):
-        if current_epoch < self.start_epoch:
-            # 还没达到起始 epoch，跳过早停判断
-            return
+    def __call__(self, val_dice_mean, current_epoch):
+            """
+            Args:
+                val_dice_mean (float): 验证集上的 Dice 平均分（作为早停判断依据）
+                current_epoch (int): 当前 epoch 数
+            """
+            if current_epoch < self.start_epoch:
+                return  # 尚未达到启用早停的轮次
 
-        score = -val_loss
-        if self.best_score is None:
-            self.best_score = score
-            self.best_epoch = current_epoch
-        elif score < self.best_score + self.delta:
-            self.counter += 1
-            if self.counter >= self.patience:
-                self.early_stop = True
-        else:
-            self.best_score = score
-            self.best_epoch = current_epoch
-            self.counter = 0
+            score = val_dice_mean
+
+            if self.best_score is None:
+                self.best_score = score
+                self.best_epoch = current_epoch
+            elif score < self.best_score + self.delta:
+                self.counter += 1
+                if self.counter >= self.patience:
+                    self.early_stop = True
+                    print(f"[EarlyStopping] Early stopping triggered at epoch {current_epoch}.")
+            else:
+                self.best_score = score
+                self.best_epoch = current_epoch
+                self.counter = 0
 
 
 
@@ -385,7 +391,7 @@ def train_one_fold(
             lr_history.append(current_lrs[0]) 
             
         if early_stopping is not None:
-            early_stopping(val_loss, epoch+1)
+            early_stopping(val_mean_dice, epoch+1)
             if early_stopping.early_stop:
                 print(f"[Fold {fold}] Early stopping at epoch {epoch+1}")
                 break
