@@ -4,10 +4,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Callable
 from spikingjelly.activation_based import neuron, functional, surrogate, layer, base
-from spikingjelly.activation_based.base import BaseNode
 from timm.layers import trunc_normal_, DropPath
 
-class GeneralParametricLIFNode(BaseNode):
+class GeneralParametricLIFNode(neuron.BaseNode):
     def __init__(self,
                  init_tau: float = 2.0,
                  init_threshold: float = 1.0,
@@ -263,6 +262,19 @@ class SepConv3D(nn.Module):
                 step_mode=step_mode,
                 #backend='cupy'
                 )
+        elif lif_type == 'general_para_lif':
+            self.lif1 = GeneralParametricLIFNode(
+                init_tau=tau,
+                init_threshold=1.0,
+                learnable_tau=False,
+                learnable_threshold=True,
+                decay_input=True,
+                detach_reset=True,                
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode,
+                backend='torch'
+            )
 
         # pointwise conv 1
         self.pwconv1 = layer.Conv3d(dim, med_channels, kernel_size=1, stride=1,
@@ -297,6 +309,19 @@ class SepConv3D(nn.Module):
                 step_mode=step_mode,
                 #backend='cupy'
                 )
+        elif lif_type == 'general_para_lif':
+            self.lif2 = GeneralParametricLIFNode(
+                init_tau=tau,
+                init_threshold=1.0,
+                learnable_tau=False,
+                learnable_threshold=True,
+                decay_input=True,
+                detach_reset=True,                
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode,
+                backend='torch'
+            )
 
         # depthwise conv
         self.dwconv = layer.Conv3d(med_channels, med_channels, kernel_size=kernel_size,
@@ -360,6 +385,19 @@ class MS_ConvBlock3D(nn.Module):
                 step_mode=step_mode,
                 #backend='cupy'
                 )
+        elif lif_type == 'general_para_lif':
+            self.lif1 = GeneralParametricLIFNode(
+                init_tau=tau,
+                init_threshold=1.0,
+                learnable_tau=False,
+                learnable_threshold=True,
+                decay_input=True,
+                detach_reset=True,                
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode,
+                backend='torch'
+            )
         
         self.conv1 = layer.Conv3d(in_channels=dim, out_channels=hidden_dim,
                                   kernel_size=3, padding=1, bias=False,
@@ -392,6 +430,19 @@ class MS_ConvBlock3D(nn.Module):
                 step_mode=step_mode,
                 #backend='cupy'
                 )
+        elif lif_type == 'general_para_lif':
+            self.lif2 = GeneralParametricLIFNode(
+                init_tau=tau,
+                init_threshold=1.0,
+                learnable_tau=False,
+                learnable_threshold=True,
+                decay_input=True,
+                detach_reset=True,                
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode,
+                backend='torch'
+            )
         
         self.conv2 = layer.Conv3d(in_channels=hidden_dim, out_channels=dim,
                                   kernel_size=3, padding=1, bias=False,
@@ -468,6 +519,19 @@ class MS_MLP3D(nn.Module):
                 step_mode=step_mode,
                 #backend='cupy'
                 )
+        elif lif_type == 'general_para_lif':
+            self.fc1_lif = GeneralParametricLIFNode(
+                init_tau=tau,
+                init_threshold=1.0,
+                learnable_tau=False,
+                learnable_threshold=True,
+                decay_input=True,
+                detach_reset=True,                
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode,
+                backend='torch'
+            )
 
         self.fc2_conv = layer.Conv3d(hidden_features, out_features, kernel_size=1,
                                     stride=1, padding=0, bias=False, step_mode=step_mode)
@@ -497,6 +561,19 @@ class MS_MLP3D(nn.Module):
                 step_mode=step_mode,
                 #backend='cupy'
                 )
+        elif lif_type == 'general_para_lif':
+            self.fc2_lif = GeneralParametricLIFNode(
+                init_tau=tau,
+                init_threshold=1.0,
+                learnable_tau=False,
+                learnable_threshold=True,
+                decay_input=True,
+                detach_reset=True,                
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode,
+                backend='torch'
+            )
 
     def forward(self, x):
         # x: [T, B, C, D, H, W]
@@ -551,6 +628,19 @@ class MS_Attention_RepConv3D_qkv_id(nn.Module):
                 step_mode=step_mode,
                 #backend='cupy'
                 )
+        elif lif_type == 'general_para_lif':
+            self.head_lif = GeneralParametricLIFNode(
+                init_tau=tau,
+                init_threshold=1.0,
+                learnable_tau=False,
+                learnable_threshold=True,
+                decay_input=True,
+                detach_reset=True,                
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode,
+                backend='torch'
+            )
         
         if norm_type == 'batch':
             q_norm = layer.BatchNorm3d(dim, step_mode=step_mode)
@@ -660,6 +750,55 @@ class MS_Attention_RepConv3D_qkv_id(nn.Module):
                 step_mode=step_mode,
                 #backend='cupy'
                 )
+        elif lif_type == 'general_para_lif':
+            self.q_lif = GeneralParametricLIFNode(
+                init_tau=tau,
+                init_threshold=1.0,
+                learnable_tau=False,
+                learnable_threshold=True,
+                decay_input=True,
+                detach_reset=True,                
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode,
+                backend='torch'
+            )
+            self.k_lif = GeneralParametricLIFNode(
+                init_tau=tau,
+                init_threshold=1.0,
+                learnable_tau=False,
+                learnable_threshold=True,
+                decay_input=True,
+                detach_reset=True,                
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode,
+                backend='torch'
+            )
+            self.v_lif = GeneralParametricLIFNode(
+                init_tau=tau,
+                init_threshold=1.0,
+                learnable_tau=False,
+                learnable_threshold=True,
+                decay_input=True,
+                detach_reset=True,                
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode,
+                backend='torch'
+            )
+            self.attn_lif = GeneralParametricLIFNode(
+                init_tau=tau,
+                init_threshold=0.5,
+                learnable_tau=False,
+                learnable_threshold=True,
+                decay_input=True,
+                detach_reset=True,                
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode,
+                backend='torch'
+            )
 
         self.proj_conv = nn.Sequential(
             RepConv3D(dim, dim, bias=False, step_mode=step_mode),
@@ -822,6 +961,19 @@ class MS_DownSampling3D(nn.Module):
                     step_mode=step_mode,
                     #backend='cupy'
                     )
+            elif lif_type == 'general_para_lif':
+                self.encode_lif = GeneralParametricLIFNode(
+                    init_tau=tau,
+                    init_threshold=1.0,
+                    learnable_tau=False,
+                    learnable_threshold=True,
+                    decay_input=True,
+                    detach_reset=True,                
+                    v_reset=0.0,
+                    surrogate_function=surrogate.ATan(),
+                    step_mode=step_mode,
+                    backend='torch'
+                )            
             
     def forward(self, x):
         # x: [T, B, C, D, H, W]
@@ -888,6 +1040,19 @@ class MS_UpSampling3D(nn.Module):
                     step_mode=step_mode,
                     #backend='cupy'
                 )
+            elif lif_type == 'general_para_lif':
+                self.decode_lif = GeneralParametricLIFNode(
+                    init_tau=tau,
+                    init_threshold=1.0,
+                    learnable_tau=False,
+                    learnable_threshold=True,
+                    decay_input=True,
+                    detach_reset=True,                
+                    v_reset=0.0,
+                    surrogate_function=surrogate.ATan(),
+                    step_mode=step_mode,
+                    backend='torch'
+                )     
 
     def forward(self, x):
         # x: [T, B, C, D, H, W]
@@ -936,6 +1101,19 @@ class CatConverge3D(base.MemoryModule):
                 step_mode=step_mode,
                 #backend='cupy'
             )
+        elif lif_type == 'general_para_lif':
+            self.lif = GeneralParametricLIFNode(
+                init_tau=tau,
+                init_threshold=1.0,
+                learnable_tau=False,
+                learnable_threshold=True,
+                decay_input=True,
+                detach_reset=True,                
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode,
+                backend='torch'
+            )           
             
         self.conv = layer.Conv3d(channels*2, channels, kernel_size=1, step_mode=step_mode)
         
@@ -1294,7 +1472,7 @@ def spike_former_unet3D_8_384(in_channels=4, num_classes=3, T=4, norm_type='grou
         sr_ratios=[1, 1, 1, 1],
         skip_connection='cat',
         T=T,
-        lif_type='para_lif',
+        lif_type='general_para_lif', # lif, para_lif, general_para_lif
         norm_type=norm_type,
         step_mode=step_mode,
         **kwargs

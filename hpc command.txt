@@ -59,13 +59,12 @@ nohup python spikeformerunet7/main.py > New-28-log_bra18_4T_spikeformerunet_64p4
 nohup python spikeformerunet4/main.py > New-29-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_cosdecay_paralif_diceloss214warm_catskip.out 2>&1 &
 [30]
 nohup python spikeformerunet6/main.py > New-30-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_diceloss111warm_catskip.out 2>&1 &
-
+[31]
+nohup python spikeformerunet8/main.py > New-31-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_diceloss214warm_catskip_seed42.out 2>&1 &
 
 [Running]
 [24]
 nohup python spikeformerunet9/main.py > New-24-log_bra21_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_regionloss_catskip.out 2>&1 &
-[31]
-nohup python spikeformerunet8/main.py > New-31-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_diceloss214warm_catskip_seed42.out 2>&1 &
 [32]
 nohup python spikeformerunet5/main.py > New-32-log_bra18_4T_spikeformerunet512_64p4b_5e4_1e6_poly20_paralif_diceloss214warm_catskip.out 2>&1 &
 [33]
@@ -86,7 +85,8 @@ nohup python spikeformerunet3/main.py > New-39-log_bra18_4T_spikeformerunet_64p4
 nohup python spikeformerunet6/main.py > New-40-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_diceloss111_catskip_seed42.out 2>&1 &
 [41]
 nohup python spikeformerunet7/main.py > New-41-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42.out 2>&1 &
-
+[42] next
+nohup python spikeformerunet8/main.py > New-42-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_thread_diceloss111_catskip_seed42.out 2>&1 &
 
 
 ps -u $USER -f | grep python
