@@ -1,5 +1,5 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 import torch
 import nibabel as nib
 import numpy as np
@@ -7,7 +7,6 @@ from einops import rearrange
 from spike_former_unet_model import spike_former_unet3D_8_384
 import torch.nn.functional as F
 from config import config as cfg
-from spikingjelly.activation_based.encoding import PoissonEncoder
 from monai.transforms import (
     Compose, LoadImaged, EnsureChannelFirstd, NormalizeIntensityd,
     Orientationd, Spacingd, ToTensord
@@ -163,109 +162,101 @@ def postprocess_brats_label(pred_mask: np.ndarray) -> np.ndarray:
 
 
 
-
-
-def pred_single_case(case_dir, inference_dir, model, inference_engine, device, T=8):
-    # 用cfg.modalities拼4模态路径
+def pred_single_case_soft(case_dir, prob_save_dir, model, inference_engine, device, T=8):
     case_name = os.path.basename(case_dir)
     print(f"Processing case: {case_name}")
-    # image_paths = [os.path.join(case_dir, f"{case_name}_{mod}.nii") for mod in cfg.modalities]
     image_paths = [os.path.join(case_dir, f"{mod}.nii.gz") for mod in cfg.modalities]
-    print("Image paths:", image_paths)
-        
-    # prefix = 'masked_20220114_35320313_BSR'
-    
-    # image_paths = [os.path.join(case_dir, f"{prefix}_{case_name}_{mod}.nii.gz") for mod in cfg.modalities]
-    
-    # 预处理，返回 (T, C, D, H, W) Tensor
-    x_seq = preprocess_for_inference(image_paths, T=T)
-    x_seq = x_seq.to(device)
 
-    
-    start_time = time.time()
-    # sliding window推理
+    x_seq = preprocess_for_inference(image_paths, T=T).to(device)
+
     with torch.no_grad():
         output = inference_engine(x_seq, model)
-        
-    # 计时结束
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    print(f"Inference time: {elapsed_time:.2f} seconds")
 
-    # 阈值二值化，模型输出已mean
-    output_prob = torch.sigmoid(output)
-    output_bin = (output_prob > 0.5).int().squeeze(0)
-
-    # 转换标签格式，后处理
-    label_raw = convert_prediction_to_label(output_bin)
-    label_np = label_raw.cpu().numpy().astype(np.uint8)
-    label_np = np.transpose(label_np, (1, 2, 0))
-    print("Label shape before postprocessing:", label_np.shape)  # (H, W, D)
-    # label_np = postprocess_brats_label(label_np)
-    print("Saved label shape:", label_np.shape)  # (H, W, D)
-
-    # 以t1ce为参考保存nii
-    ref_nii = nib.load(image_paths[cfg.modalities.index('t1ce')])
-    pred_nii = nib.Nifti1Image(label_np, affine=ref_nii.affine, header=ref_nii.header)
-
-    out_path = os.path.join(inference_dir, f"{case_name}_pred_mask.nii.gz")
-    nib.save(pred_nii, out_path)
-    print(f"Saved prediction: {out_path}")
+    output_prob = torch.sigmoid(output).squeeze(0).cpu().numpy()  # [C, D, H, W]
+    prob_path = os.path.join(prob_save_dir, f"{case_name}_prob.npy")
+    np.save(prob_path, output_prob)
+    print(f"Saved probability map: {prob_path}")
 
 
 
-def run_inference_on_case(case_dir: str, save_dir: str, model, inference_engine, device, T: int):
+def run_inference_soft(case_dir, save_dir, model, inference_engine, device, T=8):
     os.makedirs(save_dir, exist_ok=True)
-    pred_single_case(case_dir, save_dir, model, inference_engine, device, T=T)
+    pred_single_case_soft(case_dir, save_dir, model, inference_engine, device, T)
 
-
-def run_inference_on_folder(case_root: str, save_dir: str, model, inference_engine, device, T: int):
-    """
-    推理多个 case 文件夹
-    """
+def run_inference_folder_soft(case_root, save_dir, model, inference_engine, device, T=8):
     os.makedirs(save_dir, exist_ok=True)
     case_dirs = sorted([
         os.path.join(case_root, name) for name in os.listdir(case_root)
         if os.path.isdir(os.path.join(case_root, name))
     ])
     print(f"Found {len(case_dirs)} cases to infer.")
-    
-    for case_dir in tqdm(case_dirs, desc="Batch Inference"):
-        run_inference_on_case(case_dir, save_dir, model, inference_engine, device, T)
 
+    for case_dir in tqdm(case_dirs, desc="Soft Voting Inference"):
+        run_inference_soft(case_dir, save_dir, model, inference_engine, device, T)
+
+
+def soft_ensemble(prob_base_dir, case_dir, ckpt_dir):
+    case_dir = case_dir
+    prob_base_dir = prob_base_dir
+
+    for fold in range(1, 6):
+        print(f"Running inference for fold {fold}")
+        model_ckpt = os.path.join(ckpt_dir, f"best_model_fold{fold}.pth")
+        model = spike_former_unet3D_8_384(
+            num_classes=cfg.num_classes,
+            T=cfg.T,
+            norm_type=cfg.norm_type,
+            step_mode=cfg.step_mode).to(cfg.device)
+        model.load_state_dict(torch.load(model_ckpt, map_location=cfg.device))
+        model.eval()
+
+        inference_engine = TemporalSlidingWindowInference(
+            patch_size=cfg.inference_patch_size,
+            overlap=cfg.overlap,
+            sw_batch_size=16,
+            mode="constant",
+            encode_method=cfg.encode_method,
+            T=cfg.T,
+            num_classes=cfg.num_classes
+        )
+
+        fold_prob_dir = os.path.join(prob_base_dir, f"fold{fold}")
+        run_inference_folder_soft(case_dir, fold_prob_dir, model, inference_engine, cfg.device, cfg.T)
+
+
+def ensemble_soft_voting(prob_root, case_dir, output_dir):
+    os.makedirs(output_dir, exist_ok=True)
+    case_names = sorted(list(set([f.split('_prob.npy')[0] for f in os.listdir(os.path.join(prob_root, 'fold1'))])))
+
+    for case in tqdm(case_names, desc="Soft Voting Ensemble"):
+        prob_list = []
+        for fold in range(1, 6):
+            prob_path = os.path.join(prob_root, f"fold{fold}", f"{case}_prob.npy")
+            prob = np.load(prob_path)
+            prob_list.append(prob)
+
+        mean_prob = np.mean(np.stack(prob_list, axis=0), axis=0)  # [C, D, H, W]
+        binarized = (mean_prob > 0.5).astype(np.uint8)  # [C, D, H, W]
+
+        label_tensor = convert_prediction_to_label(torch.tensor(binarized))
+        label_np = label_tensor.numpy().astype(np.uint8)
+        label_np = np.transpose(label_np, (1, 2, 0))
+
+        ref_nii_path = os.path.join(case_dir, case, f"{cfg.modalities[cfg.modalities.index('t1ce')]}.nii.gz")
+        ref_nii = nib.load(ref_nii_path)
+        pred_nii = nib.Nifti1Image(label_np, affine=ref_nii.affine, header=ref_nii.header)
+
+        nib.save(pred_nii, os.path.join(output_dir, f"{case}_pred_mask.nii.gz"))
 
 
 def main():
+    prob_base_dir = "/hpc/ajhz839/validation/test_prob_folds/"
+    ensemble_output_dir = "/hpc/ajhz839/validation/test_pred_soft_ensemble/"
     case_dir = "/hpc/ajhz839/validation/val/"
-    model_ckpt = "./checkpoint/brats18_best_model_inference.pth"
-    inference_dir = "/hpc/ajhz839/validation/test_pred/"
-    
-    model = spike_former_unet3D_8_384(
-        num_classes=cfg.num_classes,
-        T=cfg.T,
-        norm_type=cfg.norm_type,
-        step_mode=cfg.step_mode).to(cfg.device)  # 模型.to(cfg.device)
-    model.load_state_dict(torch.load(model_ckpt, map_location=cfg.device))
-    model.eval()
+    ckpt_dir = "./checkpoint/"
 
-    inference_engine = TemporalSlidingWindowInference(
-        patch_size=cfg.inference_patch_size,
-        overlap=cfg.overlap, # cfg.overlap
-        sw_batch_size=16,
-        mode="constant", # "gaussian", "constant"
-        encode_method=cfg.encode_method,
-        T= cfg.T, # cfg.T
-        num_classes=cfg.num_classes
-    )
-    
-    if os.path.isdir(case_dir) and any(os.path.isdir(os.path.join(case_dir, f)) for f in os.listdir(case_dir)):
-        print(f"Running batch inference")
-        run_inference_on_folder(case_dir, inference_dir, model, inference_engine, cfg.device, cfg.T)
-    else:
-        print(f"Running single inference")
-        run_inference_on_case(case_dir, inference_dir, model, inference_engine, cfg.device, cfg.T)
-
-    
+    soft_ensemble(prob_base_dir, case_dir, ckpt_dir)
+    ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir)
 
 if __name__ == "__main__":
     main()

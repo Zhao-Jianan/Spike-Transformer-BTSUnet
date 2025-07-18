@@ -350,7 +350,7 @@ class SepConv3D(nn.Module):
         return x
 
 
-class MS_ConvBlock3D(nn.Module):
+class MS_SpikeConvBlock3D(nn.Module):
     def __init__(
         self,
         dim,
@@ -475,7 +475,7 @@ class MS_ConvBlock3D(nn.Module):
         return x
 
 
-class MS_MLP3D(nn.Module):
+class MS_SpikeMLP3D(nn.Module):
     def __init__(
         self,
         in_features,
@@ -587,7 +587,7 @@ class MS_MLP3D(nn.Module):
         return x
 
 
-class MS_Attention_RepConv3D_qkv_id(nn.Module):
+class MS_SpikeAttention_RepConv3D_qkv_id(nn.Module):
     def __init__(
         self,
         dim,
@@ -841,7 +841,7 @@ class MS_Attention_RepConv3D_qkv_id(nn.Module):
         return x
 
 
-class MS_Block3D(nn.Module):
+class MS_SpikeTransformerBlock3D(nn.Module):
     def __init__(
         self,
         dim,
@@ -859,7 +859,7 @@ class MS_Block3D(nn.Module):
         step_mode='m'):
         super().__init__()
 
-        self.attn = MS_Attention_RepConv3D_qkv_id(
+        self.attn = MS_SpikeAttention_RepConv3D_qkv_id(
             dim=dim,
             num_heads=num_heads,
             qkv_bias=qkv_bias,
@@ -875,7 +875,7 @@ class MS_Block3D(nn.Module):
         self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
 
         mlp_hidden_dim = int(dim * mlp_ratio)
-        self.mlp = MS_MLP3D(
+        self.mlp = MS_SpikeMLP3D(
             in_features=dim,
             hidden_features=mlp_hidden_dim,
             out_features=dim,
@@ -907,7 +907,7 @@ class TimeDistributed(nn.Module):
         x = x.view(T, B, *x.shape[1:])
         return x
 
-class MS_DownSampling3D(nn.Module):
+class MS_SpikeDownSampling3D(nn.Module):
     def __init__(
         self,
         in_channels=4,
@@ -984,7 +984,7 @@ class MS_DownSampling3D(nn.Module):
         return x
     
     
-class MS_UpSampling3D(nn.Module):
+class MS_SpikeUpSampling3D(nn.Module):
     def __init__(
         self,
         in_channels,
@@ -1077,7 +1077,7 @@ class AddConverge3D(base.MemoryModule):
         return x 
     
     
-class CatConverge3D(base.MemoryModule):
+class MS_SpikeCatConverge3D(base.MemoryModule):
     def __init__(self, channels, norm_type='group', tau=2.0, lif_type='para_lif', step_mode='m'):
         super().__init__()
         if lif_type == 'lif':
@@ -1158,7 +1158,7 @@ class Spike_Former_Unet3D(nn.Module):
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
 
         # Encode-Stage 1
-        self.downsample1_a = MS_DownSampling3D(
+        self.downsample1_a = MS_SpikeDownSampling3D(
             in_channels=in_channels,
             embed_dims=embed_dim[0] // 2,
             kernel_size=7,
@@ -1170,9 +1170,9 @@ class Spike_Former_Unet3D(nn.Module):
             step_mode=step_mode)
         
         self.encode_block1_a = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[0] // 2, mlp_ratio=mlp_ratios[0], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
+            MS_SpikeConvBlock3D(dim=embed_dim[0] // 2, mlp_ratio=mlp_ratios[0], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
 
-        self.downsample1_b = MS_DownSampling3D(
+        self.downsample1_b = MS_SpikeDownSampling3D(
             in_channels=embed_dim[0] // 2,
             embed_dims=embed_dim[0],
             kernel_size=3,
@@ -1184,10 +1184,10 @@ class Spike_Former_Unet3D(nn.Module):
             step_mode=step_mode)
         
         self.encode_block1_b = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[0], mlp_ratio=mlp_ratios[0], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
+            MS_SpikeConvBlock3D(dim=embed_dim[0], mlp_ratio=mlp_ratios[0], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
 
         # Encode-Stage 2
-        self.downsample2 = MS_DownSampling3D(
+        self.downsample2 = MS_SpikeDownSampling3D(
             in_channels=embed_dim[0],
             embed_dims=embed_dim[1],
             kernel_size=3,
@@ -1199,13 +1199,13 @@ class Spike_Former_Unet3D(nn.Module):
             step_mode=step_mode)
                 
         self.encode_block2_a = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
+            MS_SpikeConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
        
         self.encode_block2_b = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
+            MS_SpikeConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
 
         # Encode-Stage 3
-        self.downsample3 = MS_DownSampling3D(
+        self.downsample3 = MS_SpikeDownSampling3D(
             in_channels=embed_dim[1],
             embed_dims=embed_dim[2],
             kernel_size=3,
@@ -1217,7 +1217,7 @@ class Spike_Former_Unet3D(nn.Module):
             step_mode=step_mode)
         
         self.encode_block3 = nn.ModuleList([
-            MS_Block3D(
+            MS_SpikeTransformerBlock3D(
                 dim=embed_dim[2],
                 num_heads=num_heads[2],
                 mlp_ratio=mlp_ratios[2],
@@ -1233,7 +1233,7 @@ class Spike_Former_Unet3D(nn.Module):
             ) for i in range(layers[2])])
 
         # feature-Stage
-        self.feature_downsample = MS_DownSampling3D(
+        self.feature_downsample = MS_SpikeDownSampling3D(
             in_channels=embed_dim[2],
             embed_dims=embed_dim[3],
             kernel_size=3,
@@ -1245,7 +1245,7 @@ class Spike_Former_Unet3D(nn.Module):
             step_mode=step_mode)
         
         self.feature_block = nn.ModuleList([
-            MS_Block3D(
+            MS_SpikeTransformerBlock3D(
                 dim=embed_dim[3],
                 num_heads=num_heads[3],
                 mlp_ratio=mlp_ratios[3],
@@ -1262,7 +1262,7 @@ class Spike_Former_Unet3D(nn.Module):
         ])
         
         # Decode-Stage 3
-        self.upsample3 = MS_UpSampling3D(
+        self.upsample3 = MS_SpikeUpSampling3D(
             in_channels=embed_dim[3],
             out_channels=embed_dim[2],
             kernel_size=3,
@@ -1275,7 +1275,7 @@ class Spike_Former_Unet3D(nn.Module):
             step_mode=step_mode)
         
         self.decode_block3 = nn.ModuleList([
-            MS_Block3D(
+            MS_SpikeTransformerBlock3D(
                 dim=embed_dim[2],
                 num_heads=num_heads[2],
                 mlp_ratio=mlp_ratios[2],
@@ -1293,10 +1293,11 @@ class Spike_Former_Unet3D(nn.Module):
         if skip_connection == 'add':
             self.converge3 = AddConverge3D(channels=embed_dim[2], norm_type=norm_type, step_mode=step_mode)
         elif skip_connection == 'cat':
-            self.converge3 = CatConverge3D(channels=embed_dim[2], norm_type=norm_type, lif_type=lif_type, step_mode=step_mode)        
+            self.converge3 = MS_SpikeCatConverge3D(
+                channels=embed_dim[2], norm_type=norm_type, lif_type=lif_type, step_mode=step_mode)        
         
         # Decode-Stage 2
-        self.upsample2 = MS_UpSampling3D(
+        self.upsample2 = MS_SpikeUpSampling3D(
             in_channels=embed_dim[2],
             out_channels=embed_dim[1],
             kernel_size=3,
@@ -1308,19 +1309,19 @@ class Spike_Former_Unet3D(nn.Module):
             step_mode=step_mode)
                 
         self.decode_block2_a = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
+            MS_SpikeConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
        
         self.decode_block2_b = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
+            MS_SpikeConvBlock3D(dim=embed_dim[1], mlp_ratio=mlp_ratios[1], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
         
 
         if skip_connection == 'add':
             self.converge2 = AddConverge3D(channels=embed_dim[1], norm_type=norm_type, step_mode=step_mode)
         elif skip_connection == 'cat':
-            self.converge2 = CatConverge3D(channels=embed_dim[1], norm_type=norm_type, lif_type=lif_type, step_mode=step_mode)                     
+            self.converge2 = MS_SpikeCatConverge3D(channels=embed_dim[1], norm_type=norm_type, lif_type=lif_type, step_mode=step_mode)                     
                    
         # Decode-Stage 1
-        self.upsample1_b = MS_UpSampling3D(
+        self.upsample1_b = MS_SpikeUpSampling3D(
             in_channels=embed_dim[1],
             out_channels= embed_dim[0],
             kernel_size=3,
@@ -1332,9 +1333,9 @@ class Spike_Former_Unet3D(nn.Module):
             step_mode=step_mode)
         
         self.decode_block1_b = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[0], mlp_ratio=mlp_ratios[0], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
+            MS_SpikeConvBlock3D(dim=embed_dim[0], mlp_ratio=mlp_ratios[0], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
         
-        self.upsample1_a = MS_UpSampling3D(
+        self.upsample1_a = MS_SpikeUpSampling3D(
             in_channels=embed_dim[0],
             out_channels=embed_dim[0] // 2,
             kernel_size=7,
@@ -1346,15 +1347,15 @@ class Spike_Former_Unet3D(nn.Module):
             step_mode=step_mode)
         
         self.decode_block1_a = nn.ModuleList([
-            MS_ConvBlock3D(dim=embed_dim[0] // 2, mlp_ratio=mlp_ratios[0], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
+            MS_SpikeConvBlock3D(dim=embed_dim[0] // 2, mlp_ratio=mlp_ratios[0], lif_type=lif_type, norm_type=norm_type, step_mode=step_mode)])
 
 
         if skip_connection == 'add':
             self.converge1 = AddConverge3D(channels=embed_dim[0], norm_type=norm_type, step_mode=step_mode)
         elif skip_connection == 'cat':
-            self.converge1 = CatConverge3D(channels=embed_dim[0], norm_type=norm_type, lif_type=lif_type, step_mode=step_mode)   
+            self.converge1 = MS_SpikeCatConverge3D(channels=embed_dim[0], norm_type=norm_type, lif_type=lif_type, step_mode=step_mode)   
         
-        self.final_upsample = MS_UpSampling3D(
+        self.final_upsample = MS_SpikeUpSampling3D(
             in_channels=embed_dim[0] // 2,
             out_channels=embed_dim[0] // 4,
             kernel_size=3,
@@ -1395,53 +1396,53 @@ class Spike_Former_Unet3D(nn.Module):
     def forward_encoder_decoder(self, x):         # input shape: [T, B, 4, 64, 64, 64]
         # Encode-stage 1
         e1 = self.downsample1_a(x)          # Downsample1_a output shape: [T, B, 48, 32, 32, 32]
-        for blk in self.encode_block1_a:
-            e1 = blk(e1)                     # shape: [T, B, 48, 32, 32, 32]
+        # for blk in self.encode_block1_a:
+        #     e1 = blk(e1)                     # shape: [T, B, 48, 32, 32, 32]
         
         e1 = self.downsample1_b(e1)          # Downsample1_b output shape: [T, B, 96, 16, 16, 16]
-        for blk in self.encode_block1_b:
-            e1 = blk(e1)
+        # for blk in self.encode_block1_b:
+        #     e1 = blk(e1)
         skip1 = e1                 # Skip2 shape: [T, B, 96, 16, 16, 16]
         # Encode-stage 2
         e2 = self.downsample2(e1)            # Downsample2 output shape: [T, B, 192, 8, 8, 8]
-        for blk in self.encode_block2_a:
-            e2 = blk(e2)
-        for blk in self.encode_block2_b:
-            e2 = blk(e2)
+        # for blk in self.encode_block2_a:
+        #     e2 = blk(e2)
+        # for blk in self.encode_block2_b:
+        #     e2 = blk(e2)
         skip2 = e2                  # Skip3 shape: [T, B, 192, 8, 8, 8]
         # Encode-stage 3
         e3 = self.downsample3(e2)            # Downsample3 output shape: [T, B, 384, 4, 4, 4]
-        for blk in self.encode_block3:
-            e3 = blk(e3)
+        # for blk in self.encode_block3:
+        #     e3 = blk(e3)
         skip3 = e3                  # Skip4 shape: [T, B, 384, 4, 4, 4]
         # Encode-stage 4
         e4 = self.feature_downsample(e3)     # Downsample4 output shape: [T, B, 480, 4, 4, 4]
-        for blk in self.feature_block:
-            e4 = blk(e4)                     # After Encode-Stage 4: [T, B, 480, 4, 4, 4]
+        # for blk in self.feature_block:
+        #     e4 = blk(e4)                     # After Encode-Stage 4: [T, B, 480, 4, 4, 4]
         
         # Decode-Stage 3
         d3 = self.upsample3(e4)              # Upsample3 output shape: [T, B, 384, 4, 4, 4]
         d3 = self.converge3(d3, skip3)       # converge3 output shape: [T, B, 384, 4, 4, 4]
-        for blk in self.decode_block3:
-            d3 = blk(d3)                     # After Decode-Stage3: [T, B, 384, 4, 4, 4]
+        # for blk in self.decode_block3:
+        #     d3 = blk(d3)                     # After Decode-Stage3: [T, B, 384, 4, 4, 4]
         
         # Decode-Stage 2
         d2 = self.upsample2(d3)              # Upsample2 output shape: [T, B, 192, 8, 8, 8]
         d2 = self.converge2(d2, skip2)       # Converge2 output shape: [T, B, 192, 8, 8, 8]
-        for blk in self.decode_block2_a:
-            d2 = blk(d2)
-        for blk in self.decode_block2_b:
-            d2 = blk(d2)                     # After Decode-Stage2: [T, B, 192, 8, 8, 8]
+        # for blk in self.decode_block2_a:
+        #     d2 = blk(d2)
+        # for blk in self.decode_block2_b:
+        #     d2 = blk(d2)                     # After Decode-Stage2: [T, B, 192, 8, 8, 8]
 
         # Decode-Stage 1
         d1 = self.upsample1_b(d2)            # Upsample1_b output shape: [T, B, 96, 16, 16, 16]
         d1 = self.converge1(d1, skip1)       # Converge1 output shape: [T, B, 96, 16, 16, 16]
-        for blk in self.decode_block1_b:
-            d1 = blk(d1)
+        # for blk in self.decode_block1_b:
+        #     d1 = blk(d1)
         
         d1 = self.upsample1_a(d1)            # Upsample1_a output shape: [T, B, 48, 32, 32, 32]
-        for blk in self.decode_block1_a:
-            d1 = blk(d1)
+        # for blk in self.decode_block1_a:
+        #     d1 = blk(d1)
             
         out =self.final_upsample(d1)          # Final Upsample output shape: [T, B, 24, 64, 64, 64]
 
@@ -1452,7 +1453,7 @@ class Spike_Former_Unet3D(nn.Module):
         out = self.forward_encoder_decoder(x)
 
         # Readout
-        # out_lif = self.lif(out) 
+        # out = self.lif(out) 
         output = self.readout(out).mean(0)  # [3, 64, 64, 64]
 
         return output
@@ -1472,7 +1473,7 @@ def spike_former_unet3D_8_384(in_channels=4, num_classes=3, T=4, norm_type='grou
         sr_ratios=[1, 1, 1, 1],
         skip_connection='cat',
         T=T,
-        lif_type='general_para_lif', # lif, para_lif, general_para_lif
+        lif_type='para_lif', # lif, para_lif, general_para_lif
         norm_type=norm_type,
         step_mode=step_mode,
         **kwargs
@@ -1519,15 +1520,50 @@ def spike_former_unet3D_8_768(in_channels=4, num_classes=3, T=4, norm_type='grou
     )
     return model    
     
+
+
+def count_parameters(model):
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Total parameters: {total_params:,}")
+    print(f"Trainable parameters: {trainable_params:,}")
+    return total_params, trainable_params
+
+
        
 def main():
     # 测试模型
-    device = torch.device("cuda:0")
+    import os
+    os.chdir(os.path.dirname(__file__))
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = spike_former_unet3D_8_384().to(device)
-    x = torch.randn(2, 2, 4, 128, 128, 128)  # 假设输入是一个 batch 的数据
+    x = torch.randn(2, 2, 4, 64, 64, 64)  # 假设输入是一个 batch 的数据
     x = x.to(device)
     output = model(x)
     print(output.shape)  # 输出形状应该是 [1, 3, 128, 128, 128]
+    # from config import config as cfg  
+    # model = spike_former_unet3D_8_384(
+    #     num_classes=cfg.num_classes,
+    #     T=cfg.T,
+    #     norm_type=cfg.norm_type,
+    #     step_mode=cfg.step_mode)  # 模型
+    # print("Model parameters for spike_former_unet3D_8_384:")
+    # count_parameters(model)  # 91.852 M 
+    # model = spike_former_unet3D_8_512(
+    #     num_classes=cfg.num_classes,
+    #     T=cfg.T,
+    #     norm_type=cfg.norm_type,
+    #     step_mode=cfg.step_mode)
+    # print("Model parameters for spike_former_unet3D_8_512:")
+    # count_parameters(model)  # 162.579 M
+    # model = spike_former_unet3D_8_768(
+    #     num_classes=cfg.num_classes,
+    #     T=cfg.T,
+    #     norm_type=cfg.norm_type,
+    #     step_mode=cfg.step_mode)
+    # print("Model parameters for spike_former_unet3D_8_768:")
+    # count_parameters(model) # 364.198 M
     
 if __name__ == "__main__":
     main()
