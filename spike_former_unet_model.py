@@ -20,7 +20,7 @@ class GeneralParametricLIFNode(neuron.BaseNode):
                  backend='torch',
                  store_v_seq: bool = False):
 
-        super().__init__(v_threshold=0.,  # placeholder, 会被 self.v_threshold 替代
+        super().__init__(v_threshold=0., 
                          v_reset=v_reset,
                          surrogate_function=surrogate_function,
                          detach_reset=detach_reset,
@@ -266,12 +266,12 @@ class SepConv3D(nn.Module):
             self.lif1 = GeneralParametricLIFNode(
                 init_tau=tau,
                 init_threshold=1.0,
-                learnable_tau=False,
+                learnable_tau=True,
                 learnable_threshold=True,
                 decay_input=True,
                 detach_reset=True,                
                 v_reset=0.0,
-                surrogate_function=surrogate.ATan(),
+                surrogate_function=surrogate.ATan(), # surrogate.ATan()
                 step_mode=step_mode,
                 backend='torch'
             )
@@ -313,12 +313,12 @@ class SepConv3D(nn.Module):
             self.lif2 = GeneralParametricLIFNode(
                 init_tau=tau,
                 init_threshold=1.0,
-                learnable_tau=False,
+                learnable_tau=True,
                 learnable_threshold=True,
                 decay_input=True,
                 detach_reset=True,                
                 v_reset=0.0,
-                surrogate_function=surrogate.ATan(),
+                surrogate_function=surrogate.ATan(), # surrogate.ATan()
                 step_mode=step_mode,
                 backend='torch'
             )
@@ -389,12 +389,12 @@ class MS_SpikeConvBlock3D(nn.Module):
             self.lif1 = GeneralParametricLIFNode(
                 init_tau=tau,
                 init_threshold=1.0,
-                learnable_tau=False,
+                learnable_tau=True,
                 learnable_threshold=True,
                 decay_input=True,
                 detach_reset=True,                
                 v_reset=0.0,
-                surrogate_function=surrogate.ATan(),
+                surrogate_function=surrogate.ATan(), # surrogate.ATan()
                 step_mode=step_mode,
                 backend='torch'
             )
@@ -434,12 +434,12 @@ class MS_SpikeConvBlock3D(nn.Module):
             self.lif2 = GeneralParametricLIFNode(
                 init_tau=tau,
                 init_threshold=1.0,
-                learnable_tau=False,
+                learnable_tau=True,
                 learnable_threshold=True,
                 decay_input=True,
                 detach_reset=True,                
                 v_reset=0.0,
-                surrogate_function=surrogate.ATan(),
+                surrogate_function=surrogate.ATan(), # surrogate.ATan()
                 step_mode=step_mode,
                 backend='torch'
             )
@@ -523,12 +523,12 @@ class MS_SpikeMLP3D(nn.Module):
             self.fc1_lif = GeneralParametricLIFNode(
                 init_tau=tau,
                 init_threshold=1.0,
-                learnable_tau=False,
+                learnable_tau=True,
                 learnable_threshold=True,
                 decay_input=True,
                 detach_reset=True,                
                 v_reset=0.0,
-                surrogate_function=surrogate.ATan(),
+                surrogate_function=surrogate.ATan(), # surrogate.ATan()
                 step_mode=step_mode,
                 backend='torch'
             )
@@ -565,12 +565,12 @@ class MS_SpikeMLP3D(nn.Module):
             self.fc2_lif = GeneralParametricLIFNode(
                 init_tau=tau,
                 init_threshold=1.0,
-                learnable_tau=False,
+                learnable_tau=True,
                 learnable_threshold=True,
                 decay_input=True,
                 detach_reset=True,                
                 v_reset=0.0,
-                surrogate_function=surrogate.ATan(),
+                surrogate_function=surrogate.ATan(), # surrogate.ATan()
                 step_mode=step_mode,
                 backend='torch'
             )
@@ -632,12 +632,12 @@ class MS_SpikeAttention_RepConv3D_qkv_id(nn.Module):
             self.head_lif = GeneralParametricLIFNode(
                 init_tau=tau,
                 init_threshold=1.0,
-                learnable_tau=False,
+                learnable_tau=True,
                 learnable_threshold=True,
                 decay_input=True,
                 detach_reset=True,                
                 v_reset=0.0,
-                surrogate_function=surrogate.ATan(),
+                surrogate_function=surrogate.ATan(), # surrogate.ATan()
                 step_mode=step_mode,
                 backend='torch'
             )
@@ -754,12 +754,12 @@ class MS_SpikeAttention_RepConv3D_qkv_id(nn.Module):
             self.q_lif = GeneralParametricLIFNode(
                 init_tau=tau,
                 init_threshold=1.0,
-                learnable_tau=False,
+                learnable_tau=True,
                 learnable_threshold=True,
                 decay_input=True,
                 detach_reset=True,                
                 v_reset=0.0,
-                surrogate_function=surrogate.ATan(),
+                surrogate_function=surrogate.ATan(), # surrogate.ATan()
                 step_mode=step_mode,
                 backend='torch'
             )
@@ -771,7 +771,7 @@ class MS_SpikeAttention_RepConv3D_qkv_id(nn.Module):
                 decay_input=True,
                 detach_reset=True,                
                 v_reset=0.0,
-                surrogate_function=surrogate.ATan(),
+                surrogate_function=surrogate.ATan(), # surrogate.ATan()
                 step_mode=step_mode,
                 backend='torch'
             )
@@ -783,7 +783,7 @@ class MS_SpikeAttention_RepConv3D_qkv_id(nn.Module):
                 decay_input=True,
                 detach_reset=True,                
                 v_reset=0.0,
-                surrogate_function=surrogate.ATan(),
+                surrogate_function=surrogate.ATan(), # surrogate.ATan()
                 step_mode=step_mode,
                 backend='torch'
             )
@@ -795,7 +795,7 @@ class MS_SpikeAttention_RepConv3D_qkv_id(nn.Module):
                 decay_input=True,
                 detach_reset=True,                
                 v_reset=0.0,
-                surrogate_function=surrogate.ATan(),
+                surrogate_function=surrogate.ATan(), # surrogate.ATan()
                 step_mode=step_mode,
                 backend='torch'
             )
@@ -965,12 +965,12 @@ class MS_SpikeDownSampling3D(nn.Module):
                 self.encode_lif = GeneralParametricLIFNode(
                     init_tau=tau,
                     init_threshold=1.0,
-                    learnable_tau=False,
+                    learnable_tau=True,
                     learnable_threshold=True,
                     decay_input=True,
                     detach_reset=True,                
                     v_reset=0.0,
-                    surrogate_function=surrogate.ATan(),
+                    surrogate_function=surrogate.ATan(), # surrogate.ATan()
                     step_mode=step_mode,
                     backend='torch'
                 )            
@@ -1044,12 +1044,12 @@ class MS_SpikeUpSampling3D(nn.Module):
                 self.decode_lif = GeneralParametricLIFNode(
                     init_tau=tau,
                     init_threshold=1.0,
-                    learnable_tau=False,
+                    learnable_tau=True,
                     learnable_threshold=True,
                     decay_input=True,
                     detach_reset=True,                
                     v_reset=0.0,
-                    surrogate_function=surrogate.ATan(),
+                    surrogate_function=surrogate.ATan(), # surrogate.ATan()
                     step_mode=step_mode,
                     backend='torch'
                 )     
@@ -1105,12 +1105,12 @@ class MS_SpikeCatConverge3D(base.MemoryModule):
             self.lif = GeneralParametricLIFNode(
                 init_tau=tau,
                 init_threshold=1.0,
-                learnable_tau=False,
+                learnable_tau=True,
                 learnable_threshold=True,
                 decay_input=True,
                 detach_reset=True,                
                 v_reset=0.0,
-                surrogate_function=surrogate.ATan(),
+                surrogate_function=surrogate.ATan(), # surrogate.ATan()
                 step_mode=step_mode,
                 backend='torch'
             )           
@@ -1396,53 +1396,53 @@ class Spike_Former_Unet3D(nn.Module):
     def forward_encoder_decoder(self, x):         # input shape: [T, B, 4, 64, 64, 64]
         # Encode-stage 1
         e1 = self.downsample1_a(x)          # Downsample1_a output shape: [T, B, 48, 32, 32, 32]
-        # for blk in self.encode_block1_a:
-        #     e1 = blk(e1)                     # shape: [T, B, 48, 32, 32, 32]
+        for blk in self.encode_block1_a:
+            e1 = blk(e1)                     # shape: [T, B, 48, 32, 32, 32]
         
         e1 = self.downsample1_b(e1)          # Downsample1_b output shape: [T, B, 96, 16, 16, 16]
-        # for blk in self.encode_block1_b:
-        #     e1 = blk(e1)
+        for blk in self.encode_block1_b:
+            e1 = blk(e1)
         skip1 = e1                 # Skip2 shape: [T, B, 96, 16, 16, 16]
         # Encode-stage 2
         e2 = self.downsample2(e1)            # Downsample2 output shape: [T, B, 192, 8, 8, 8]
-        # for blk in self.encode_block2_a:
-        #     e2 = blk(e2)
-        # for blk in self.encode_block2_b:
-        #     e2 = blk(e2)
+        for blk in self.encode_block2_a:
+            e2 = blk(e2)
+        for blk in self.encode_block2_b:
+            e2 = blk(e2)
         skip2 = e2                  # Skip3 shape: [T, B, 192, 8, 8, 8]
         # Encode-stage 3
         e3 = self.downsample3(e2)            # Downsample3 output shape: [T, B, 384, 4, 4, 4]
-        # for blk in self.encode_block3:
-        #     e3 = blk(e3)
+        for blk in self.encode_block3:
+            e3 = blk(e3)
         skip3 = e3                  # Skip4 shape: [T, B, 384, 4, 4, 4]
         # Encode-stage 4
         e4 = self.feature_downsample(e3)     # Downsample4 output shape: [T, B, 480, 4, 4, 4]
-        # for blk in self.feature_block:
-        #     e4 = blk(e4)                     # After Encode-Stage 4: [T, B, 480, 4, 4, 4]
+        for blk in self.feature_block:
+            e4 = blk(e4)                     # After Encode-Stage 4: [T, B, 480, 4, 4, 4]
         
         # Decode-Stage 3
         d3 = self.upsample3(e4)              # Upsample3 output shape: [T, B, 384, 4, 4, 4]
         d3 = self.converge3(d3, skip3)       # converge3 output shape: [T, B, 384, 4, 4, 4]
-        # for blk in self.decode_block3:
-        #     d3 = blk(d3)                     # After Decode-Stage3: [T, B, 384, 4, 4, 4]
+        for blk in self.decode_block3:
+            d3 = blk(d3)                     # After Decode-Stage3: [T, B, 384, 4, 4, 4]
         
         # Decode-Stage 2
         d2 = self.upsample2(d3)              # Upsample2 output shape: [T, B, 192, 8, 8, 8]
         d2 = self.converge2(d2, skip2)       # Converge2 output shape: [T, B, 192, 8, 8, 8]
-        # for blk in self.decode_block2_a:
-        #     d2 = blk(d2)
-        # for blk in self.decode_block2_b:
-        #     d2 = blk(d2)                     # After Decode-Stage2: [T, B, 192, 8, 8, 8]
+        for blk in self.decode_block2_a:
+            d2 = blk(d2)
+        for blk in self.decode_block2_b:
+            d2 = blk(d2)                     # After Decode-Stage2: [T, B, 192, 8, 8, 8]
 
         # Decode-Stage 1
         d1 = self.upsample1_b(d2)            # Upsample1_b output shape: [T, B, 96, 16, 16, 16]
         d1 = self.converge1(d1, skip1)       # Converge1 output shape: [T, B, 96, 16, 16, 16]
-        # for blk in self.decode_block1_b:
-        #     d1 = blk(d1)
+        for blk in self.decode_block1_b:
+            d1 = blk(d1)
         
         d1 = self.upsample1_a(d1)            # Upsample1_a output shape: [T, B, 48, 32, 32, 32]
-        # for blk in self.decode_block1_a:
-        #     d1 = blk(d1)
+        for blk in self.decode_block1_a:
+            d1 = blk(d1)
             
         out =self.final_upsample(d1)          # Final Upsample output shape: [T, B, 24, 64, 64, 64]
 
@@ -1473,7 +1473,7 @@ def spike_former_unet3D_8_384(in_channels=4, num_classes=3, T=4, norm_type='grou
         sr_ratios=[1, 1, 1, 1],
         skip_connection='cat',
         T=T,
-        lif_type='para_lif', # lif, para_lif, general_para_lif
+        lif_type='general_para_lif', # lif, para_lif, general_para_lif
         norm_type=norm_type,
         step_mode=step_mode,
         **kwargs

@@ -78,7 +78,7 @@ def plot_modalities_with_masks(t1, t1ce, t2, flair, gt_mask, pred_mask, slice_id
 
 def main():
     # 设置数据目录和文件路径
-    data_dir = 'C:/Users/ajhz839/code/Python_Projects/SNN-brain-tumor-project/data/val/Brats18_WashU_W038_1'
+    data_dir = 'C:/Users/ajhz839/code/Python_Projects/SNN-brain-tumor-project/data/val/Brats18_WashU_W053_1'
     pred_dir = './visulise'
     # case_name = os.path.basename(data_dir)
     
@@ -122,7 +122,7 @@ def main():
     pred_mask = load_nifti_image(pred_mask_path).astype(np.uint8)
     save_dir = './visualise/'
     # save_path = os.path.join(save_dir, f'{prefix}_{case_name}_output1.png')
-    save_path = os.path.join(save_dir, f'{case_name}_output1.png')
+    save_path = os.path.join(save_dir, f'{case_name}_output2.png')
 
     # 可视化中间层 (中间 slice 通常是肿瘤区域)
     best_slice = select_best_slice(gt_mask)

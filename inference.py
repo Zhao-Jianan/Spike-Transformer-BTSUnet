@@ -252,7 +252,7 @@ def main():
         patch_size=cfg.inference_patch_size,
         overlap=cfg.overlap, # cfg.overlap
         sw_batch_size=16,
-        mode="constant", # "gaussian", "constant"
+        mode="gaussian", # "gaussian", "constant"
         encode_method=cfg.encode_method,
         T= cfg.T, # cfg.T
         num_classes=cfg.num_classes

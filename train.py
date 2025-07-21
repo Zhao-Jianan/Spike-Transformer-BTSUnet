@@ -326,7 +326,7 @@ def train_one_fold(
     lr_history = []
 
     best_dice = 0.0
-    min_dice_threshold = 0.65
+    min_dice_threshold = 0.75
     warmup_epochs = cfg.num_warmup_epochs
     train_crop_mode = cfg.train_crop_mode
 

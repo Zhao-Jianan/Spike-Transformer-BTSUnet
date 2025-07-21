@@ -1,5 +1,6 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+os.chdir(os.path.dirname(__file__))
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 import torch
 import nibabel as nib
 import numpy as np
@@ -214,7 +215,7 @@ def soft_ensemble(prob_base_dir, case_dir, ckpt_dir):
             patch_size=cfg.inference_patch_size,
             overlap=cfg.overlap,
             sw_batch_size=16,
-            mode="constant",
+            mode="constant", # "gaussian", "constant"
             encode_method=cfg.encode_method,
             T=cfg.T,
             num_classes=cfg.num_classes
