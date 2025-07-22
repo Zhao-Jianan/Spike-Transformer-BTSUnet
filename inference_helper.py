@@ -25,23 +25,21 @@ class TemporalSlidingWindowInference:
         self.latency_encoder = LatencyEncoder(self.T)
         self.weighted_phase_encoder = WeightedPhaseEncoder(self.T)
         self.num_classes = num_classes
-
-    def _rescale_0_1(self, patch: torch.Tensor) -> torch.Tensor:
-        # patch shape: [B, C, D, H, W]
-        # 只在 D,H,W 维度做 min-max，保持 B,C 维度分开
-        min_val = patch.amin(dim=[1,2,3], keepdim=True)  # 保留 B,C 维度
-        max_val = patch.amax(dim=[1,2,3], keepdim=True)
-        scale = (max_val - min_val).clamp(min=1e-5)
-        return (patch - min_val) / scale
-
+        
+        
     def encode_spike_input(self, img_rescale: torch.Tensor) -> torch.Tensor:
         """
         对归一化图像进行脉冲编码，支持 poisson / latency / weighted_phase。
         输入:
-            img_rescale: torch.Tensor, shape (B, C, D, H, W), 数值应已在 [0, 1] 区间
+            img_rescale: torch.Tensor, shape (B, C, D, H, W)
         输出:
             spike_tensor: torch.Tensor, shape (T, B, C, D, H, W)
         """
+        # 维度判断
+        if img_rescale.dim() != 5:
+            raise ValueError(f"Unexpected input shape {img_rescale.shape}, expected 5D tensor.")
+        
+
         if self.encode_method == 'poisson':
             # [T, B, C, D, H, W]
             spike = torch.stack([self.poisson_encoder(img_rescale) for _ in range(self.T)], dim=0)
@@ -77,14 +75,17 @@ class TemporalSlidingWindowInference:
                 yy ** 2 / (2 * sigmas[1] ** 2) +
                 xx ** 2 / (2 * sigmas[2] ** 2))
             )
+            gaussian = gaussian.unsqueeze(0).unsqueeze(0)  # 形状变成 [1, 1, pd, ph, pw]
             return gaussian
         elif self.mode == "constant":
-            return torch.ones(self.patch_size, device=device)
+            weight = torch.ones(self.patch_size, device=device)
+            weight = weight.unsqueeze(0).unsqueeze(0)
+            return weight
         else:
             raise ValueError(f"Unsupported mode: {self.mode}")
 
     def __call__(self, inputs: torch.Tensor, predictor: callable) -> torch.Tensor:
-        T, B, C, D, H, W = inputs.shape
+        B, C, D, H, W = inputs.shape
         device = inputs.device
         pd, ph, pw = self.patch_size
         stride = [int(r * (1 - self.overlap)) for r in self.patch_size]
@@ -102,7 +103,7 @@ class TemporalSlidingWindowInference:
         # 使用第0帧的图像进行归一化（不影响时间维度）
         inputs_rescaled = inputs.clone()
         if self.encode_method != 'none':
-            inputs_rescaled[0] = global_rescale_0_1(inputs[0])
+            inputs_rescaled = global_rescale_0_1(inputs)
 
         # ---------------------------
         # Step 1: Padding if needed
@@ -118,7 +119,7 @@ class TemporalSlidingWindowInference:
 
         inputs_rescaled = inputs_rescaled.view(-1, D, H, W)
         inputs_rescaled = F.pad(inputs_rescaled, pad=pad, mode="constant", value=0.0)
-        inputs_rescaled = inputs_rescaled.view(T, B, C, D + pad_d, H + pad_h, W + pad_w)
+        inputs_rescaled = inputs_rescaled.view(B, C, D + pad_d, H + pad_h, W + pad_w)
         D_pad, H_pad, W_pad = inputs_rescaled.shape[-3:]
         padded = any([pad_d, pad_h, pad_w])
         pad_info = (pad_d, pad_h, pad_w, D, H, W)
@@ -146,15 +147,12 @@ class TemporalSlidingWindowInference:
         for z in z_starts:
             for y in y_starts:
                 for x in x_starts:
-                    patch = inputs_rescaled[..., z:z+pd, y:y+ph, x:x+pw]  # [T, B, C, pd, ph, pw]
+                    patch = inputs_rescaled[:, :, z:z+pd, y:y+ph, x:x+pw]  # [B, C, pd, ph, pw]
                     for b_start in range(0, B, self.sw_batch_size):
                         b_end = min(b_start + self.sw_batch_size, B)
-                        patch_b = patch[:, b_start:b_end]  # [T, b, C, pd, ph, pw]
+                        patch_img = patch[b_start:b_end, :, :, :, :]  # [b, C, pd, ph, pw]
 
                         # Step 3.1: Encode directly using already rescaled intensity
-                        patch_img = patch_b[0]  # [b, C, pd, ph, pw]
-                        # 不再进行 patch 内 rescale
-                        # patch_img = self._rescale_0_1(patch_img)
                         patch_encoded = self.encode_spike_input(patch_img)  # [T, b, C, pd, ph, pw]
 
                         # Step 3.2: Model inference

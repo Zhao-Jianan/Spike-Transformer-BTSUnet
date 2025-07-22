@@ -19,12 +19,12 @@ from inference_helper import TemporalSlidingWindowInference
 from tqdm import tqdm
 
 
-def preprocess_for_inference(image_paths, T=8):
+def preprocess_for_inference(image_paths, batch_size=1):
     """
     image_paths: list of 4 modality paths [t1, t1ce, t2, flair]
     
     Returns:
-        x_seq: torch.Tensor, shape (T, C, D, H, W)
+        x_seq: torch.Tensor, shape (B, C, D, H, W)
     """
     data_dict = {"image": image_paths}
     
@@ -66,11 +66,11 @@ def preprocess_for_inference(image_paths, T=8):
     to_tensor = ToTensord(keys=["image"])
     data = to_tensor(data)
     
-    # Step 5: Repeat T times to add temporal dimension
+    # Step 5: Add batch dimension and repeat batch_size times
     img = data["image"]  # shape: (C, D, H, W)
-    img_seq = img.unsqueeze(0).unsqueeze(0).repeat(T, 1, 1, 1, 1, 1)  # (T, B=1, C, D, H, W)
+    x_batch = img.unsqueeze(0).repeat(batch_size, 1, 1, 1, 1) # (B, C, D, H, W)
     
-    return img_seq
+    return x_batch
 
 
 
@@ -163,15 +163,15 @@ def postprocess_brats_label(pred_mask: np.ndarray) -> np.ndarray:
 
 
 
-def pred_single_case_soft(case_dir, prob_save_dir, model, inference_engine, device, T=8):
+def pred_single_case_soft(case_dir, prob_save_dir, model, inference_engine, device, batch_size=1):
     case_name = os.path.basename(case_dir)
     print(f"Processing case: {case_name}")
     image_paths = [os.path.join(case_dir, f"{mod}.nii.gz") for mod in cfg.modalities]
 
-    x_seq = preprocess_for_inference(image_paths, T=T).to(device)
+    x_batch = preprocess_for_inference(image_paths, batch_size=batch_size).to(device)
 
     with torch.no_grad():
-        output = inference_engine(x_seq, model)
+        output = inference_engine(x_batch, model)
 
     output_prob = torch.sigmoid(output).squeeze(0).cpu().numpy()  # [C, D, H, W]
     prob_path = os.path.join(prob_save_dir, f"{case_name}_prob.npy")
