@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import nibabel as nib
 import os
 from matplotlib import gridspec
+import matplotlib.patches as mpatches
 
 # 加载 NIfTI 图像并返回 numpy 数组
 def load_nifti_image(path):
@@ -39,47 +40,68 @@ def select_best_slice(mask):
 
 # 可视化函数
 
-def plot_modalities_with_masks(t1, t1ce, t2, flair, gt_mask, pred_mask, slice_idx=80, save_path='output.png'):
+def plot_modalities_with_masks(t1, t1ce, t2, flair, gt_mask, pred_mask, case_name, slice_idx=80, save_path='output.png'):
     modalities = [t1, t1ce, t2, flair]
     modality_names = ['T1', 'T1ce', 'T2', 'FLAIR']
+    row_labels = ['Original Image', 'Ground Truth', 'Predict Result']
 
-    fig = plt.figure(figsize=(12, 9))
-    gs = gridspec.GridSpec(3, 4)
-    gs.update(wspace=0.01, hspace=0.01)
+    fig = plt.figure(figsize=(14, 12))  # 放大整体画布尺寸
+    # gridspec 4行4列，最后一行放图例，第一列留给左侧文字标签
+    gs = gridspec.GridSpec(4, 5, width_ratios=[0.2,1,1,1,1], height_ratios=[1,1,1,0.15])
+    gs.update(wspace=0.01, hspace=0.05)  # 缩小行间距
 
+    # 左侧文字标签行（3行）
     for row in range(3):
-        for col, (modality, name) in enumerate(zip(modalities, modality_names)):
+        ax_label = plt.subplot(gs[row, 0])
+        ax_label.text(0.5, 0.5, row_labels[row], rotation=90, fontsize=14,
+                      va='center', ha='center')
+        ax_label.axis('off')
+
+    # 显示图像和mask，列从1开始（0留给文字）
+    for row in range(3):
+        for col, (modality, name) in enumerate(zip(modalities, modality_names), start=1):
             ax = plt.subplot(gs[row, col])
             slice_img = modality[:, :, slice_idx]
+            slice_img = np.rot90(slice_img, k=1)
             ax.imshow(slice_img, cmap='gray')
 
             if row == 1:
                 mask = gt_mask[:, :, slice_idx]
+                mask = np.rot90(mask, k=1)
                 ax.imshow(create_rgba_mask(mask))
-                if col == 0:
-                    ax.set_ylabel('GT', fontsize=12)
             elif row == 2:
                 mask = pred_mask[:, :, slice_idx]
+                mask = np.rot90(mask, k=1)
                 ax.imshow(create_rgba_mask(mask))
-                if col == 0:
-                    ax.set_ylabel('Pred', fontsize=12)
-            elif row == 0 and col == 0:
-                ax.set_ylabel('Orig', fontsize=12)
 
             if row == 0:
-                ax.set_title(name, fontsize=12)
+                ax.set_title(name, fontsize=14)
 
             ax.axis('off')
 
-    plt.subplots_adjust(left=0.01, right=0.99, top=0.96, bottom=0.04, wspace=0.01, hspace=0.01)
+    # 图例部分占整行宽度，列从0到4
+    ax_legend = plt.subplot(gs[3, :])
+    ax_legend.axis('off')
+    legend_patches = [
+        mpatches.Patch(color='blue', label='NCR/NET (label 1)'),
+        mpatches.Patch(color='green', label='ED (label 2)'),
+        mpatches.Patch(color='red', label='ET (label 4)'),
+    ]
+    ax_legend.legend(handles=legend_patches, loc='center', ncol=3, fontsize=14)
+
+    plt.subplots_adjust(left=0.03, right=0.97, top=0.93, bottom=0.07)
+
+    plt.suptitle('Multimodal MRI with Ground Truth and Prediction Masks', fontsize=18, y=0.98)
+    plt.text(0.5, 0.95, f'Case: {case_name}', fontsize=12, ha='center', transform=fig.transFigure)
+
     plt.savefig(save_path, dpi=300, bbox_inches='tight', pad_inches=0.1)
     plt.close()
 
 
 def main():
     # 设置数据目录和文件路径
-    data_dir = 'C:/Users/ajhz839/code/Python_Projects/SNN-brain-tumor-project/data/val/Brats18_WashU_S041_1'
-    pred_dir = './visulise'
+    # data_dir = 'C:/Users/ajhz839/code/Python_Projects/SNN-brain-tumor-project/data/val/Brats18_WashU_S041_1'
+    # pred_dir = './visulise'
     # case_name = os.path.basename(data_dir)
     
     # # BraTS 2018
@@ -91,26 +113,29 @@ def main():
     # pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction
     
     
-    # BraTS 2021
+    # # BraTS 2018 val dataset
+    # case_name = os.path.basename(data_dir)
+
+    # t1_path = os.path.join(data_dir,'t1.nii.gz')
+    # t1ce_path = os.path.join(data_dir, 't1ce.nii.gz')
+    # t2_path = os.path.join(data_dir, 't2.nii.gz')
+    # flair_path = os.path.join(data_dir, 'flair.nii.gz')
+    # gt_mask_path = os.path.join('./Pred/nnUNetTrainer', case_name + '.nii.gz')     # ground truth
+    # pred_mask_path = os.path.join('./Pred/test_pred', case_name + '_pred_mask.nii.gz') # model prediction  
+    
+    
+    # Clinical Data
+    data_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/clinical_data/clinical_data/20220111_pre_OP'
+    pred_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/clinical_data/test_pred_soft_ensemble'
+    prefix = '20220114_35320313_BSR'
     case_name = os.path.basename(data_dir)
 
-    t1_path = os.path.join(data_dir,'t1.nii.gz')
-    t1ce_path = os.path.join(data_dir, 't1ce.nii.gz')
-    t2_path = os.path.join(data_dir, 't2.nii.gz')
-    flair_path = os.path.join(data_dir, 'flair.nii.gz')
-    gt_mask_path = os.path.join('./Pred/nnUNetTrainer', case_name + '.nii.gz')     # ground truth
-    pred_mask_path = os.path.join('./Pred/test_pred', case_name + '_pred_mask.nii.gz') # model prediction  
-    
-    
-    # # Clinical Data
-    # prefix = '20220114_35320313_BSR'
-
-    # t1_path = os.path.join(data_dir, f'{prefix}_{case_name}_t1.nii.gz')
-    # t1ce_path = os.path.join(data_dir, f'{prefix}_{case_name}_t1ce.nii.gz')
-    # t2_path = os.path.join(data_dir, f'{prefix}_{case_name}_t2.nii.gz')
-    # flair_path = os.path.join(data_dir, f'{prefix}_{case_name}_flair.nii.gz')
-    # gt_mask_path = os.path.join(data_dir, f'{prefix}_{case_name}_seg.nii.gz')     # ground truth
-    # pred_mask_path = os.path.join(data_dir, f'{prefix}_{case_name}_pred_mask.nii.gz') # model prediction    
+    t1_path = os.path.join(data_dir, f't1.nii.gz')
+    t1ce_path = os.path.join(data_dir, f't1ce.nii.gz')
+    t2_path = os.path.join(data_dir, f't2.nii.gz')
+    flair_path = os.path.join(data_dir, f'flair.nii.gz')
+    gt_mask_path = os.path.join(pred_dir, f'20220111_pre_OP_pred_mask.nii.gz')     # ground truth
+    pred_mask_path = os.path.join(pred_dir, f'20220111_pre_OP_pred_mask.nii.gz') # model prediction
     
 
     # 加载图像数据
@@ -122,11 +147,11 @@ def main():
     pred_mask = load_nifti_image(pred_mask_path).astype(np.uint8)
     save_dir = './visualise/'
     # save_path = os.path.join(save_dir, f'{prefix}_{case_name}_output1.png')
-    save_path = os.path.join(save_dir, f'{case_name}_output2.png')
+    save_path = os.path.join(save_dir, f'{prefix}_output2.png')
 
     # 可视化中间层 (中间 slice 通常是肿瘤区域)
     best_slice = select_best_slice(gt_mask)
-    plot_modalities_with_masks(t1, t1ce, t2, flair, gt_mask, pred_mask, slice_idx=best_slice, save_path=save_path)
+    plot_modalities_with_masks(t1, t1ce, t2, flair, gt_mask, pred_mask, case_name, slice_idx=best_slice, save_path=save_path)
     print(f"Visualization completed and saved to {save_path}")
     
 if __name__ == '__main__':

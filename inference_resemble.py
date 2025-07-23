@@ -1,6 +1,6 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 import torch
 import nibabel as nib
 import numpy as np
@@ -19,12 +19,12 @@ from inference_helper import TemporalSlidingWindowInference
 from tqdm import tqdm
 
 
-def preprocess_for_inference(image_paths, batch_size=1):
+def preprocess_for_inference(image_paths):
     """
     image_paths: list of 4 modality paths [t1, t1ce, t2, flair]
     
     Returns:
-        x_seq: torch.Tensor, shape (B, C, D, H, W)
+        x_seq: torch.Tensor, shape (B=1, C, D, H, W)
     """
     data_dict = {"image": image_paths}
     
@@ -66,11 +66,11 @@ def preprocess_for_inference(image_paths, batch_size=1):
     to_tensor = ToTensord(keys=["image"])
     data = to_tensor(data)
     
-    # Step 5: Add batch dimension and repeat batch_size times
+    # Step 5: Add batch dimension
     img = data["image"]  # shape: (C, D, H, W)
-    x_batch = img.unsqueeze(0).repeat(batch_size, 1, 1, 1, 1) # (B, C, D, H, W)
+    img = img.unsqueeze(0) # (B=1, C, D, H, W)
     
-    return x_batch
+    return img
 
 
 
@@ -163,12 +163,12 @@ def postprocess_brats_label(pred_mask: np.ndarray) -> np.ndarray:
 
 
 
-def pred_single_case_soft(case_dir, prob_save_dir, model, inference_engine, device, batch_size=1):
+def pred_single_case_soft(case_dir, prob_save_dir, model, inference_engine, device):
     case_name = os.path.basename(case_dir)
     print(f"Processing case: {case_name}")
     image_paths = [os.path.join(case_dir, f"{mod}.nii.gz") for mod in cfg.modalities]
 
-    x_batch = preprocess_for_inference(image_paths, batch_size=batch_size).to(device)
+    x_batch = preprocess_for_inference(image_paths).to(device)
 
     with torch.no_grad():
         output = inference_engine(x_batch, model)
@@ -180,11 +180,11 @@ def pred_single_case_soft(case_dir, prob_save_dir, model, inference_engine, devi
 
 
 
-def run_inference_soft(case_dir, save_dir, model, inference_engine, device, T=8):
+def run_inference_soft(case_dir, save_dir, model, inference_engine, device):
     os.makedirs(save_dir, exist_ok=True)
-    pred_single_case_soft(case_dir, save_dir, model, inference_engine, device, T)
+    pred_single_case_soft(case_dir, save_dir, model, inference_engine, device)
 
-def run_inference_folder_soft(case_root, save_dir, model, inference_engine, device, T=8):
+def run_inference_folder_soft(case_root, save_dir, model, inference_engine, device):
     os.makedirs(save_dir, exist_ok=True)
     case_dirs = sorted([
         os.path.join(case_root, name) for name in os.listdir(case_root)
@@ -193,7 +193,7 @@ def run_inference_folder_soft(case_root, save_dir, model, inference_engine, devi
     print(f"Found {len(case_dirs)} cases to infer.")
 
     for case_dir in tqdm(case_dirs, desc="Soft Voting Inference"):
-        run_inference_soft(case_dir, save_dir, model, inference_engine, device, T)
+        run_inference_soft(case_dir, save_dir, model, inference_engine, device)
 
 
 def soft_ensemble(prob_base_dir, case_dir, ckpt_dir):
@@ -222,7 +222,7 @@ def soft_ensemble(prob_base_dir, case_dir, ckpt_dir):
         )
 
         fold_prob_dir = os.path.join(prob_base_dir, f"fold{fold}")
-        run_inference_folder_soft(case_dir, fold_prob_dir, model, inference_engine, cfg.device, cfg.T)
+        run_inference_folder_soft(case_dir, fold_prob_dir, model, inference_engine, cfg.device)
 
 
 def ensemble_soft_voting(prob_root, case_dir, output_dir):
@@ -238,19 +238,28 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir):
 
         mean_prob = np.mean(np.stack(prob_list, axis=0), axis=0)  # [C, D, H, W]
         binarized = (mean_prob > 0.5).astype(np.uint8)  # [C, D, H, W]
+        print(f"Mean probability shape for case {case}: {mean_prob.shape}")
 
         label_tensor = convert_prediction_to_label(torch.tensor(binarized))
-        label_np = label_tensor.numpy().astype(np.uint8)
+        label_np = label_tensor.cpu().numpy().astype(np.uint8)  # shape: (D, H, W)
+        print("Label shape before transposing:", label_np.shape)  # (D, H, W)
         label_np = np.transpose(label_np, (1, 2, 0))
-
+        print("Label shape before postprocessing:", label_np.shape)  # (H, W, D)
+        # 后处理
+        # label_np = postprocess_brats_label(label_np)
+        print(f"Processed case {case}, label shape: {label_np.shape}")
+        
+        
         ref_nii_path = os.path.join(case_dir, case, f"{cfg.modalities[cfg.modalities.index('t1ce')]}.nii.gz")
         ref_nii = nib.load(ref_nii_path)
         pred_nii = nib.Nifti1Image(label_np, affine=ref_nii.affine, header=ref_nii.header)
 
-        nib.save(pred_nii, os.path.join(output_dir, f"{case}_pred_mask.nii.gz"))
+        save_path = os.path.join(output_dir, f"{case}_pred_mask.nii.gz")
+        nib.save(pred_nii, save_path)
 
 
 def main():
+    # BraTS2018 inference
     prob_base_dir = "/hpc/ajhz839/validation/test_prob_folds/"
     ensemble_output_dir = "/hpc/ajhz839/validation/test_pred_soft_ensemble/"
     case_dir = "/hpc/ajhz839/validation/val/"
@@ -258,6 +267,19 @@ def main():
 
     soft_ensemble(prob_base_dir, case_dir, ckpt_dir)
     ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir)
+
+    
+    # # Clinical data inference
+    # prob_base_dir = "/hpc/ajhz839/inference/pred/test_prob_folds/"
+    # ensemble_output_dir = "/hpc/ajhz839/inference/pred/test_pred_soft_ensemble/"
+    # case_dir = "/hpc/ajhz839/inference/clinical_data/"
+    # ckpt_dir = "./checkpoint/"
+
+    # soft_ensemble(prob_base_dir, case_dir, ckpt_dir)
+    # ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir)
+    
+    
+    print("Inference completed.")
 
 if __name__ == "__main__":
     main()
