@@ -100,9 +100,9 @@ def plot_modalities_with_masks(t1, t1ce, t2, flair, gt_mask, pred_mask, case_nam
 
 def main():
     # 设置数据目录和文件路径
-    # data_dir = 'C:/Users/ajhz839/code/Python_Projects/SNN-brain-tumor-project/data/val/Brats18_WashU_S041_1'
-    # pred_dir = './visulise'
-    # case_name = os.path.basename(data_dir)
+    data_dir = 'C:/Users/ajhz839/code/Python_Projects/SNN-brain-tumor-project/data/val/Brats18_WashU_W038_1'
+    pred_dir = './visulise'
+    case_name = os.path.basename(data_dir)
     
     # # BraTS 2018
     # t1_path = os.path.join(data_dir, f'{case_name}_t1.nii')
@@ -113,29 +113,29 @@ def main():
     # pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction
     
     
-    # # BraTS 2018 val dataset
-    # case_name = os.path.basename(data_dir)
-
-    # t1_path = os.path.join(data_dir,'t1.nii.gz')
-    # t1ce_path = os.path.join(data_dir, 't1ce.nii.gz')
-    # t2_path = os.path.join(data_dir, 't2.nii.gz')
-    # flair_path = os.path.join(data_dir, 'flair.nii.gz')
-    # gt_mask_path = os.path.join('./Pred/nnUNetTrainer', case_name + '.nii.gz')     # ground truth
-    # pred_mask_path = os.path.join('./Pred/test_pred', case_name + '_pred_mask.nii.gz') # model prediction  
-    
-    
-    # Clinical Data
-    data_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/clinical_data/clinical_data/20220111_pre_OP'
-    pred_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/clinical_data/test_pred_soft_ensemble'
-    prefix = '20220114_35320313_BSR'
+    # BraTS 2018 val dataset
     case_name = os.path.basename(data_dir)
 
-    t1_path = os.path.join(data_dir, f't1.nii.gz')
-    t1ce_path = os.path.join(data_dir, f't1ce.nii.gz')
-    t2_path = os.path.join(data_dir, f't2.nii.gz')
-    flair_path = os.path.join(data_dir, f'flair.nii.gz')
-    gt_mask_path = os.path.join(pred_dir, f'20220111_pre_OP_pred_mask.nii.gz')     # ground truth
-    pred_mask_path = os.path.join(pred_dir, f'20220111_pre_OP_pred_mask.nii.gz') # model prediction
+    t1_path = os.path.join(data_dir,'t1.nii.gz')
+    t1ce_path = os.path.join(data_dir, 't1ce.nii.gz')
+    t2_path = os.path.join(data_dir, 't2.nii.gz')
+    flair_path = os.path.join(data_dir, 'flair.nii.gz')
+    gt_mask_path = os.path.join('./Pred/nnUNetTrainer', case_name + '.nii.gz')     # ground truth
+    pred_mask_path = os.path.join('./Pred/test_pred', case_name + '_pred_mask.nii.gz') # model prediction  
+    
+    
+    # # Clinical Data
+    # data_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/clinical_data/clinical_data/20220111_pre_OP'
+    # pred_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/clinical_data/test_pred_soft_ensemble'
+    # prefix = '20220114_35320313_BSR'
+    # case_name = os.path.basename(data_dir)
+
+    # t1_path = os.path.join(data_dir, f't1.nii.gz')
+    # t1ce_path = os.path.join(data_dir, f't1ce.nii.gz')
+    # t2_path = os.path.join(data_dir, f't2.nii.gz')
+    # flair_path = os.path.join(data_dir, f'flair.nii.gz')
+    # gt_mask_path = os.path.join(pred_dir, f'20220111_pre_OP_pred_mask.nii.gz')     # ground truth
+    # pred_mask_path = os.path.join(pred_dir, f'20220111_pre_OP_pred_mask.nii.gz') # model prediction
     
 
     # 加载图像数据
@@ -146,8 +146,8 @@ def main():
     gt_mask = load_nifti_image(gt_mask_path).astype(np.uint8)
     pred_mask = load_nifti_image(pred_mask_path).astype(np.uint8)
     save_dir = './visualise/'
-    # save_path = os.path.join(save_dir, f'{prefix}_{case_name}_output1.png')
-    save_path = os.path.join(save_dir, f'{prefix}_output2.png')
+    save_path = os.path.join(save_dir, f'{case_name}_output1.png')
+    # save_path = os.path.join(save_dir, f'{prefix}_output2.png')
 
     # 可视化中间层 (中间 slice 通常是肿瘤区域)
     best_slice = select_best_slice(gt_mask)

@@ -8,21 +8,28 @@ class Config:
         self.use_amp = True  # 使用自动混合精度训练
         
         # BraTS2018
-        self.root_dirs = ['./data/HGG', './data/LGG']       # ['./data/HGG', './data/LGG'] 
+        self.root_dirs = ['/hpc/ajhz839/data/BraTS2018/HGG', '/hpc/ajhz839/data/BraTS2018/LGG']       # ['./data/HGG', './data/LGG'] 
         self.modalities = ['t1', 't1ce', 't2', 'flair']
         self.modality_separator = "_"
         self.image_suffix = ".nii"
         self.et_label = 4
         
         # # BraTS2021
-        # self.root_dirs = ['./data/BraTS2021_Training_Data']
+        # self.root_dirs = ['/hpc/ajhz839/data/BraTS2021_Training_Data']
         # self.modalities = ['t1', 't1ce', 't2', 'flair']
         # self.modality_separator = "_"
         # self.image_suffix = ".nii.gz"
         # self.et_label = 4
         
         # # BraTS2023
-        # self.root_dirs = ['./data/BraTS2023/']
+        # self.root_dirs = ['/hpc/ajhz839/data/BraTS2023/']
+        # self.modalities = ['t1n', 't1c', 't2w', 't2f']
+        # self.modality_separator = "-" 
+        # self.image_suffix = ".nii.gz"    
+        # self.et_label = 3
+        
+        # # BraTS2025 SSA
+        # self.root_dirs = ['/hpc/ajhz839/data/BraTS2023-SSA-V2/']
         # self.modalities = ['t1n', 't1c', 't2w', 't2f']
         # self.modality_separator = "-" 
         # self.image_suffix = ".nii.gz"    

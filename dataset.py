@@ -15,6 +15,8 @@ from monai.data.meta_tensor import MetaTensor
 from monai.transforms.transform import Transform
 from monai.utils import TransformBackends
 import random
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 
 class BraTSDataset(MonaiDataset):
     def __init__(self, data_dicts, T=8, patch_size=(128,128,128), num_classes=4, mode="train", encode_method='none', debug=False):
@@ -129,7 +131,11 @@ class BraTSDataset(MonaiDataset):
         data = self.normalize(data)
 
         if self.mode == "train":
-            data = self.patch_crop(data, mode=self.train_crop_mode)  # 随机裁剪 patch
+            if np.random.rand() < 0.5:
+                data = self.patch_crop(data, mode=self.train_crop_mode)  # 随机裁剪 patch
+            else:
+                data = self.patch_crop(data, mode="random")
+            
             if np.random.rand() < 0.5:
                 data = self.aug_transform(data)
             else:
@@ -173,7 +179,10 @@ class BraTSDataset(MonaiDataset):
                 return img, label
             
             else: # self.val_crop_mode in ["tumor_aware_random", "random"]:
-                data = self.patch_crop(data, mode=self.val_crop_mode)  # 随机裁剪 patch
+                if np.random.rand() < 0.5:
+                    data = self.patch_crop(data, mode=self.val_crop_mode)  # 随机裁剪 patch
+                else:
+                    data = self.patch_crop(data, mode="random")
                 data = self.transform(data)
                 
                 img = data["image"]  # Tensor (C, D, H, W)
@@ -189,7 +198,6 @@ class BraTSDataset(MonaiDataset):
                 # x_seq: (T, C, D, H, W), label: (C_label, D, H, W)
                 return x_seq, label
     
-
     # 随机裁剪，支持 warmup 模式
     # warmup 模式下，优先裁剪肿瘤中心区域；否则随机裁剪
     def patch_crop(self, data, mode="tumor_aware_random"):
@@ -284,8 +292,6 @@ class BraTSDataset(MonaiDataset):
         data["image"] = img[:, d_start:d_start + pd, h_start:h_start + ph, w_start:w_start + pw]
         data["label"] = label[:, d_start:d_start + pd, h_start:h_start + ph, w_start:w_start + pw]
         return data
-
-
     
     def rescale_to_unit_range(self, x: torch.Tensor) -> torch.Tensor:
         # 逐个样本 min-max 归一化，不改变整体分布，只用于编码器
@@ -378,4 +384,67 @@ class ConvertToMultiChannelBasedOnBrats2023Classesd(MapTransform):
         return d
     
     
+
+
+    
+class BraTSDatasetTester:
+    def __init__(self, data_root, case_name, T=8, patch_size=(64,64,64), mode="train", encode_method='none', debug=True):
+        self.data_root = data_root
+        self.case_name = case_name
+        self.T = T
+        self.patch_size = patch_size
+        self.mode = mode
+        self.encode_method = encode_method
+        self.debug = debug
+        self.dataset = self._build_dataset()
+
+    def _build_dataset(self):
+        data_dict = self._build_data_dict(self.data_root, self.case_name)
+        return BraTSDataset(
+            data_dicts=[data_dict],
+            T=self.T,
+            patch_size=self.patch_size,
+            mode=self.mode,
+            encode_method=self.encode_method,
+            debug=self.debug
+        )
+
+    def _build_data_dict(self, folder, case_name):
+        modalities = ['t1', 't1ce', 't2', 'flair']
+        image_paths = [os.path.join(folder, f"{case_name}_{m}.nii") for m in modalities]
+        label_path = os.path.join(folder, f"{case_name}_seg.nii")
+        for p in image_paths + [label_path]:
+            print(f"Checking file: {p}, exists: {os.path.exists(p)}")
+        return {"image": image_paths, "label": label_path}
+
+    def run_test(self):
+        x_seq, label = self.dataset[0]
+        print(f"x_seq shape: {x_seq.shape}")
+        print(f"label shape: {label.shape}")
+
+        center_slice = x_seq.shape[2] // 2
+        plt.figure(figsize=(12, 5))
+
+        plt.subplot(1, 2, 1)
+        plt.title("Input Image (T=0, C=0, center slice)")
+        plt.imshow(x_seq[0, 0, center_slice].cpu(), cmap='gray')
+        plt.axis('off')
+
+        plt.subplot(1, 2, 2)
+        plt.title("Label Channel 0 center slice")
+        cmap = mcolors.ListedColormap(['black', 'blue', 'green', 'red'])  # 0,1,2,4
+        bounds = [0, 1, 2, 3, 5]
+        norm = mcolors.BoundaryNorm(bounds, cmap.N)
+        plt.imshow(label[0, center_slice].cpu(), cmap=cmap, norm=norm)
+        plt.axis('off')
+
+        plt.show()
+
+
+if __name__ == "__main__":
+    data_root = "C:/Users/ajhz839/code/Python_Projects/SNN-brain-tumor-project/data/MICCAI_BraTS_2018_Data_Training/HGG/Brats18_2013_2_1"
+
+    case_name = "Brats18_2013_2_1" 
+    tester = BraTSDatasetTester(data_root, case_name, T=8, patch_size=(64,64,64), mode="train", encode_method='none', debug=True)
+    tester.run_test()
     

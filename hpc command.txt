@@ -114,7 +114,8 @@ nohup python spikeformerunet7/main.py > New-53-log_bra18_4T_cnnspikeunet_64p4b_5
 nohup python spikeformerunet5/main.py > New-54-log_bra18_4T_transspikeunet_64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42.out 2>&1 &
 [55]
 nohup python spikeformerunet9/main.py > New-55-log_bra18_4T_basespikeunet_64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42.out 2>&1 &
-
+[56]NEXT
+nohup python spikeformerunet13/main.py > New-56-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware_random.out 2>&1 &
 
 
 13 15

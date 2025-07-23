@@ -74,34 +74,26 @@ def preprocess_for_inference(image_paths):
 
 
 
-def convert_prediction_to_label(pred: torch.Tensor) -> torch.Tensor:
+def convert_prediction_to_label(mean_prob: np.ndarray, threshold: float = 0.5) -> np.ndarray:
     """
-    BraTS标签转换，输入 pred顺序：TC, WT, ET
+    BraTS标签转换，输入 mean_prob 顺序：TC, WT, ET
+    返回标签：0=BG, 1=TC(NCR/NET), 2=ED, 4=ET
     """
-    tc, wt, et = pred[0], pred[1], pred[2]
+    assert mean_prob.shape[0] == 3, "Expected 3 channels: TC, WT, ET"
+    tc_prob, wt_prob, et_prob = mean_prob[0], mean_prob[1], mean_prob[2]
 
-    result = torch.zeros_like(tc, dtype=torch.int32)
+    # 阈值化各通道
+    et = (et_prob > threshold).astype(np.uint8)
+    tc = (tc_prob > threshold).astype(np.uint8)
+    wt = (wt_prob > threshold).astype(np.uint8)
 
-    # ET赋4
-    result[et == 1] = 4
+    label = np.zeros_like(tc, dtype=np.uint8)
 
-    # TC赋1，排除ET
-    tc_only = (tc == 1) & (et == 0)
-    result[tc_only] = 1
+    label[wt == 1] = 2
+    label[tc == 1] = 1
+    label[et == 1] = 4  # ET优先级最高
 
-    # ED = WT - (TC + ET)
-    edema_only = (wt == 1) & (tc == 0) & (et == 0)
-    result[edema_only] = 2
-    
-    print("Sum TC:", tc.sum().item())
-    print("Sum WT:", wt.sum().item())
-    print("Sum ET:", et.sum().item())
-    print("Result summary:")
-    print("Sum NCR:", (result == 1).sum().item())
-    print("Sum ED:", (result == 2).sum().item())
-    print("Sum ET:", (result == 4).sum().item())
-
-    return result
+    return label
 
 
 def postprocess_brats_label(pred_mask: np.ndarray) -> np.ndarray:
@@ -237,18 +229,16 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir):
             prob_list.append(prob)
 
         mean_prob = np.mean(np.stack(prob_list, axis=0), axis=0)  # [C, D, H, W]
-        binarized = (mean_prob > 0.5).astype(np.uint8)  # [C, D, H, W]
         print(f"Mean probability shape for case {case}: {mean_prob.shape}")
 
-        label_tensor = convert_prediction_to_label(torch.tensor(binarized))
-        label_np = label_tensor.cpu().numpy().astype(np.uint8)  # shape: (D, H, W)
+        label_np = convert_prediction_to_label(mean_prob)
+
         print("Label shape before transposing:", label_np.shape)  # (D, H, W)
         label_np = np.transpose(label_np, (1, 2, 0))
         print("Label shape before postprocessing:", label_np.shape)  # (H, W, D)
         # 后处理
         # label_np = postprocess_brats_label(label_np)
         print(f"Processed case {case}, label shape: {label_np.shape}")
-        
         
         ref_nii_path = os.path.join(case_dir, case, f"{cfg.modalities[cfg.modalities.index('t1ce')]}.nii.gz")
         ref_nii = nib.load(ref_nii_path)
@@ -265,7 +255,7 @@ def main():
     case_dir = "/hpc/ajhz839/validation/val/"
     ckpt_dir = "./checkpoint/"
 
-    soft_ensemble(prob_base_dir, case_dir, ckpt_dir)
+    #soft_ensemble(prob_base_dir, case_dir, ckpt_dir)
     ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir)
 
     
