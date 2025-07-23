@@ -83,6 +83,10 @@ nohup python spikeformerunet13/main.py > New-46-log_bra18_4T_transspikeunet_64p4
 nohup python spikeformerunet5/main.py > New-49-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111warm_catskip_seed42.out 2>&1 &
 [50]
 nohup python spikeformerunet7/main.py > New-50-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed3407.out 2>&1 &
+[52]
+nohup python spikeformerunet3/main.py > New-52-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_tauthread_sigmoid_diceloss111_catskip_seed24.out 2>&1 &
+[53]
+nohup python spikeformerunet7/main.py > New-53-log_bra18_4T_cnnspikeunet_64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42.out 2>&1 &
 
 
 [Running]
@@ -106,19 +110,15 @@ nohup python spikeformerunet14/main.py > New-47-log_bra18_4T_basespikeunet_64p4b
 nohup python spikeformerunet8/main.py > New-48-log_bra23_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed3407.out 2>&1 &
 [51]
 nohup python spikeformerunet10/main.py > New-51-log_bra23_4T_spikeformerunet_64p8b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed3407.out 2>&1 &
-[52]
-nohup python spikeformerunet3/main.py > New-52-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_tauthread_sigmoid_diceloss111_catskip_seed24.out 2>&1 &
-[53]
-nohup python spikeformerunet7/main.py > New-53-log_bra18_4T_cnnspikeunet_64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42.out 2>&1 &
 [54]
 nohup python spikeformerunet5/main.py > New-54-log_bra18_4T_transspikeunet_64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42.out 2>&1 &
 [55]
 nohup python spikeformerunet9/main.py > New-55-log_bra18_4T_basespikeunet_64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42.out 2>&1 &
-[56]NEXT
+[56]
 nohup python spikeformerunet13/main.py > New-56-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware_random.out 2>&1 &
 
 
-13 15
+3 7 15
 
 ps -u $USER -f | grep python
 pgrep -u $USER -a python

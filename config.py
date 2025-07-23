@@ -56,7 +56,7 @@ class Config:
         self.loss_weights = [1.0, 1.0, 1.0] # [2.0, 1.0, 4.0] [1.0, 1.0, 1.0]
         self.train_crop_mode = "tumor_aware_random"  # tumor_aware_random, warmup_weighted_random, random, tumor_center
         self.val_crop_mode = 'tumor_aware_random' # tumor_aware_random, sliding_window, random, tumor_center
-        self.overlap = 0.5
+        self.overlap = 0.125
         self.num_workers = 8
 
         self.compute_hd = False

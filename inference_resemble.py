@@ -253,9 +253,9 @@ def main():
     prob_base_dir = "/hpc/ajhz839/validation/test_prob_folds/"
     ensemble_output_dir = "/hpc/ajhz839/validation/test_pred_soft_ensemble/"
     case_dir = "/hpc/ajhz839/validation/val/"
-    ckpt_dir = "./checkpoint/"
+    ckpt_dir = "./checkpoint/experiment_41/"
 
-    #soft_ensemble(prob_base_dir, case_dir, ckpt_dir)
+    soft_ensemble(prob_base_dir, case_dir, ckpt_dir)
     ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir)
 
     
