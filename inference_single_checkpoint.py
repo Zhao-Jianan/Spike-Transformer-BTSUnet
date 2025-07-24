@@ -1,5 +1,6 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.chdir(os.path.dirname(__file__))
+os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 import torch
 import nibabel as nib
 import numpy as np
@@ -7,7 +8,6 @@ from einops import rearrange
 from spike_former_unet_model import spike_former_unet3D_8_384
 import torch.nn.functional as F
 from config import config as cfg
-from spikingjelly.activation_based.encoding import PoissonEncoder
 from monai.transforms import (
     Compose, LoadImaged, EnsureChannelFirstd, NormalizeIntensityd,
     Orientationd, Spacingd, ToTensord
@@ -19,12 +19,12 @@ from inference_helper import TemporalSlidingWindowInference
 from tqdm import tqdm
 
 
-def preprocess_for_inference(image_paths, T=8):
+def preprocess_for_inference(image_paths):
     """
     image_paths: list of 4 modality paths [t1, t1ce, t2, flair]
     
     Returns:
-        x_seq: torch.Tensor, shape (T, C, D, H, W)
+        x_seq: torch.Tensor, shape (B=1, C, D, H, W)
     """
     data_dict = {"image": image_paths}
     
@@ -66,11 +66,11 @@ def preprocess_for_inference(image_paths, T=8):
     to_tensor = ToTensord(keys=["image"])
     data = to_tensor(data)
     
-    # Step 5: Repeat T times to add temporal dimension
+    # Step 5: Add batch dimension
     img = data["image"]  # shape: (C, D, H, W)
-    img_seq = img.unsqueeze(0).unsqueeze(0).repeat(T, 1, 1, 1, 1, 1)  # (T, B=1, C, D, H, W)
+    img = img.unsqueeze(0) # (B=1, C, D, H, W)
     
-    return img_seq
+    return img
 
 
 
@@ -155,109 +155,181 @@ def postprocess_brats_label(pred_mask: np.ndarray) -> np.ndarray:
 
 
 
-
-
-def pred_single_case(case_dir, inference_dir, model, inference_engine, device, T=8):
-    # 用cfg.modalities拼4模态路径
+def pred_single_case(case_dir, model, inference_engine, device):
     case_name = os.path.basename(case_dir)
     print(f"Processing case: {case_name}")
-    # image_paths = [os.path.join(case_dir, f"{case_name}_{mod}.nii") for mod in cfg.modalities]
-    image_paths = [os.path.join(case_dir, f"{mod}.nii.gz") for mod in cfg.modalities]
-    print("Image paths:", image_paths)
-        
-    # prefix = 'masked_20220114_35320313_BSR'
-    
-    # image_paths = [os.path.join(case_dir, f"{prefix}_{case_name}_{mod}.nii.gz") for mod in cfg.modalities]
-    
-    # 预处理，返回 (T, C, D, H, W) Tensor
-    x_seq = preprocess_for_inference(image_paths, T=T)
-    x_seq = x_seq.to(device)
+    image_paths = [os.path.join(case_dir, f"{case_name}_{mod}.nii") for mod in cfg.modalities]
 
-    
-    start_time = time.time()
-    # sliding window推理
+    x_batch = preprocess_for_inference(image_paths).to(device)
+
     with torch.no_grad():
-        output = inference_engine(x_seq, model)
-        
-    # 计时结束
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    print(f"Inference time: {elapsed_time:.2f} seconds")
+        output = inference_engine(x_batch, model)
 
-    # 阈值二值化，模型输出已mean
-    output_prob = torch.sigmoid(output)
-    output_bin = (output_prob > 0.5).int().squeeze(0)
+    output_prob = torch.sigmoid(output).squeeze(0).cpu().numpy()  # [C, D, H, W]
 
-    # 转换标签格式，后处理
-    label_raw = convert_prediction_to_label(output_bin)
-    label_np = label_raw.cpu().numpy().astype(np.uint8)
-    label_np = np.transpose(label_np, (1, 2, 0))
-    print("Label shape before postprocessing:", label_np.shape)  # (H, W, D)
-    # label_np = postprocess_brats_label(label_np)
-    print("Saved label shape:", label_np.shape)  # (H, W, D)
+    return output_prob
 
-    # 以t1ce为参考保存nii
-    ref_nii = nib.load(image_paths[cfg.modalities.index('t1ce')])
+
+
+
+def run_inference_soft_single(case_dir, save_dir, model, inference_engine, device):
+    os.makedirs(save_dir, exist_ok=True)
+    
+    prob = pred_single_case(case_dir, model, inference_engine, device)
+
+    label_np = convert_prediction_to_label(prob)  # shape: (D, H, W)
+    label_np = np.transpose(label_np, (1, 2, 0))  # to (H, W, D)
+
+    case_name = os.path.basename(case_dir)
+    ref_nii_path = os.path.join(case_dir, f"{case_name}_{cfg.modalities[cfg.modalities.index('t1ce')]}.nii")
+    ref_nii = nib.load(ref_nii_path)
     pred_nii = nib.Nifti1Image(label_np, affine=ref_nii.affine, header=ref_nii.header)
 
-    out_path = os.path.join(inference_dir, f"{case_name}_pred_mask.nii.gz")
-    nib.save(pred_nii, out_path)
-    print(f"Saved prediction: {out_path}")
+    save_path = os.path.join(save_dir, f"{case_name}_pred_mask.nii.gz")
+    nib.save(pred_nii, save_path)
 
-
-
-def run_inference_on_case(case_dir: str, save_dir: str, model, inference_engine, device, T: int):
+def run_inference_folder_single(case_root, save_dir, model, inference_engine, device, whitelist=None):
     os.makedirs(save_dir, exist_ok=True)
-    pred_single_case(case_dir, save_dir, model, inference_engine, device, T=T)
-
-
-def run_inference_on_folder(case_root: str, save_dir: str, model, inference_engine, device, T: int):
-    """
-    推理多个 case 文件夹
-    """
-    os.makedirs(save_dir, exist_ok=True)
-    case_dirs = sorted([
-        os.path.join(case_root, name) for name in os.listdir(case_root)
-        if os.path.isdir(os.path.join(case_root, name))
-    ])
-    print(f"Found {len(case_dirs)} cases to infer.")
     
-    for case_dir in tqdm(case_dirs, desc="Batch Inference"):
-        run_inference_on_case(case_dir, save_dir, model, inference_engine, device, T)
+    # # For other dataset
+    # all_case_dirs = sorted([
+    #     os.path.join(case_root, name) for name in os.listdir(case_root)
+    #     if os.path.isdir(os.path.join(case_root, name))
+    # ])
+         
+    # For BraTS2018 dataset
+    all_case_dirs = []
+    for subfolder in ['HGG', 'LGG']:
+        sub_dir = os.path.join(case_root, subfolder)
+        if not os.path.isdir(sub_dir):
+            continue
+        case_dirs = sorted([
+            os.path.join(sub_dir, name) for name in os.listdir(sub_dir)
+            if os.path.isdir(os.path.join(sub_dir, name))
+        ])
+        all_case_dirs.extend(case_dirs)
+
+    if whitelist is not None:
+        whitelist_set = set(whitelist)
+        case_dirs = [d for d in all_case_dirs if os.path.basename(d) in whitelist_set]
+    else:
+        case_dirs = all_case_dirs
+
+    print(f"Found {len(case_dirs)} cases to run.")
+
+    for case_dir in tqdm(case_dirs, desc="Single Model Inference"):
+        run_inference_soft_single(case_dir, save_dir, model, inference_engine, device)
 
 
-
-def main():
-    case_dir = "/hpc/ajhz839/validation/val/"
-    model_ckpt = "./checkpoint/brats18_best_model_inference.pth"
-    inference_dir = "/hpc/ajhz839/validation/test_pred/"
-    
+def build_model(ckpt_path):
     model = spike_former_unet3D_8_384(
         num_classes=cfg.num_classes,
         T=cfg.T,
         norm_type=cfg.norm_type,
-        step_mode=cfg.step_mode).to(cfg.device)  # 模型.to(cfg.device)
-    model.load_state_dict(torch.load(model_ckpt, map_location=cfg.device))
+        step_mode=cfg.step_mode
+    ).to(cfg.device)
+    model.load_state_dict(torch.load(ckpt_path, map_location=cfg.device))
     model.eval()
+    return model
 
-    inference_engine = TemporalSlidingWindowInference(
+def build_inference_engine():
+    return TemporalSlidingWindowInference(
         patch_size=cfg.inference_patch_size,
-        overlap=cfg.overlap, # cfg.overlap
+        overlap=cfg.overlap,
         sw_batch_size=16,
-        mode="gaussian", # "gaussian", "constant"
+        mode="constant",
         encode_method=cfg.encode_method,
-        T= cfg.T, # cfg.T
+        T=cfg.T,
         num_classes=cfg.num_classes
     )
+
+
+def main():
+    # BraTS2018 inference
+    ckpt_path = "./checkpoint/experiment_41/best_model_fold2.pth"
+    case_dir = "/hpc/ajhz839/data/BraTS2018/"
+    output_dir = "/hpc/ajhz839/validation/val_fold2_pred/"
     
-    if os.path.isdir(case_dir) and any(os.path.isdir(os.path.join(case_dir, f)) for f in os.listdir(case_dir)):
-        print(f"Running batch inference")
-        run_inference_on_folder(case_dir, inference_dir, model, inference_engine, cfg.device, cfg.T)
-    else:
-        print(f"Running single inference")
-        run_inference_on_case(case_dir, inference_dir, model, inference_engine, cfg.device, cfg.T)
+    case_whitelist = [
+        "Brats18_2013_12_1",
+        "Brats18_2013_22_1",
+        "Brats18_2013_2_1",
+        "Brats18_2013_3_1",
+        "Brats18_2013_5_1",
+        "Brats18_2013_7_1",
+        "Brats18_CBICA_ABE_1",
+        "Brats18_CBICA_ALU_1",
+        "Brats18_CBICA_ANP_1",
+        "Brats18_CBICA_ANZ_1",
+        "Brats18_CBICA_AQR_1",
+        "Brats18_CBICA_AQU_1",
+        "Brats18_CBICA_ASH_1",
+        "Brats18_CBICA_ASN_1",
+        "Brats18_CBICA_ATP_1",
+        "Brats18_CBICA_AVG_1",
+        "Brats18_CBICA_AVV_1",
+        "Brats18_CBICA_AYA_1",
+        "Brats18_CBICA_AZD_1",
+        "Brats18_CBICA_BFP_1",
+        "Brats18_TCIA01_180_1",
+        "Brats18_TCIA01_186_1",
+        "Brats18_TCIA01_190_1",
+        "Brats18_TCIA01_201_1",
+        "Brats18_TCIA01_221_1",
+        "Brats18_TCIA01_231_1",
+        "Brats18_TCIA01_335_1",
+        "Brats18_TCIA01_412_1",
+        "Brats18_TCIA01_425_1",
+        "Brats18_TCIA02_198_1",
+        "Brats18_TCIA02_222_1",
+        "Brats18_TCIA02_300_1",
+        "Brats18_TCIA02_314_1",
+        "Brats18_TCIA02_321_1",
+        "Brats18_TCIA02_374_1",
+        "Brats18_TCIA03_121_1",
+        "Brats18_TCIA03_133_1",
+        "Brats18_TCIA03_375_1",
+        "Brats18_TCIA04_149_1",
+        "Brats18_TCIA04_437_1",
+        "Brats18_TCIA08_113_1",
+        "Brats18_TCIA08_205_1",
+        "Brats18_2013_15_1",
+        "Brats18_2013_29_1",
+        "Brats18_TCIA09_177_1",
+        "Brats18_TCIA09_451_1",
+        "Brats18_TCIA10_103_1",
+        "Brats18_TCIA10_241_1",
+        "Brats18_TCIA10_408_1",
+        "Brats18_TCIA10_449_1",
+        "Brats18_TCIA10_639_1",
+        "Brats18_TCIA12_298_1",
+        "Brats18_TCIA12_466_1",
+        "Brats18_TCIA13_621_1",
+        "Brats18_TCIA13_642_1",
+        "Brats18_TCIA13_650_1",
+        "Brats18_TCIA13_653_1"
+    ]
+
+    model = build_model(ckpt_path)
+    inference_engine = build_inference_engine()
+    run_inference_folder_single(case_dir, output_dir, model, inference_engine, cfg.device, case_whitelist)
 
     
+    # # Clinical data inference
+    # prob_base_dir = "/hpc/ajhz839/inference/pred/test_prob_folds/"
+    # ensemble_output_dir = "/hpc/ajhz839/inference/pred/test_pred_soft_ensemble/"
+    # case_dir = "/hpc/ajhz839/inference/clinical_data/"
+    # ckpt_dir = "./checkpoint/"
+
+    # soft_ensemble(prob_base_dir, case_dir, ckpt_dir)
+    # ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir)
+    
+    
+    print("Single-model inference completed.")
 
 if __name__ == "__main__":
     main()
+
+
+
+

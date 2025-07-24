@@ -146,7 +146,7 @@ def main():
     gt_mask = load_nifti_image(gt_mask_path).astype(np.uint8)
     pred_mask = load_nifti_image(pred_mask_path).astype(np.uint8)
     save_dir = './visualise/'
-    save_path = os.path.join(save_dir, f'{case_name}_output1.png')
+    save_path = os.path.join(save_dir, f'{case_name}_output-0125.png')
     # save_path = os.path.join(save_dir, f'{prefix}_output2.png')
 
     # 可视化中间层 (中间 slice 通常是肿瘤区域)
