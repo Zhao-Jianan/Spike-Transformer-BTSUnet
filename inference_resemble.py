@@ -1,21 +1,20 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import torch
 import nibabel as nib
 import numpy as np
-from einops import rearrange
 from spike_former_unet_model import spike_former_unet3D_8_384
+#from simple_unet_model import spike_former_unet3D_8_384
 import torch.nn.functional as F
 from config import config as cfg
 from monai.transforms import (
     Compose, LoadImaged, EnsureChannelFirstd, NormalizeIntensityd,
     Orientationd, Spacingd, ToTensord
     )
-from copy import deepcopy
 import time
 from scipy.ndimage import binary_dilation, binary_opening, label, generate_binary_structure
-from inference_helper import TemporalSlidingWindowInference
+from inference_helper import TemporalSlidingWindowInference, TemporalSlidingWindowInferenceWithROI
 from tqdm import tqdm
 
 
@@ -34,7 +33,7 @@ def preprocess_for_inference(image_paths):
         EnsureChannelFirstd(keys=["image"]),
     ])
     data = load_transform(data_dict)
-    data["image"] = rearrange(data["image"], 'c h w d -> c d h w')
+    data["image"] = data["image"].permute(0, 3, 1, 2).contiguous()
     print("Loaded image shape:", data["image"].shape)  # (C, D, H, W)
     
     img_meta = data["image"].meta
@@ -161,9 +160,11 @@ def pred_single_case_soft(case_dir, prob_save_dir, model, inference_engine, devi
     image_paths = [os.path.join(case_dir, f"{mod}.nii.gz") for mod in cfg.modalities]
 
     x_batch = preprocess_for_inference(image_paths).to(device)
-
+    B, C, D, H, W = x_batch.shape
+    brain_width = np.array([[0, 0, 0], [D-1, H-1, W-1]])
+    
     with torch.no_grad():
-        output = inference_engine(x_batch, model)
+        output = inference_engine(x_batch, brain_width, model)
 
     output_prob = torch.sigmoid(output).squeeze(0).cpu().numpy()  # [C, D, H, W]
     prob_path = os.path.join(prob_save_dir, f"{case_name}_prob.npy")
@@ -198,15 +199,15 @@ def soft_ensemble(prob_base_dir, case_dir, ckpt_dir):
         model = spike_former_unet3D_8_384(
             num_classes=cfg.num_classes,
             T=cfg.T,
-            norm_type=cfg.norm_type,
+            # norm_type=cfg.norm_type,
             step_mode=cfg.step_mode).to(cfg.device)
         model.load_state_dict(torch.load(model_ckpt, map_location=cfg.device))
         model.eval()
 
-        inference_engine = TemporalSlidingWindowInference(
+        inference_engine = TemporalSlidingWindowInferenceWithROI(
             patch_size=cfg.inference_patch_size,
             overlap=cfg.overlap,
-            sw_batch_size=16,
+            sw_batch_size=4,
             mode="constant", # "gaussian", "constant"
             encode_method=cfg.encode_method,
             T=cfg.T,
@@ -253,7 +254,7 @@ def main():
     prob_base_dir = "/hpc/ajhz839/validation/test_prob_folds/"
     ensemble_output_dir = "/hpc/ajhz839/validation/test_pred_soft_ensemble/"
     case_dir = "/hpc/ajhz839/validation/val/"
-    ckpt_dir = "./checkpoint/experiment_41/"
+    ckpt_dir = "./checkpoint/experiment_22/"
 
     soft_ensemble(prob_base_dir, case_dir, ckpt_dir)
     ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir)

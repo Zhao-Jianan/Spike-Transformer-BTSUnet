@@ -1,21 +1,20 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 import torch
 import nibabel as nib
 import numpy as np
-from einops import rearrange
 from spike_former_unet_model import spike_former_unet3D_8_384
+# from simple_unet_model import spike_former_unet3D_8_384
 import torch.nn.functional as F
 from config import config as cfg
 from monai.transforms import (
     Compose, LoadImaged, EnsureChannelFirstd, NormalizeIntensityd,
     Orientationd, Spacingd, ToTensord
     )
-from copy import deepcopy
 import time
 from scipy.ndimage import binary_dilation, binary_opening, label, generate_binary_structure
-from inference_helper import TemporalSlidingWindowInference
+from inference_helper import TemporalSlidingWindowInference, TemporalSlidingWindowInferenceWithROI
 from tqdm import tqdm
 
 
@@ -34,7 +33,7 @@ def preprocess_for_inference(image_paths):
         EnsureChannelFirstd(keys=["image"]),
     ])
     data = load_transform(data_dict)
-    data["image"] = rearrange(data["image"], 'c h w d -> c d h w')
+    data["image"] = data["image"].permute(0, 3, 1, 2).contiguous()
     print("Loaded image shape:", data["image"].shape)  # (C, D, H, W)
     
     img_meta = data["image"].meta
@@ -161,9 +160,11 @@ def pred_single_case(case_dir, model, inference_engine, device):
     image_paths = [os.path.join(case_dir, f"{case_name}_{mod}.nii") for mod in cfg.modalities]
 
     x_batch = preprocess_for_inference(image_paths).to(device)
-
+    B, C, D, H, W = x_batch.shape
+    brain_width = np.array([[0, 0, 0], [D-1, H-1, W-1]])
+    
     with torch.no_grad():
-        output = inference_engine(x_batch, model)
+        output = inference_engine(x_batch, brain_width, model)
 
     output_prob = torch.sigmoid(output).squeeze(0).cpu().numpy()  # [C, D, H, W]
 
@@ -225,7 +226,7 @@ def build_model(ckpt_path):
     model = spike_former_unet3D_8_384(
         num_classes=cfg.num_classes,
         T=cfg.T,
-        norm_type=cfg.norm_type,
+        # norm_type=cfg.norm_type,
         step_mode=cfg.step_mode
     ).to(cfg.device)
     model.load_state_dict(torch.load(ckpt_path, map_location=cfg.device))
@@ -233,10 +234,10 @@ def build_model(ckpt_path):
     return model
 
 def build_inference_engine():
-    return TemporalSlidingWindowInference(
+    return TemporalSlidingWindowInferenceWithROI(
         patch_size=cfg.inference_patch_size,
         overlap=cfg.overlap,
-        sw_batch_size=16,
+        sw_batch_size=2,
         mode="constant",
         encode_method=cfg.encode_method,
         T=cfg.T,
@@ -246,7 +247,7 @@ def build_inference_engine():
 
 def main():
     # BraTS2018 inference
-    ckpt_path = "./checkpoint/experiment_41/best_model_fold2.pth"
+    ckpt_path = "/hpc/ajhz839/checkpoint/experiment_22/best_model_fold2.pth"
     case_dir = "/hpc/ajhz839/data/BraTS2018/"
     output_dir = "/hpc/ajhz839/validation/val_fold2_pred/"
     

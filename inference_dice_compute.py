@@ -99,6 +99,50 @@ def batch_compute_dice(gt_dir, pred_dir):
 
 
 
+def find_gt_path(gt_root, case_name):
+    """
+    在 HGG 和 LGG 下查找对应 case 的 seg.nii.gz
+    """
+    for grade in ["HGG", "LGG"]:
+        candidate_path = os.path.join(gt_root, grade, case_name, f"{case_name}_seg.nii")
+        if os.path.exists(candidate_path):
+            return candidate_path
+        print(f"GT not found in {candidate_path}")
+    return None
+
+def batch_compute_dice_trainingset(gt_root, pred_dir):
+    pred_files = sorted([f for f in os.listdir(pred_dir) if f.endswith(".nii.gz")])
+    all_dice_scores = []
+    
+    for pred_file in pred_files:
+        case_name = pred_file.replace("_pred_mask.nii.gz", "")
+        print(f"Processing case: {case_name}")
+        pred_path = os.path.join(pred_dir, pred_file)
+        gt_path = find_gt_path(gt_root, case_name)
+
+        if gt_path is None:
+            print(f"[Warning] GT not found for {case_name}")
+            continue
+
+
+        # 计算 Dice
+        dice = compute_dice_from_nifti(pred_path, gt_path)
+        all_dice_scores.append(dice)
+
+        print(f"{case_name}: {dice}")
+
+    # 计算平均值
+    dice_tc = [d["Dice_TC"] for d in all_dice_scores]
+    dice_wt = [d["Dice_WT"] for d in all_dice_scores]
+    dice_et = [d["Dice_ET"] for d in all_dice_scores]
+    mean_dice = [d["Mean_Dice"] for d in all_dice_scores]
+
+    print("\n=== Average Dice Scores ===")
+    print(f"Dice_TC Mean: {np.mean(dice_tc):.4f}")
+    print(f"Dice_WT Mean: {np.mean(dice_wt):.4f}")
+    print(f"Dice_ET Mean: {np.mean(dice_et):.4f}")
+    print(f"Mean_Dice:   {np.mean(mean_dice):.4f}")
+
 
 
 def main():
@@ -106,9 +150,13 @@ def main():
     
     if batch_compute:
         # 批量计算 Dice
-        gt_dir = './Pred/nnUNetTrainer'
-        pred_dir = './Pred/test_pred'
-        batch_compute_dice(gt_dir, pred_dir)
+        # gt_dir = './Pred/nnUNetTrainer'
+        # pred_dir = './Pred/test_pred_simpleunet'
+        # batch_compute_dice(gt_dir, pred_dir)
+        
+        gt_root = './data/BraTS2018/MICCAI_BraTS_2018_Data_Training'
+        pred_dir = './Pred/val_fold2_pred_simpleunet'
+        batch_compute_dice_trainingset(gt_root, pred_dir)
     else:
         # compute single case Dice
         data_dir = './data/MICCAI_BraTS_2018_Data_Training/HGG/Brats18_2013_27_1'

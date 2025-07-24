@@ -15,8 +15,7 @@ from monai.data.meta_tensor import MetaTensor
 from monai.transforms.transform import Transform
 from monai.utils import TransformBackends
 import random
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
+
 
 class BraTSDataset(MonaiDataset):
     def __init__(self, data_dicts, T=8, patch_size=(128,128,128), num_classes=4, mode="train", encode_method='none', debug=False):
@@ -418,33 +417,63 @@ class BraTSDatasetTester:
         return {"image": image_paths, "label": label_path}
 
     def run_test(self):
+        import matplotlib.pyplot as plt
+
         x_seq, label = self.dataset[0]
-        print(f"x_seq shape: {x_seq.shape}")
-        print(f"label shape: {label.shape}")
+        print(f"x_seq shape: {x_seq.shape}")  # (T, C, D, H, W)
+        print(f"label shape: {label.shape}")  # (C_label, D, H, W)
 
-        center_slice = x_seq.shape[2] // 2
-        plt.figure(figsize=(12, 5))
+        center_slice = x_seq.shape[2] // 2  # D方向中间切片
+        C = x_seq.shape[1]
+        C_label = label.shape[0]
 
-        plt.subplot(1, 2, 1)
-        plt.title("Input Image (T=0, C=0, center slice)")
-        plt.imshow(x_seq[0, 0, center_slice].cpu(), cmap='gray')
-        plt.axis('off')
+        plt.figure(figsize=(20, 5))
 
-        plt.subplot(1, 2, 2)
-        plt.title("Label Channel 0 center slice")
-        cmap = mcolors.ListedColormap(['black', 'blue', 'green', 'red'])  # 0,1,2,4
-        bounds = [0, 1, 2, 3, 5]
-        norm = mcolors.BoundaryNorm(bounds, cmap.N)
-        plt.imshow(label[0, center_slice].cpu(), cmap=cmap, norm=norm)
+        # 前4个通道，灰度图展示
+        for c in range(C):
+            plt.subplot(1, 5, c+1)
+            plt.title(f"Input Channel {c}")
+            img_slice = x_seq[0, c, center_slice].cpu()
+            plt.imshow(img_slice, cmap='gray')
+            plt.axis('off')
+
+        # 第5个子图，融合所有label通道，用不同颜色叠加显示
+        plt.subplot(1, 5, 5)
+        plt.title("Label Composite")
+
+        # 创建一张空白图像，shape=(H, W, 3)，用于RGB展示
+        D, H, W = label.shape[1], label.shape[2], label.shape[3]
+        composite_img = torch.zeros((H, W, 3), dtype=torch.float32)
+
+        # 颜色映射（RGB），根据你想用的颜色调整
+        colors = [
+            (0, 0, 0),       # 背景（黑）
+            (0, 0, 1),       # 通道0 蓝色
+            (0, 1, 0),       # 通道1 绿色
+            (1, 0, 0),       # 通道2 红色
+            # 如果有第4个通道，可以加颜色，比如黄色 (1,1,0)
+        ]
+
+        # 把每个标签通道对应颜色叠加到 composite_img 中
+        for c in range(C_label):
+            mask = label[c, center_slice].cpu() > 0.5  # 二值掩码，阈值根据情况调整
+            for i in range(3):  # RGB通道
+                composite_img[..., i] += mask.float() * colors[c][i]
+
+        # 防止颜色值超出1
+        composite_img = composite_img.clamp(0, 1).numpy()
+
+        plt.imshow(composite_img)
         plt.axis('off')
 
         plt.show()
 
 
 if __name__ == "__main__":
-    data_root = "C:/Users/ajhz839/code/Python_Projects/SNN-brain-tumor-project/data/MICCAI_BraTS_2018_Data_Training/HGG/Brats18_2013_2_1"
+    data_root = "./data/BraTS2018/MICCAI_BraTS_2018_Data_Training/HGG/Brats18_2013_2_1"
 
     case_name = "Brats18_2013_2_1" 
     tester = BraTSDatasetTester(data_root, case_name, T=8, patch_size=(64,64,64), mode="train", encode_method='none', debug=True)
-    tester.run_test()
+    for i in range(10):
+        tester.run_test()
     
