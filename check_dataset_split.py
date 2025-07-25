@@ -1,6 +1,6 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 import torch
 from sklearn.model_selection import KFold
 from config import config as cfg        
@@ -24,7 +24,7 @@ def main():
     
     # 汇总所有case路径
     case_dirs = []
-    for root in cfg.root_dirs:  # e.g., ['./data/HGG', './data/LGG']
+    for root in cfg.root_dirs:
         if not os.path.isdir(root):
             raise FileNotFoundError(f"Root directory '{root}' does not exist or is not a directory.")
         case_dirs += sorted(glob(os.path.join(root, '*')))

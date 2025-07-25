@@ -1,6 +1,6 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "6"
 import torch
 import nibabel as nib
 import numpy as np
@@ -254,7 +254,7 @@ def main():
     prob_base_dir = "/hpc/ajhz839/validation/test_prob_folds/"
     ensemble_output_dir = "/hpc/ajhz839/validation/test_pred_soft_ensemble/"
     case_dir = "/hpc/ajhz839/validation/val/"
-    ckpt_dir = "./checkpoint/experiment_22/"
+    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_44/"
 
     soft_ensemble(prob_base_dir, case_dir, ckpt_dir)
     ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir)

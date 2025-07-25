@@ -8,7 +8,7 @@ class Config:
         self.use_amp = True  # 使用自动混合精度训练
         
         # BraTS2018
-        self.root_dirs = ['/hpc/ajhz839/data/BraTS2018/HGG', '/hpc/ajhz839/data/BraTS2018/LGG']       # ['./data/HGG', './data/LGG'] 
+        self.root_dirs = ['/hpc/ajhz839/data/BraTS2018/train/HGG', '/hpc/ajhz839/data/BraTS2018/train/LGG']       # ['./data/HGG', './data/LGG'] 
         self.modalities = ['t1', 't1ce', 't2', 'flair']
         self.modality_separator = "_"
         self.image_suffix = ".nii"
@@ -22,7 +22,7 @@ class Config:
         # self.et_label = 4
         
         # # BraTS2023
-        # self.root_dirs = ['/hpc/ajhz839/data/BraTS2023/']
+        # self.root_dirs = ['/hpc/ajhz839/data/BraTS2023/train/']
         # self.modalities = ['t1n', 't1c', 't2w', 't2f']
         # self.modality_separator = "-" 
         # self.image_suffix = ".nii.gz"    
