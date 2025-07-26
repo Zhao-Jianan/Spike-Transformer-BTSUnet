@@ -1,6 +1,6 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "6"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import torch
 import nibabel as nib
 import numpy as np
@@ -73,7 +73,7 @@ def preprocess_for_inference(image_paths):
 
 
 
-def convert_prediction_to_label(mean_prob: np.ndarray, threshold: float = 0.5) -> np.ndarray:
+def convert_prediction_to_label_backup(mean_prob: np.ndarray, threshold: float = 0.5) -> np.ndarray:
     """
     BraTS标签转换，输入 mean_prob 顺序：TC, WT, ET
     返回标签：0=BG, 1=TC(NCR/NET), 2=ED, 4=ET
@@ -93,6 +93,54 @@ def convert_prediction_to_label(mean_prob: np.ndarray, threshold: float = 0.5) -
     label[et == 1] = 4  # ET优先级最高
 
     return label
+
+
+def convert_prediction_to_label(mean_prob: np.ndarray, threshold: float = 0.5) -> np.ndarray:
+    """
+    BraTS标签转换，输入 mean_prob 顺序：TC, WT, ET
+    返回标签：0=BG, 1=TC(NCR/NET), 2=ED, 4=ET
+    """
+    assert mean_prob.shape[0] == 3, "Expected 3 channels: TC, WT, ET"
+    tc_prob, wt_prob, et_prob = mean_prob[0], mean_prob[1], mean_prob[2]
+
+    # 阈值化
+    et = (et_prob > threshold)
+    tc = (tc_prob > threshold) & (~et)  # 排除ET区域
+    wt = (wt_prob > threshold) & (~et) & (~tc)  # 排除ET和TC区域
+
+    label = np.zeros_like(tc_prob, dtype=np.uint8)
+    label[wt] = 2
+    label[tc] = 1
+    label[et] = 4
+
+    return label
+
+
+def convert_prediction_to_label_suppress_fp(mean_prob: np.ndarray, threshold: float = 0.5, bg_margin: float = 0.1) -> np.ndarray:
+    """
+    改进版 BraTS 标签转换，加入背景保护机制，避免 WT 边缘假阳性。
+    输入 mean_prob 顺序：TC, WT, ET
+    返回标签：0=BG, 1=TC(NCR/NET), 2=ED, 4=ET
+    """
+    assert mean_prob.shape[0] == 3, "Expected 3 channels: TC, WT, ET"
+    tc_prob, wt_prob, et_prob = mean_prob[0], mean_prob[1], mean_prob[2]
+
+    # 最大类别概率和索引
+    prob_stack = np.stack([tc_prob, wt_prob, et_prob], axis=0)
+    max_prob = np.max(prob_stack, axis=0)
+    argmax = np.argmax(prob_stack, axis=0)
+
+    # 设置背景屏蔽策略：如果最大概率都不高（例如 max_prob < 0.5 + bg_margin），则认为是背景
+    is_background = max_prob < (threshold + bg_margin)
+
+    label = np.zeros_like(tc_prob, dtype=np.uint8)
+    label[argmax == 1] = 2  # WT -> ED
+    label[argmax == 0] = 1  # TC -> NCR/NET
+    label[argmax == 2] = 4  # ET -> ET
+    label[is_background] = 0
+
+    return label
+
 
 
 def postprocess_brats_label(pred_mask: np.ndarray) -> np.ndarray:
@@ -164,7 +212,8 @@ def pred_single_case_soft(case_dir, prob_save_dir, model, inference_engine, devi
     brain_width = np.array([[0, 0, 0], [D-1, H-1, W-1]])
     
     with torch.no_grad():
-        output = inference_engine(x_batch, brain_width, model)
+        output = inference_engine(x_batch, model)
+        # output = inference_engine(x_batch, brain_width, model)
 
     output_prob = torch.sigmoid(output).squeeze(0).cpu().numpy()  # [C, D, H, W]
     prob_path = os.path.join(prob_save_dir, f"{case_name}_prob.npy")
@@ -204,7 +253,7 @@ def soft_ensemble(prob_base_dir, case_dir, ckpt_dir):
         model.load_state_dict(torch.load(model_ckpt, map_location=cfg.device))
         model.eval()
 
-        inference_engine = TemporalSlidingWindowInferenceWithROI(
+        inference_engine = TemporalSlidingWindowInference(
             patch_size=cfg.inference_patch_size,
             overlap=cfg.overlap,
             sw_batch_size=4,
@@ -213,6 +262,16 @@ def soft_ensemble(prob_base_dir, case_dir, ckpt_dir):
             T=cfg.T,
             num_classes=cfg.num_classes
         )
+        
+        # inference_engine = TemporalSlidingWindowInferenceWithROI(
+        #     patch_size=cfg.inference_patch_size,
+        #     overlap=cfg.overlap,
+        #     sw_batch_size=4,
+        #     mode="gaussian", # "gaussian", "constant"
+        #     encode_method=cfg.encode_method,
+        #     T=cfg.T,
+        #     num_classes=cfg.num_classes
+        # )
 
         fold_prob_dir = os.path.join(prob_base_dir, f"fold{fold}")
         run_inference_folder_soft(case_dir, fold_prob_dir, model, inference_engine, cfg.device)
@@ -232,7 +291,7 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir):
         mean_prob = np.mean(np.stack(prob_list, axis=0), axis=0)  # [C, D, H, W]
         print(f"Mean probability shape for case {case}: {mean_prob.shape}")
 
-        label_np = convert_prediction_to_label(mean_prob)
+        label_np = convert_prediction_to_label_suppress_fp(mean_prob)
 
         print("Label shape before transposing:", label_np.shape)  # (D, H, W)
         label_np = np.transpose(label_np, (1, 2, 0))
@@ -254,7 +313,7 @@ def main():
     prob_base_dir = "/hpc/ajhz839/validation/test_prob_folds/"
     ensemble_output_dir = "/hpc/ajhz839/validation/test_pred_soft_ensemble/"
     case_dir = "/hpc/ajhz839/validation/val/"
-    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_44/"
+    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_41/"
 
     soft_ensemble(prob_base_dir, case_dir, ckpt_dir)
     ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir)

@@ -1,6 +1,6 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import torch
 import nibabel as nib
 import numpy as np
@@ -157,14 +157,15 @@ def postprocess_brats_label(pred_mask: np.ndarray) -> np.ndarray:
 def pred_single_case(case_dir, model, inference_engine, device):
     case_name = os.path.basename(case_dir)
     print(f"Processing case: {case_name}")
-    image_paths = [os.path.join(case_dir, f"{case_name}-{mod}.nii.gz") for mod in cfg.modalities]
+    image_paths = [os.path.join(case_dir, f"{case_name}_{mod}.nii") for mod in cfg.modalities]
 
     x_batch = preprocess_for_inference(image_paths).to(device)
     B, C, D, H, W = x_batch.shape
     brain_width = np.array([[0, 0, 0], [D-1, H-1, W-1]])
     
     with torch.no_grad():
-        output = inference_engine(x_batch, brain_width, model)
+        # output = inference_engine(x_batch, brain_width, model)
+        output = inference_engine(x_batch, model)
 
     output_prob = torch.sigmoid(output).squeeze(0).cpu().numpy()  # [C, D, H, W]
 
@@ -182,7 +183,7 @@ def run_inference_soft_single(case_dir, save_dir, model, inference_engine, devic
     label_np = np.transpose(label_np, (1, 2, 0))  # to (H, W, D)
 
     case_name = os.path.basename(case_dir)
-    ref_nii_path = os.path.join(case_dir, f"{case_name}-{cfg.modalities[cfg.modalities.index('t1c')]}.nii.gz")
+    ref_nii_path = os.path.join(case_dir, f"{case_name}_{cfg.modalities[cfg.modalities.index('t1ce')]}.nii")
     ref_nii = nib.load(ref_nii_path)
     pred_nii = nib.Nifti1Image(label_np, affine=ref_nii.affine, header=ref_nii.header)
 
@@ -192,23 +193,23 @@ def run_inference_soft_single(case_dir, save_dir, model, inference_engine, devic
 def run_inference_folder_single(case_root, save_dir, model, inference_engine, device, whitelist=None):
     os.makedirs(save_dir, exist_ok=True)
     
-    # For other dataset
-    all_case_dirs = sorted([
-        os.path.join(case_root, name) for name in os.listdir(case_root)
-        if os.path.isdir(os.path.join(case_root, name))
-    ])
+    # # For other dataset
+    # all_case_dirs = sorted([
+    #     os.path.join(case_root, name) for name in os.listdir(case_root)
+    #     if os.path.isdir(os.path.join(case_root, name))
+    # ])
          
-    # # For BraTS2018 dataset
-    # all_case_dirs = []
-    # for subfolder in ['HGG', 'LGG']:
-    #     sub_dir = os.path.join(case_root, subfolder)
-    #     if not os.path.isdir(sub_dir):
-    #         continue
-    #     case_dirs = sorted([
-    #         os.path.join(sub_dir, name) for name in os.listdir(sub_dir)
-    #         if os.path.isdir(os.path.join(sub_dir, name))
-    #     ])
-    #     all_case_dirs.extend(case_dirs)
+    # For BraTS2018 dataset
+    all_case_dirs = []
+    for subfolder in ['HGG', 'LGG']:
+        sub_dir = os.path.join(case_root, subfolder)
+        if not os.path.isdir(sub_dir):
+            continue
+        case_dirs = sorted([
+            os.path.join(sub_dir, name) for name in os.listdir(sub_dir)
+            if os.path.isdir(os.path.join(sub_dir, name))
+        ])
+        all_case_dirs.extend(case_dirs)
 
     if whitelist is not None:
         whitelist_set = set(whitelist)
@@ -234,22 +235,22 @@ def build_model(ckpt_path):
     return model
 
 def build_inference_engine():
-    return TemporalSlidingWindowInferenceWithROI(
+    return TemporalSlidingWindowInference( # TemporalSlidingWindowInference, TemporalSlidingWindowInferenceWithROI
         patch_size=cfg.inference_patch_size,
         overlap=cfg.overlap,
-        sw_batch_size=2,
+        sw_batch_size=8,
         mode="constant",
         encode_method=cfg.encode_method,
         T=cfg.T,
         num_classes=cfg.num_classes
-    )
+    )            
 
 
 def main():
     # BraTS2018 inference
-    # ckpt_path = "/hpc/ajhz839/checkpoint/experiment_22/best_model_fold2.pth"
-    # case_dir = "/hpc/ajhz839/data/BraTS2018/"
-    # output_dir = "/hpc/ajhz839/validation/val_fold2_pred/"
+    ckpt_path = "/hpc/ajhz839/checkpoint/experiment_56/best_model_fold2.pth"
+    case_dir = "/hpc/ajhz839/data/BraTS2018/train/"
+    output_dir = "/hpc/ajhz839/validation/val_fold2_pred/"
     
     brats2018_case_whitelist = [
         "Brats18_2013_12_1",
@@ -311,15 +312,15 @@ def main():
         "Brats18_TCIA13_653_1"
     ]
     
-    # model = build_model(ckpt_path)
-    # inference_engine = build_inference_engine()
-    # run_inference_folder_single(case_dir, output_dir, model, inference_engine, cfg.device, brats2018_case_whitelist)
+    model = build_model(ckpt_path)
+    inference_engine = build_inference_engine()
+    run_inference_folder_single(case_dir, output_dir, model, inference_engine, cfg.device, brats2018_case_whitelist)
 
 
     # BraTS2023 inference
-    ckpt_path = "/hpc/ajhz839/checkpoint/experiment_33/best_model_fold2.pth"
-    case_dir = "/hpc/ajhz839/data/BraTS2023/train/"
-    output_dir = "/hpc/ajhz839/validation/val_fold2_pred/" 
+    # ckpt_path = "/hpc/ajhz839/checkpoint/experiment_33/best_model_fold2.pth"
+    # case_dir = "/hpc/ajhz839/data/BraTS2023/train/"
+    # output_dir = "/hpc/ajhz839/validation/val_fold2_pred/" 
        
     brats2023_case_whitelist = [
         "BraTS-GLI-00002-000",
@@ -575,9 +576,9 @@ def main():
     ]
 
 
-    model = build_model(ckpt_path)
-    inference_engine = build_inference_engine()
-    run_inference_folder_single(case_dir, output_dir, model, inference_engine, cfg.device, brats2023_case_whitelist)
+    # model = build_model(ckpt_path)
+    # inference_engine = build_inference_engine()
+    # run_inference_folder_single(case_dir, output_dir, model, inference_engine, cfg.device, brats2023_case_whitelist)
     
     
     

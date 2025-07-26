@@ -228,7 +228,7 @@ class TemporalSlidingWindowInferenceWithROI:
 
     def compute_patch_indices(self, img_shape, patch_size, stride):
         """
-        计算patch的起点索引列表，类似别人代码compute_patch_indices_for_prediction
+        计算patch的起点索引列表
         """
         indices = []
         for z in range(0, img_shape[0] - patch_size[0] + 1, stride[0]):

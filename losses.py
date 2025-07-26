@@ -113,8 +113,98 @@ class BratsDiceLoss(nn.Module):
             raise ValueError(f"Unsupported reduction type: {self.reduction}")
 
         return weighted_loss
+
+class BratsDiceLosswithFPPenalty(nn.Module):
+    def __init__(self, 
+                 smooth_nr=0.0, 
+                 smooth_dr=1e-5, 
+                 squared_pred=True, 
+                 sigmoid=True, 
+                 weights=None, 
+                 include_background=True,
+                 batch=False,
+                 reduction='mean',
+                 fp_lambda=0.5):  # 添加假阳性惩罚系数
+        super().__init__()
+        self.smooth_nr = smooth_nr
+        self.smooth_dr = smooth_dr
+        self.squared_pred = squared_pred
+        self.sigmoid = sigmoid
+        self.include_background = include_background
+        self.reduction = reduction
+        self.batch = batch
+        self.fp_lambda = fp_lambda
+
+        if weights is None:
+            weights = torch.tensor([1.0, 1.0, 1.0], dtype=torch.float32)
+        else:
+            weights = torch.tensor(weights, dtype=torch.float32)
+            weights = weights / weights.sum()
+            
+        self.register_buffer("weights", weights)
+
+    def forward(self, pred, target):
+        """
+        pred: [B, 3, D, H, W] 模型输出 logits 或概率
+        target: [B, 3, D, H, W] one-hot 标签 [TC, WT, ET]
+        """
+        if self.sigmoid:
+            pred = torch.sigmoid(pred)
+
+        n_pred_ch = pred.shape[1]
+
+        if not self.include_background:
+            if n_pred_ch == 1:
+                print("single channel prediction, `include_background=False` ignored.")
+            else:
+                pred = pred[:, 1:]
+                target = target[:, 1:]
+
+        if self.squared_pred:
+            pred_sq = pred ** 2
+            target_sq = target ** 2
+        else:
+            pred_sq = pred
+            target_sq = target
+
+        dims = (0, 2, 3, 4) if self.batch else (2, 3, 4)
+
+        intersection = torch.sum(pred * target, dims)
+        cardinality = torch.sum(pred_sq + target_sq, dims)
+
+        dice = (2. * intersection + self.smooth_nr) / (cardinality + self.smooth_dr)
+        loss_per_channel = 1 - dice  # shape [3]
+
+        weights = self.weights.detach()
+        if self.reduction == 'mean':
+            weighted_loss = (loss_per_channel * weights).mean()
+        elif self.reduction == 'sum':
+            weighted_loss = (loss_per_channel * weights).sum()
+        else:
+            raise ValueError(f"Unsupported reduction type: {self.reduction}")
+
+        # -------------------------------
+        # 假阳性惩罚项（基于 FP Rate）
+        # -------------------------------
+        with torch.no_grad():
+            pred_bin = (pred > 0.5).float()  # hard prediction
+        target_float = target.float()
+        false_positive = pred_bin * (1 - target_float)  # pred=1, gt=0
+        pred_positive = pred_bin  # pred=1
+
+        fp = false_positive.sum(dims)          # shape [C] or [B, C]
+        pp = pred_positive.sum(dims) + 1e-6    # 防止除0
+        fp_rate = fp / pp                      # shape [C]
+
+        fp_penalty = (fp_rate * weights).mean()  # 加权平均
+
+        # -------------------------------
+        # 加权组合总 loss
+        # -------------------------------
+        total_loss = weighted_loss + self.fp_lambda * fp_penalty
+        return total_loss
     
-   
+     
    
 class BratsFocalLoss(nn.Module):
     def __init__(self, alpha=0.25, gamma=2.0, reduction='mean'):

@@ -120,18 +120,24 @@ nohup python spikeformerunet10/main.py > New-51-log_bra23_4T_spikeformerunet_64p
 nohup python spikeformerunet13/main.py > New-56-log_bra18_4T_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware_random.out 2>&1 &
 [57]
 nohup python spikeformerunet3/main.py > New-57-log_bra18_simpleunet_64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware05_random05.out 2>&1 &
+[58]
+nohup python spikeformerunet5/main.py > New-58-log_bra18_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_randomcrop.out 2>&1 &
+[59]
+nohup python spikeformerunet6/main.py > New-59-log_bra18_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_fppenalty_catskip_seed42_aware05_random05.out 2>&1 &
+[60]
+nohup python spikeformerunet7/main.py > New-60-log_bra18_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_fppenalty_catskip_seed42_randomcrop.out 2>&1 &
 
-3 5 6 7 9 15
+3 9 15
 
 ps -u $USER -f | grep python
 pgrep -u $USER -a python
 pkill -f filename.py
-pkill -f spikeformerunet6/main.py
+pkill -f spikeformerunet7/main.py
 
 pkill -f spikeformerunet15/inference_single_checkpoint.py
 [infer]
 nohup python spikeformerunet15/inference_resemble.py > inference_log.out 2>&1 &
-nohup python spikeformerunet15/inference_single_checkpoint.py > inference_log.out 2>&1 &
+nohup python spikeformerunet15/inference_single_checkpoint.py > single_inference_log.out 2>&1 &
 
 nohup python spikeformerunet6/inference_resemble.py > finallf_inference_log.out 2>&1 &
 nohup python spikeformerunet11/inference_single_checkpoint.py > BraTS23_spikeformerunet_infer_valdata_log.out 2>&1 &

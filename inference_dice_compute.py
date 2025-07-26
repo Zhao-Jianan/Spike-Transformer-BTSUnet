@@ -151,11 +151,11 @@ def main():
     if batch_compute:
         # 批量计算 Dice
         # gt_dir = './Pred/nnUNetTrainer'
-        # pred_dir = './Pred/test_pred_overlap0.5'
+        # pred_dir = './Pred/test_pred_spikeformerunet'
         # batch_compute_dice(gt_dir, pred_dir)
         
         gt_root = './data/BraTS2018/MICCAI_BraTS_2018_Data_Training'
-        pred_dir = './Pred/val_fold2_pred_spikeformerUnet'
+        pred_dir = './Pred/val_fold2_random05_crop'
         batch_compute_dice_trainingset(gt_root, pred_dir)
     else:
         # compute single case Dice

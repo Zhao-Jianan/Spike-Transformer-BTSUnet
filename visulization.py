@@ -101,31 +101,44 @@ def plot_modalities_with_masks(t1, t1ce, t2, flair, gt_mask, pred_mask, case_nam
 def main():
     # 设置数据目录和文件路径
     
-    # # BraTS 2018 Training set
-    # data_dir = './data/BraTS2018/MICCAI_BraTS_2018_Data_Training/HGG/Brats18_TCIA08_113_1'
-    # pred_dir = './Pred/val_fold2_pred_simpleunet'
+    # BraTS 2018 Training set
+    data_dir = './data/BraTS2018/MICCAI_BraTS_2018_Data_Training/HGG/Brats18_CBICA_ABE_1'
+    pred_dir = './Pred/val_fold2_random05_crop'
+    case_name = os.path.basename(data_dir)
+    
+    t1_path = os.path.join(data_dir, f'{case_name}_t1.nii')
+    t1ce_path = os.path.join(data_dir, f'{case_name}_t1ce.nii')
+    t2_path = os.path.join(data_dir, f'{case_name}_t2.nii')
+    flair_path = os.path.join(data_dir, f'{case_name}_flair.nii')
+    gt_mask_path = os.path.join(data_dir, f'{case_name}_seg.nii')     # ground truth
+    pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction
+    
+    
+    # # BraTS 2018 val dataset
+    # data_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Data/BraTS2018/val/Brats18_WashU_W053_1'
+    # gt_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/nnUNetTrainer'
+    # pred_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/test_pred_spikeformerunet'
+    # case_name = os.path.basename(data_dir)
+
+    # t1_path = os.path.join(data_dir,f't1.nii.gz')
+    # t1ce_path = os.path.join(data_dir, f't1ce.nii.gz')
+    # t2_path = os.path.join(data_dir, f't2.nii.gz')
+    # flair_path = os.path.join(data_dir, f'flair.nii.gz')
+    # gt_mask_path = os.path.join(gt_dir, f'{case_name}.nii.gz')     # ground truth
+    # pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction  
+    
+    
+    # # BraTS 2023 Training set
+    # data_dir = './Data/BraTS2023/BraTS-GLI-00006-000'
+    # pred_dir = './Pred/BraTS23_val_fold2_pred'
     # case_name = os.path.basename(data_dir)
     
-    # t1_path = os.path.join(data_dir, f'{case_name}_t1.nii')
-    # t1ce_path = os.path.join(data_dir, f'{case_name}_t1ce.nii')
-    # t2_path = os.path.join(data_dir, f'{case_name}_t2.nii')
-    # flair_path = os.path.join(data_dir, f'{case_name}_flair.nii')
-    # gt_mask_path = os.path.join(data_dir, f'{case_name}_seg.nii')     # ground truth
+    # t1_path = os.path.join(data_dir, f'{case_name}-t1n.nii.gz')
+    # t1ce_path = os.path.join(data_dir, f'{case_name}-t1c.nii.gz')
+    # t2_path = os.path.join(data_dir, f'{case_name}-t2w.nii.gz')
+    # flair_path = os.path.join(data_dir, f'{case_name}-t2f.nii.gz')
+    # gt_mask_path = os.path.join(data_dir, f'{case_name}-seg.nii.gz')     # ground truth
     # pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction
-    
-    
-    # BraTS 2018 val dataset
-    data_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Data/BraTS2018/val/Brats18_WashU_W053_1'
-    gt_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/nnUNetTrainer'
-    pred_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/test_pred_overlap0.5'
-    case_name = os.path.basename(data_dir)
-
-    t1_path = os.path.join(data_dir,f't1.nii.gz')
-    t1ce_path = os.path.join(data_dir, f't1ce.nii.gz')
-    t2_path = os.path.join(data_dir, f't2.nii.gz')
-    flair_path = os.path.join(data_dir, f'flair.nii.gz')
-    gt_mask_path = os.path.join(gt_dir, f'{case_name}.nii.gz')     # ground truth
-    pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction  
     
     
     # # Clinical Data
@@ -150,7 +163,7 @@ def main():
     gt_mask = load_nifti_image(gt_mask_path).astype(np.uint8)
     pred_mask = load_nifti_image(pred_mask_path).astype(np.uint8)
     save_dir = './visualise/'
-    save_path = os.path.join(save_dir, f'{case_name}_output_presentation.png')
+    save_path = os.path.join(save_dir, f'{case_name}_output_random05_crop.png')
     # save_path = os.path.join(save_dir, f'{prefix}_output2.png')
 
     # 可视化中间层 (中间 slice 通常是肿瘤区域)
