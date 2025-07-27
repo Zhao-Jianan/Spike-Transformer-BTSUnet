@@ -79,11 +79,16 @@ class BratsDiceLoss(nn.Module):
         # 如果pred带背景通道，忽略背景通道，取通道1开始
         if not self.include_background:
             if n_pred_ch == 1:
-                print("single channel prediction, `include_background=False` ignored.")
+                print("Warning: single channel prediction, `include_background=False` ignored.")
+            elif n_pred_ch <= 3:
+                # No background channel to remove, assume input is only [TC, WT, ET]
+                pass
             else:
-                # if skipping background, removing first channel
                 target = target[:, 1:]
                 pred = pred[:, 1:]
+        else:
+            if n_pred_ch != 3:
+                print("Warning: `include_background=True` but input has no background channel.")
 
         if self.squared_pred:
             pred_sq = pred ** 2
@@ -155,10 +160,16 @@ class BratsDiceLosswithFPPenalty(nn.Module):
 
         if not self.include_background:
             if n_pred_ch == 1:
-                print("single channel prediction, `include_background=False` ignored.")
+                print("Warning: single channel prediction, `include_background=False` ignored.")
+            elif n_pred_ch <= 3:
+                # No background channel to remove, assume input is only [TC, WT, ET]
+                pass
             else:
-                pred = pred[:, 1:]
                 target = target[:, 1:]
+                pred = pred[:, 1:]
+        else:
+            if n_pred_ch != 3:
+                print("Warning: `include_background=True` but input has no background channel.")
 
         if self.squared_pred:
             pred_sq = pred ** 2
@@ -204,6 +215,87 @@ class BratsDiceLosswithFPPenalty(nn.Module):
         total_loss = weighted_loss + self.fp_lambda * fp_penalty
         return total_loss
     
+
+class BratsTverskyLoss(nn.Module):
+    def __init__(self,
+                 alpha=0.7,
+                 beta=0.3,
+                 smooth_nr=0.0,
+                 smooth_dr=1e-5,
+                 sigmoid=True,
+                 weights=None,
+                 include_background=True,
+                 batch=False,
+                 reduction='mean'):
+        super().__init__()
+        self.alpha = alpha
+        self.beta = beta
+        self.smooth_nr = smooth_nr
+        self.smooth_dr = smooth_dr
+        self.sigmoid = sigmoid
+        self.include_background = include_background
+        self.reduction = reduction
+        self.batch = batch
+
+        if weights is None:
+            weights = torch.tensor([1.0, 1.0, 1.0], dtype=torch.float32)
+        else:
+            weights = torch.tensor(weights, dtype=torch.float32)
+            weights = weights / weights.sum()
+
+        self.register_buffer("weights", weights)
+
+    def forward(self, pred, target):
+        """
+        pred: [B, 3, D, H, W] 模型输出 logits 或概率
+        target: [B, 3, D, H, W] one-hot 标签 [TC, WT, ET]
+        """
+        if self.sigmoid:
+            pred = torch.sigmoid(pred)
+
+        n_pred_ch = pred.shape[1]
+
+        if not self.include_background:
+            if n_pred_ch == 1:
+                print("Warning: single channel prediction, `include_background=False` ignored.")
+            elif n_pred_ch <= 3:
+                # No background channel to remove, assume input is only [TC, WT, ET]
+                pass
+            else:
+                target = target[:, 1:]
+                pred = pred[:, 1:]
+        else:
+            if n_pred_ch != 3:
+                print("Warning: `include_background=True` but input has no background channel.")
+                
+        pred = pred.float()
+        target = target.float()
+
+        if self.batch:
+            dims = (0, 2, 3, 4)
+        else:
+            dims = (2, 3, 4)
+
+        tp = torch.sum(pred * target, dims)
+        fp = torch.sum(pred * (1 - target), dims)
+        fn = torch.sum((1 - pred) * target, dims)
+
+        tversky = (tp + self.smooth_nr) / (
+            tp + self.alpha * fp + self.beta * fn + self.smooth_dr
+        )
+        loss_per_channel = 1 - tversky  # shape [3]
+
+        weights = self.weights.detach()
+
+        if self.reduction == 'mean':
+            weighted_loss = (loss_per_channel * weights).mean()
+        elif self.reduction == 'sum':
+            weighted_loss = (loss_per_channel * weights).sum()
+        else:
+            raise ValueError(f"Unsupported reduction type: {self.reduction}")
+
+        return weighted_loss 
+ 
      
    
 class BratsFocalLoss(nn.Module):

@@ -6,7 +6,7 @@ import torch.optim as optim
 from sklearn.model_selection import KFold
 from spike_former_unet_model import spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
 # from simple_unet_model import spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
-from losses import BratsDiceLoss, BratsFocalLoss, BratsDiceLosswithFPPenalty, AdaptiveRegionalLoss
+from losses import BratsDiceLoss, BratsFocalLoss, BratsDiceLosswithFPPenalty, BratsTverskyLoss, AdaptiveRegionalLoss
 from utils import init_weights, save_metrics_to_file
 from train import train_fold, get_scheduler, EarlyStopping
 from plot import plot_metrics
@@ -61,7 +61,15 @@ def main():
             smooth_dr=1e-5,
             squared_pred=True,
             sigmoid=True,
-            weights=cfg.loss_weights).to(cfg.device)        
+            weights=cfg.loss_weights).to(cfg.device)
+    elif cfg.loss_function == 'tversky':
+        criterion = BratsTverskyLoss(
+            alpha=0.7,
+            beta=0.3,
+            smooth_nr=0.0,
+            smooth_dr=1e-5,
+            sigmoid=True,
+            weights=cfg.loss_weights).to(cfg.device)      
     elif cfg.loss_function == 'adaptive_regional':    
         criterion = AdaptiveRegionalLoss(
             global_weight=0.7, 

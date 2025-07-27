@@ -248,7 +248,7 @@ def soft_ensemble(prob_base_dir, case_dir, ckpt_dir):
         model = spike_former_unet3D_8_384(
             num_classes=cfg.num_classes,
             T=cfg.T,
-            # norm_type=cfg.norm_type,
+            norm_type=cfg.norm_type,
             step_mode=cfg.step_mode).to(cfg.device)
         model.load_state_dict(torch.load(model_ckpt, map_location=cfg.device))
         model.eval()
@@ -313,7 +313,7 @@ def main():
     prob_base_dir = "/hpc/ajhz839/validation/test_prob_folds/"
     ensemble_output_dir = "/hpc/ajhz839/validation/test_pred_soft_ensemble/"
     case_dir = "/hpc/ajhz839/validation/val/"
-    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_41/"
+    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_56/"
 
     soft_ensemble(prob_base_dir, case_dir, ckpt_dir)
     ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir)

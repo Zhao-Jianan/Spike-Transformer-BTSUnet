@@ -7,8 +7,15 @@ class Config:
         self.seed =  42 # 42, 3407
         self.use_amp = True  # 使用自动混合精度训练
         
-        # BraTS2018
-        self.root_dirs = ['/hpc/ajhz839/data/BraTS2018/train/HGG', '/hpc/ajhz839/data/BraTS2018/train/LGG']       # ['./data/HGG', './data/LGG'] 
+        # # BraTS2018
+        # self.root_dirs = ['/hpc/ajhz839/data/BraTS2018/train/HGG', '/hpc/ajhz839/data/BraTS2018/train/LGG']   
+        # self.modalities = ['t1', 't1ce', 't2', 'flair']
+        # self.modality_separator = "_"
+        # self.image_suffix = ".nii"
+        # self.et_label = 4
+        
+        # BraTS2020
+        self.root_dirs = ['/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData'] 
         self.modalities = ['t1', 't1ce', 't2', 'flair']
         self.modality_separator = "_"
         self.image_suffix = ".nii"
@@ -52,10 +59,10 @@ class Config:
         self.batch_size = 4
         self.k_folds = 5
         
-        self.loss_function = 'dice_with_fp_penalty' # dice, focal, dice_with_fp_penalty, adaptive_regional
+        self.loss_function = 'tversky' # dice, focal, dice_with_fp_penalty, tversky, adaptive_regional
         self.loss_weights = [1.0, 1.0, 1.0] # [2.0, 1.0, 4.0] [1.0, 1.0, 1.0]
-        self.train_crop_mode = "random"  # tumor_aware_random, warmup_weighted_random, random, tumor_center
-        self.val_crop_mode = 'random' # tumor_aware_random, sliding_window, random, tumor_center
+        self.train_crop_mode = "tumor_aware_random"  # tumor_aware_random, warmup_weighted_random, random, tumor_center
+        self.val_crop_mode = 'tumor_aware_random' # tumor_aware_random, sliding_window, random, tumor_center
         self.overlap = 0.125
         self.num_workers = 8
 
