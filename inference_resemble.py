@@ -118,26 +118,31 @@ def convert_prediction_to_label(mean_prob: np.ndarray, threshold: float = 0.5) -
 
 def convert_prediction_to_label_suppress_fp(mean_prob: np.ndarray, threshold: float = 0.5, bg_margin: float = 0.1) -> np.ndarray:
     """
-    改进版 BraTS 标签转换，加入背景保护机制，避免 WT 边缘假阳性。
+    BraTS 标签转换，加入背景保护机制。
     输入 mean_prob 顺序：TC, WT, ET
-    返回标签：0=BG, 1=TC(NCR/NET), 2=ED, 4=ET
+    返回标签图：每个 voxel 值为 {0, 1, 2, 4}
     """
     assert mean_prob.shape[0] == 3, "Expected 3 channels: TC, WT, ET"
     tc_prob, wt_prob, et_prob = mean_prob[0], mean_prob[1], mean_prob[2]
 
-    # 最大类别概率和索引
-    prob_stack = np.stack([tc_prob, wt_prob, et_prob], axis=0)
-    max_prob = np.max(prob_stack, axis=0)
-    argmax = np.argmax(prob_stack, axis=0)
+    # 阈值生成掩码
+    tc_mask = (tc_prob >= threshold)
+    wt_mask = (wt_prob >= threshold)
+    et_mask = (et_prob >= threshold)
 
-    # 设置背景屏蔽策略：如果最大概率都不高（例如 max_prob < 0.5 + bg_margin），则认为是背景
-    is_background = max_prob < (threshold + bg_margin)
+    # 背景保护：如果所有类别的最大值都很小，就强制为背景
+    overall_max_prob = np.max(mean_prob, axis=0)
+    suppress_mask = overall_max_prob < (threshold + bg_margin)
 
+    # 独立三通道标签图
     label = np.zeros_like(tc_prob, dtype=np.uint8)
-    label[argmax == 1] = 2  # WT -> ED
-    label[argmax == 0] = 1  # TC -> NCR/NET
-    label[argmax == 2] = 4  # ET -> ET
-    label[is_background] = 0
+
+    # 按照 ET > TC > WT 的优先级赋值（互斥标签）
+    label[wt_mask] = 2         # 先赋 WT
+    label[tc_mask] = 1         # TC 会覆盖 WT 的值为 1
+    label[et_mask] = 4         # ET 会覆盖 TC 的值为 4
+
+    label[suppress_mask] = 0   # 背景保护
 
     return label
 
@@ -313,7 +318,7 @@ def main():
     prob_base_dir = "/hpc/ajhz839/validation/test_prob_folds/"
     ensemble_output_dir = "/hpc/ajhz839/validation/test_pred_soft_ensemble/"
     case_dir = "/hpc/ajhz839/validation/val/"
-    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_56/"
+    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_41/"
 
     soft_ensemble(prob_base_dir, case_dir, ckpt_dir)
     ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir)

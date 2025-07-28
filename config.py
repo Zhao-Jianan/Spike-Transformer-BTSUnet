@@ -6,6 +6,7 @@ class Config:
         self.device = torch.device(self.gpu_name if torch.cuda.is_available() else "cpu")
         self.seed =  42 # 42, 3407
         self.use_amp = True  # 使用自动混合精度训练
+        self.test_ratio = 0.2  # 测试集比例
         
         # # BraTS2018
         # self.root_dirs = ['/hpc/ajhz839/data/BraTS2018/train/HGG', '/hpc/ajhz839/data/BraTS2018/train/LGG']   

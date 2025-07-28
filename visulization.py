@@ -102,8 +102,8 @@ def main():
     # 设置数据目录和文件路径
     
     # BraTS 2018 Training set
-    data_dir = './data/BraTS2018/MICCAI_BraTS_2018_Data_Training/HGG/Brats18_CBICA_ABE_1'
-    pred_dir = './Pred/val_fold2_random05_crop'
+    data_dir = './data/BraTS2018/MICCAI_BraTS_2018_Data_Training/LGG/Brats18_TCIA13_621_1'
+    pred_dir = './Pred/val_fold2_pred_experiment56'
     case_name = os.path.basename(data_dir)
     
     t1_path = os.path.join(data_dir, f'{case_name}_t1.nii')
@@ -115,9 +115,9 @@ def main():
     
     
     # # BraTS 2018 val dataset
-    # data_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Data/BraTS2018/val/Brats18_WashU_W053_1'
+    # data_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Data/BraTS2018/val/Brats18_TCIA12_613_1'
     # gt_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/nnUNetTrainer'
-    # pred_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/test_pred_spikeformerunet'
+    # pred_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/test_pred_random05_crop'
     # case_name = os.path.basename(data_dir)
 
     # t1_path = os.path.join(data_dir,f't1.nii.gz')
@@ -163,7 +163,7 @@ def main():
     gt_mask = load_nifti_image(gt_mask_path).astype(np.uint8)
     pred_mask = load_nifti_image(pred_mask_path).astype(np.uint8)
     save_dir = './visualise/'
-    save_path = os.path.join(save_dir, f'{case_name}_output_random05_crop.png')
+    save_path = os.path.join(save_dir, f'{case_name}_experiment56.png')
     # save_path = os.path.join(save_dir, f'{prefix}_output2.png')
 
     # 可视化中间层 (中间 slice 通常是肿瘤区域)

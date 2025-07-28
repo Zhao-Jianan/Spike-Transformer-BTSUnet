@@ -3,11 +3,11 @@ os.chdir(os.path.dirname(__file__))
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import torch
 import torch.optim as optim
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, train_test_split
 from spike_former_unet_model import spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
 # from simple_unet_model import spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
 from losses import BratsDiceLoss, BratsFocalLoss, BratsDiceLosswithFPPenalty, BratsTverskyLoss, AdaptiveRegionalLoss
-from utils import init_weights, save_metrics_to_file
+from utils import init_weights, save_metrics_to_file, save_val_case_list
 from train import train_fold, get_scheduler, EarlyStopping
 from plot import plot_metrics
 from data_loader import get_data_loaders
@@ -78,10 +78,18 @@ def main():
             pool_size=8).to(cfg.device)
     else:
         raise ValueError(f"Unsupported loss function: {cfg.loss_function}")
+    
+    # 训练验证集 + 测试集划分
+    train_val_dirs, test_dirs = train_test_split(
+        case_dirs, test_size=cfg.test_ratio, random_state=cfg.seed, shuffle=True
+    )
+    print(f"Total cases: {len(case_dirs)} | Train+Val: {len(train_val_dirs)} | Test: {len(test_dirs)}")
+
+
     kf = KFold(n_splits=cfg.k_folds, shuffle=True, random_state=cfg.seed)
     # print("weights device:", criterion.weights.device)
     # 开始交叉验证
-    for fold, (train_idx, val_idx) in enumerate(kf.split(case_dirs)):
+    for fold, (train_idx, val_idx) in enumerate(kf.split(train_val_dirs)):
         if cfg.model_type == 'spike_former_unet3D_8_384':
             model = spike_former_unet3D_8_384(
                 num_classes=cfg.num_classes,
@@ -108,8 +116,11 @@ def main():
         early_stopping = EarlyStopping(patience=cfg.early_stop_patience, delta=0)
 
         # 根据交叉验证划分数据集
-        train_case_dirs = [case_dirs[i] for i in train_idx]
-        val_case_dirs = [case_dirs[i] for i in val_idx]
+        train_case_dirs = [train_val_dirs[i] for i in train_idx]
+        val_case_dirs = [train_val_dirs[i] for i in val_idx]
+        
+        # 保存验证集名单（供推理用）
+        save_val_case_list(val_case_dirs, fold)
 
         # 训练和验证数据加载器
         train_loader, val_loader = get_data_loaders(
