@@ -150,15 +150,15 @@ def main():
     
     if batch_compute:
         # 批量计算 Dice
-        # # BraTS 2018 val dataset
-        # gt_dir = './Pred/nnUNetTrainer'
-        # pred_dir = './Pred/test_pred_random05_crop'
-        # batch_compute_dice(gt_dir, pred_dir)
+        # BraTS 2018 val dataset
+        gt_dir = './Pred/nnUNetTrainer'
+        pred_dir = './Pred/test_pred_experiment56'
+        batch_compute_dice(gt_dir, pred_dir)
         
-        # BraTS 2018 Training set
-        gt_root = './data/BraTS2018/MICCAI_BraTS_2018_Data_Training'
-        pred_dir = './Pred/val_fold2_pred_experiment56'
-        batch_compute_dice_trainingset(gt_root, pred_dir)
+        # # BraTS 2018 Training set
+        # gt_root = './data/BraTS2018/MICCAI_BraTS_2018_Data_Training'
+        # pred_dir = './Pred/val_fold2_pred_experiment56'
+        # batch_compute_dice_trainingset(gt_root, pred_dir)
     else:
         # compute single case Dice
         data_dir = './data/MICCAI_BraTS_2018_Data_Training/HGG/Brats18_2013_27_1'

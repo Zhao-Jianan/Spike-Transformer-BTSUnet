@@ -87,3 +87,36 @@ def save_val_case_list(val_case_dirs, fold, save_dir=None):
 
     print(f"[Fold {fold}] Validation case list saved to: {val_list_path}")
     return val_list_path
+
+
+def save_case_list(case_dirs, name, fold=None, save_dir=None):
+    """
+    保存指定 case 名单到 txt 文件。
+
+    参数：
+    - case_dirs: list[str]，case 路径列表
+    - name: str，文件名前缀，例如 'val_cases' 或 'test_cases'
+    - fold: int 或 None，当前fold编号；如果为 None，不加 fold 编号
+    - save_dir: str 或 None，保存目录路径，默认当前路径下的 'val_cases' 文件夹
+
+    返回：
+    - case_list_path: str，保存的 txt 文件完整路径
+    """
+    if save_dir is None:
+        save_dir = os.path.join(os.getcwd(), 'val_cases')
+    os.makedirs(save_dir, exist_ok=True)
+
+    case_ids = [os.path.basename(p) for p in case_dirs]
+    if fold is not None:
+        filename = f"{name}_fold{fold}.txt"
+    else:
+        filename = f"{name}.txt"
+
+    case_list_path = os.path.join(save_dir, filename)
+
+    with open(case_list_path, 'w') as f:
+        for case_id in case_ids:
+            f.write(case_id + '\n')
+
+    print(f"[{name}] Case list saved to: {case_list_path}")
+    return case_list_path

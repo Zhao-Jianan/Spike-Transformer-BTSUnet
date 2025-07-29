@@ -1,13 +1,13 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 import torch
 import torch.optim as optim
 from sklearn.model_selection import KFold, train_test_split
 from spike_former_unet_model import spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
 # from simple_unet_model import spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
 from losses import BratsDiceLoss, BratsFocalLoss, BratsDiceLosswithFPPenalty, BratsTverskyLoss, AdaptiveRegionalLoss
-from utils import init_weights, save_metrics_to_file, save_val_case_list
+from utils import init_weights, save_metrics_to_file,save_case_list
 from train import train_fold, get_scheduler, EarlyStopping
 from plot import plot_metrics
 from data_loader import get_data_loaders
@@ -83,6 +83,7 @@ def main():
     train_val_dirs, test_dirs = train_test_split(
         case_dirs, test_size=cfg.test_ratio, random_state=cfg.seed, shuffle=True
     )
+    save_case_list(test_dirs, name='test_cases', fold=None)
     print(f"Total cases: {len(case_dirs)} | Train+Val: {len(train_val_dirs)} | Test: {len(test_dirs)}")
 
 
@@ -120,7 +121,7 @@ def main():
         val_case_dirs = [train_val_dirs[i] for i in val_idx]
         
         # 保存验证集名单（供推理用）
-        save_val_case_list(val_case_dirs, fold)
+        save_case_list(val_case_dirs, name='val_cases', fold=fold)
 
         # 训练和验证数据加载器
         train_loader, val_loader = get_data_loaders(

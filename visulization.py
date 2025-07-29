@@ -101,31 +101,31 @@ def plot_modalities_with_masks(t1, t1ce, t2, flair, gt_mask, pred_mask, case_nam
 def main():
     # 设置数据目录和文件路径
     
-    # BraTS 2018 Training set
-    data_dir = './data/BraTS2018/MICCAI_BraTS_2018_Data_Training/LGG/Brats18_TCIA13_621_1'
-    pred_dir = './Pred/val_fold2_pred_experiment56'
-    case_name = os.path.basename(data_dir)
-    
-    t1_path = os.path.join(data_dir, f'{case_name}_t1.nii')
-    t1ce_path = os.path.join(data_dir, f'{case_name}_t1ce.nii')
-    t2_path = os.path.join(data_dir, f'{case_name}_t2.nii')
-    flair_path = os.path.join(data_dir, f'{case_name}_flair.nii')
-    gt_mask_path = os.path.join(data_dir, f'{case_name}_seg.nii')     # ground truth
-    pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction
-    
-    
-    # # BraTS 2018 val dataset
-    # data_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Data/BraTS2018/val/Brats18_TCIA12_613_1'
-    # gt_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/nnUNetTrainer'
-    # pred_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/test_pred_random05_crop'
+    # # BraTS 2018 Training set
+    # data_dir = './data/BraTS2018/MICCAI_BraTS_2018_Data_Training/LGG/Brats18_TCIA13_621_1'
+    # pred_dir = './Pred/val_fold2_pred_experiment56'
     # case_name = os.path.basename(data_dir)
+    
+    # t1_path = os.path.join(data_dir, f'{case_name}_t1.nii')
+    # t1ce_path = os.path.join(data_dir, f'{case_name}_t1ce.nii')
+    # t2_path = os.path.join(data_dir, f'{case_name}_t2.nii')
+    # flair_path = os.path.join(data_dir, f'{case_name}_flair.nii')
+    # gt_mask_path = os.path.join(data_dir, f'{case_name}_seg.nii')     # ground truth
+    # pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction
+    
+    
+    # BraTS 2018 val dataset
+    data_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Data/BraTS2018/val/Brats18_WashU_W033_1'
+    gt_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/nnUNetTrainer'
+    pred_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/test_pred_experiment56'
+    case_name = os.path.basename(data_dir)
 
-    # t1_path = os.path.join(data_dir,f't1.nii.gz')
-    # t1ce_path = os.path.join(data_dir, f't1ce.nii.gz')
-    # t2_path = os.path.join(data_dir, f't2.nii.gz')
-    # flair_path = os.path.join(data_dir, f'flair.nii.gz')
-    # gt_mask_path = os.path.join(gt_dir, f'{case_name}.nii.gz')     # ground truth
-    # pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction  
+    t1_path = os.path.join(data_dir,f't1.nii.gz')
+    t1ce_path = os.path.join(data_dir, f't1ce.nii.gz')
+    t2_path = os.path.join(data_dir, f't2.nii.gz')
+    flair_path = os.path.join(data_dir, f'flair.nii.gz')
+    gt_mask_path = os.path.join(gt_dir, f'{case_name}.nii.gz')     # ground truth
+    pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction  
     
     
     # # BraTS 2023 Training set

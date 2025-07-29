@@ -6,7 +6,7 @@ class Config:
         self.device = torch.device(self.gpu_name if torch.cuda.is_available() else "cpu")
         self.seed =  42 # 42, 3407
         self.use_amp = True  # 使用自动混合精度训练
-        self.test_ratio = 0.2  # 测试集比例
+        self.test_ratio = 0.1  # 测试集比例
         
         # # BraTS2018
         # self.root_dirs = ['/hpc/ajhz839/data/BraTS2018/train/HGG', '/hpc/ajhz839/data/BraTS2018/train/LGG']   
@@ -60,7 +60,7 @@ class Config:
         self.batch_size = 4
         self.k_folds = 5
         
-        self.loss_function = 'tversky' # dice, focal, dice_with_fp_penalty, tversky, adaptive_regional
+        self.loss_function = 'dice' # dice, focal, dice_with_fp_penalty, tversky, adaptive_regional
         self.loss_weights = [1.0, 1.0, 1.0] # [2.0, 1.0, 4.0] [1.0, 1.0, 1.0]
         self.train_crop_mode = "tumor_aware_random"  # tumor_aware_random, warmup_weighted_random, random, tumor_center
         self.val_crop_mode = 'tumor_aware_random' # tumor_aware_random, sliding_window, random, tumor_center
