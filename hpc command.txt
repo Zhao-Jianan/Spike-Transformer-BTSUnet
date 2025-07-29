@@ -134,9 +134,10 @@ nohup python spikeformerunet9/main.py > New-63-log_bra20_spikeformerunet_64p4b_5
 nohup python spikeformerunet1/main.py > New-64-log_bra20_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_tauthread_tverskyloss111_a07b03_catskip_seed42_aware05_random05.out 2>&1 &
 [65]
 nohup python spikeformerunet13/main.py > New-65-log_bra20_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware05_random05.out 2>&1 &
+[66]
+nohup python spikeformerunet12/main.py > New-66-log_bra20_spikeformerunet_64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware05_random05_slidingwindow.out 2>&1 &
 
-
-4 5 6 12 13 15
+4 5 6 15
 
 ps -u $USER -f | grep python
 pgrep -u $USER -a python

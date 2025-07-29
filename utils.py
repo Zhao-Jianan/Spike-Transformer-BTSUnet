@@ -108,7 +108,7 @@ def save_case_list(case_dirs, name, fold=None, save_dir=None):
 
     case_ids = [os.path.basename(p) for p in case_dirs]
     if fold is not None:
-        filename = f"{name}_fold{fold}.txt"
+        filename = f"{name}_fold{fold+1}.txt"
     else:
         filename = f"{name}.txt"
 

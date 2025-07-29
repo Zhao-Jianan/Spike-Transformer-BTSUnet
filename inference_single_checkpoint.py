@@ -258,7 +258,7 @@ def build_model(ckpt_path):
     model = spike_former_unet3D_8_384(
         num_classes=cfg.num_classes,
         T=cfg.T,
-        # norm_type=cfg.norm_type,
+        norm_type=cfg.norm_type,
         step_mode=cfg.step_mode
     ).to(cfg.device)
     model.load_state_dict(torch.load(ckpt_path, map_location=cfg.device))

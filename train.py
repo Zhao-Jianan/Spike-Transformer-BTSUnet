@@ -234,9 +234,10 @@ val_inferencer = None
 # 初始化滑动窗口推理器
 if cfg.val_crop_mode == 'sliding_window':
     val_inferencer = TemporalSlidingWindowInference(
-        patch_size=cfg.patch_size,
+        patch_size=cfg.inference_patch_size,
         overlap=cfg.overlap,
-        sw_batch_size=1,
+        sw_batch_size=8,
+        mode="constant",
         encode_method=cfg.encode_method,
         T=cfg.T,
         num_classes=cfg.num_classes
@@ -264,7 +265,10 @@ def validate(val_loader, model, criterion, device, compute_hd, monitor=None, deb
                     print(f"[FATAL] y contains NaN/Inf at batch, stopping.")
                     break
             
-            x_seq = x_seq.permute(1, 0, 2, 3, 4, 5).contiguous().to(device)  # [T, B, 1, D, H, W]
+            if val_inferencer:
+                x_seq = x_seq.to(device)
+            else:
+                x_seq = x_seq.permute(1, 0, 2, 3, 4, 5).contiguous().to(device) # [T, B, C, D, H, W]
             y_onehot = y.float().to(device)
             with autocast(device_type='cuda', enabled=use_amp):
                 if val_inferencer:

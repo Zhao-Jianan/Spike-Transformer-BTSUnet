@@ -174,7 +174,7 @@ class BraTSDataset(MonaiDataset):
                 data = self.transform(data)
                 img = data["image"]  # Tensor (C, D, H, W)
                 label = data["label"]  # Tensor (C_label, D, H, W) 
-                img = img.unsqueeze(0).repeat(self.T, 1, 1, 1, 1)  # x_seq: (T, C, D, H, W), label: (C_label, D, H, W)
+                # img = img.unsqueeze(0).repeat(self.T, 1, 1, 1, 1)  # x_seq: (T, C, D, H, W), label: (C_label, D, H, W)
                 return img, label
             
             else: # self.val_crop_mode in ["tumor_aware_random", "random"]:
