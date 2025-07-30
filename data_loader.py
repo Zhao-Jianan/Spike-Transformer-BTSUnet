@@ -32,8 +32,15 @@ def get_data_loaders(train_dirs, val_dirs, patch_size, batch_size, T, encode_met
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=False)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=False)
+    
+    # 如果需要滑动窗口验证
+    if cfg.sliding_window_val:
+        sliding_window_val__dataset = BraTSDataset(val_data_dicts, patch_size=patch_size, T=T, mode="val",encode_method=encode_method, sliding_window_data=True)
+        sliding_window_val_loader = DataLoader(sliding_window_val__dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=False)
+    else:
+        sliding_window_val_loader = None
 
-    return train_loader, val_loader
+    return train_loader, val_loader, sliding_window_val_loader
 
 
 

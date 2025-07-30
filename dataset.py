@@ -18,7 +18,7 @@ import random
 
 
 class BraTSDataset(MonaiDataset):
-    def __init__(self, data_dicts, T=8, patch_size=(128,128,128), num_classes=4, mode="train", encode_method='none', debug=False):
+    def __init__(self, data_dicts, T=8, patch_size=(128,128,128), num_classes=4, mode="train", encode_method='none', sliding_window_data=False,debug=False):
         """
         data_dicts: list of dict, 每个 dict 形如：
           {
@@ -33,6 +33,8 @@ class BraTSDataset(MonaiDataset):
         self.center_crop_prob = 1.0  # 默认100%中心crop
         self.train_crop_mode = cfg.train_crop_mode
         self.val_crop_mode = cfg.val_crop_mode
+        self.tumor_crop_ratio = cfg.tumor_crop_ratio
+        self.sliding_window_data = sliding_window_data
         self.num_classes = num_classes
         self.mode = mode
         self.debug = debug
@@ -127,14 +129,14 @@ class BraTSDataset(MonaiDataset):
             data = self.preprocess(data)
 
 
+        data["image"] = self.center_crop(data["image"])
+        data["label"] = self.center_crop(data["label"])
+
         data = self.normalize(data)
 
         if self.mode == "train":
-            if np.random.rand() < 0.5:
-                data = self.patch_crop(data, mode=self.train_crop_mode)  # 随机裁剪 patch
-            else:
-                data = self.patch_crop(data, mode="random")
-            
+            data = self.patch_crop(data, mode=self.get_crop_mode(is_train=True))
+
             if np.random.rand() < 0.5:
                 data = self.aug_transform(data)
             else:
@@ -170,7 +172,7 @@ class BraTSDataset(MonaiDataset):
             return x_seq, label
              
         else: # self.mode == "val"
-            if self.val_crop_mode == "sliding_window":
+            if self.val_crop_mode == "sliding_window" or self.sliding_window_data:
                 data = self.transform(data)
                 img = data["image"]  # Tensor (C, D, H, W)
                 label = data["label"]  # Tensor (C_label, D, H, W) 
@@ -178,10 +180,7 @@ class BraTSDataset(MonaiDataset):
                 return img, label
             
             else: # self.val_crop_mode in ["tumor_aware_random", "random"]:
-                if np.random.rand() < 0.5:
-                    data = self.patch_crop(data, mode=self.val_crop_mode)  # 随机裁剪 patch
-                else:
-                    data = self.patch_crop(data, mode="random")
+                data = self.patch_crop(data, mode=self.get_crop_mode(is_train=False))
                 data = self.transform(data)
                 
                 img = data["image"]  # Tensor (C, D, H, W)
@@ -196,6 +195,24 @@ class BraTSDataset(MonaiDataset):
 
                 # x_seq: (T, C, D, H, W), label: (C_label, D, H, W)
                 return x_seq, label
+    
+    
+    def center_crop(self, img: torch.Tensor, crop_size=(144,144,144)) -> torch.Tensor:
+        _, D, H, W = img.shape
+        cd, ch, cw = crop_size
+        sd = (D - cd) // 2
+        sh = (H - ch) // 2
+        sw = (W - cw) // 2
+        return img[:, sd:sd+cd, sh:sh+ch, sw:sw+cw]
+    
+    
+    def get_crop_mode(self, is_train=True):
+        if is_train:
+            crop_mode = self.train_crop_mode
+        else:
+            crop_mode = self.val_crop_mode
+
+        return crop_mode if np.random.rand() < self.tumor_crop_ratio else "random"
     
     # 随机裁剪，支持 warmup 模式
     # warmup 模式下，优先裁剪肿瘤中心区域；否则随机裁剪

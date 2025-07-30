@@ -57,15 +57,27 @@ def preprocess_for_inference(image_paths):
         ])
         data = preprocess(data)
     
-    # Step 3: Intensity Normalization
+    # Step 3: Center Crop
+    def center_crop(img: torch.Tensor, crop_size=(144,144,144)) -> torch.Tensor:
+        _, D, H, W = img.shape
+        cd, ch, cw = crop_size
+        sd = (D - cd) // 2
+        sh = (H - ch) // 2
+        sw = (W - cw) // 2
+        return img[:, sd:sd+cd, sh:sh+ch, sw:sw+cw]
+    
+    data["image"] = center_crop(data["image"])
+    data["label"] = center_crop(data["label"])
+    
+    # Step 4: Intensity Normalization
     normalize = NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True)
     data = normalize(data)
     
-    # Step 4: ToTensor
+    # Step 5: ToTensor
     to_tensor = ToTensord(keys=["image"])
     data = to_tensor(data)
     
-    # Step 5: Add batch dimension
+    # Step 6: Add batch dimension
     img = data["image"]  # shape: (C, D, H, W)
     img = img.unsqueeze(0) # (B=1, C, D, H, W)
     

@@ -1,6 +1,6 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "5"
+os.environ["CUDA_VISIBLE_DEVICES"] = "8"
 import torch
 import torch.optim as optim
 from sklearn.model_selection import KFold, train_test_split
@@ -124,14 +124,14 @@ def main():
         save_case_list(val_case_dirs, name='val_cases', fold=fold)
 
         # 训练和验证数据加载器
-        train_loader, val_loader = get_data_loaders(
+        train_loader, val_loader, sliding_window_val_loader = get_data_loaders(
             train_case_dirs, val_case_dirs, cfg.patch_size, cfg.batch_size, cfg.T, cfg.encode_method, cfg.num_workers
             )
 
 
         # 调用训练函数
         train_losses, val_losses, val_dices, val_mean_dices, val_hd95s, lr_history = train_fold(
-            train_loader, val_loader, model, optimizer, criterion, cfg.device, cfg.num_epochs, \
+            train_loader, val_loader, sliding_window_val_loader, model, optimizer, criterion, cfg.device, cfg.num_epochs, \
                 fold, cfg.compute_hd, scheduler, early_stopping, cfg.use_amp
         )
         

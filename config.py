@@ -45,11 +45,10 @@ class Config:
         
         self.encode_method = 'none'  # poisson, latency, weighted_phase, none
 
+        self.tumor_crop_ratio = 0.8
         self.patch_size = [64, 64, 64] # [128, 128, 128]
         self.inference_patch_size = [128, 128, 128]  # 推理时的patch大小
-        # self.window_size = [it // 32 for it in self.patch_size]
-        # self.embed_dim = 96
-        # self.num_heads = [4, 6, 8, 12]  # 96-[4, 6, 8, 12]
+
 
         self.num_classes = 3
         self.model_type = 'spike_former_unet3D_8_384'  # spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
@@ -63,7 +62,9 @@ class Config:
         self.loss_function = 'dice' # dice, focal, dice_with_fp_penalty, tversky, adaptive_regional
         self.loss_weights = [1.0, 1.0, 1.0] # [2.0, 1.0, 4.0] [1.0, 1.0, 1.0]
         self.train_crop_mode = "tumor_aware_random"  # tumor_aware_random, warmup_weighted_random, random, tumor_center
-        self.val_crop_mode = 'sliding_window' # tumor_aware_random, sliding_window, random, tumor_center
+        self.val_crop_mode = 'tumor_aware_random' # tumor_aware_random, sliding_window, random, tumor_center
+        self.sliding_window_val = False # 是否200epoch后，每sliding_window_interval个间隔使用滑动窗口验证
+        self.sliding_window_interval = 10  # 滑动窗口验证的间隔
         self.overlap = 0.125
         self.num_workers = 8
 
