@@ -1,6 +1,6 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "8"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 import torch
 import torch.optim as optim
 from sklearn.model_selection import KFold, train_test_split
@@ -32,7 +32,7 @@ def main():
     setseed(cfg.seed)
     
     case_dirs = []
-    for root in cfg.root_dirs:  # e.g., ['./data/HGG', './data/LGG']
+    for root in cfg.root_dirs: 
         if not os.path.isdir(root):
             raise FileNotFoundError(f"Root directory '{root}' does not exist or is not a directory.")
         case_dirs += sorted(glob(os.path.join(root, '*')))
@@ -121,6 +121,7 @@ def main():
         val_case_dirs = [train_val_dirs[i] for i in val_idx]
         
         # 保存验证集名单（供推理用）
+        save_case_list(train_case_dirs, name='train_cases', fold=fold)
         save_case_list(val_case_dirs, name='val_cases', fold=fold)
 
         # 训练和验证数据加载器

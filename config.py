@@ -45,7 +45,7 @@ class Config:
         
         self.encode_method = 'none'  # poisson, latency, weighted_phase, none
 
-        self.tumor_crop_ratio = 0.8
+        self.tumor_crop_ratio = 0.5 # 肿瘤区域裁剪比例
         self.patch_size = [64, 64, 64] # [128, 128, 128]
         self.inference_patch_size = [128, 128, 128]  # 推理时的patch大小
 
