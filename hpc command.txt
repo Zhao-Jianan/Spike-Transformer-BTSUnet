@@ -148,7 +148,7 @@ nohup python spikeformerunet10/main.py > New-69-log_bra20_spikeformerunet_144c64
 nohup python spikeformerunet6/main.py > New-70-log_bra20_spikeformerunet_144c64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware1.out 2>&1 &
 
 
-3 7 8 12 15
+3 7 8 9 12 14 15
 
 ps -u $USER -f | grep python
 pgrep -u $USER -a python
@@ -157,11 +157,10 @@ pkill -f spikeformerunet12/main.py
 
 pkill -f spikeformerunet15/inference_resemble.py
 [infer]
-nohup python spikeformerunet15/inference_resemble.py > inference_log_experiment41.out 2>&1 &
-nohup python spikeformerunet15/inference_single_checkpoint.py > single_inference_log.out 2>&1 &
+nohup python spikeformerunet15/inference_resemble.py > inference_log_exp63.out 2>&1 &
+nohup python spikeformerunet15/inference_single_checkpoint.py > single_inference_log_exp63.out 2>&1 &
 
-nohup python spikeformerunet6/inference_resemble.py > finallf_inference_log.out 2>&1 &
-nohup python spikeformerunet11/inference_single_checkpoint.py > BraTS23_spikeformerunet_infer_valdata_log.out 2>&1 &
+
 
 [check val data]
 nohup python spikeformerunet15/check_dataset_split.py > dataset_split_log.out 2>&1 &

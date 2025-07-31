@@ -114,20 +114,36 @@ def main():
     # pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction
     
     
-    # BraTS 2018 val dataset
-    data_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Data/BraTS2018/val/Brats18_WashU_W033_1'
-    gt_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/nnUNetTrainer'
-    pred_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/test_pred_experiment56'
-    case_name = os.path.basename(data_dir)
+    # # BraTS 2018 val dataset
+    # data_dir = './Data/BraTS2020/MICCAI_BraTS2020_TrainingData/Brats18_WashU_W033_1'
+    # gt_dir = './Pred/nnUNetTrainer'
+    # pred_dir = './Pred/test_pred_experiment56'
+    # case_name = os.path.basename(data_dir)
 
-    t1_path = os.path.join(data_dir,f't1.nii.gz')
-    t1ce_path = os.path.join(data_dir, f't1ce.nii.gz')
-    t2_path = os.path.join(data_dir, f't2.nii.gz')
-    flair_path = os.path.join(data_dir, f'flair.nii.gz')
-    gt_mask_path = os.path.join(gt_dir, f'{case_name}.nii.gz')     # ground truth
-    pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction  
+    # t1_path = os.path.join(data_dir,f't1.nii.gz')
+    # t1ce_path = os.path.join(data_dir, f't1ce.nii.gz')
+    # t2_path = os.path.join(data_dir, f't2.nii.gz')
+    # flair_path = os.path.join(data_dir, f'flair.nii.gz')
+    # gt_mask_path = os.path.join(gt_dir, f'{case_name}.nii.gz')     # ground truth
+    # pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction  
+
     
+    # BraTS 2020 Training set
+    data_dir = './data/BraTS2020/MICCAI_BraTS2020_TrainingData/BraTS20_Training_366'
+    pred_dir = './Pred/BraTS2020_val_fold1_pred_exp61'
+    case_name = os.path.basename(data_dir)
     
+    t1_path = os.path.join(data_dir, f'{case_name}_t1.nii')
+    t1ce_path = os.path.join(data_dir, f'{case_name}_t1ce.nii')
+    t2_path = os.path.join(data_dir, f'{case_name}_t2.nii')
+    flair_path = os.path.join(data_dir, f'{case_name}_flair.nii')
+    gt_mask_path = os.path.join(data_dir, f'{case_name}_seg.nii')     # ground truth
+    pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction   
+    
+    save_dir = './visualise/BraTS_2020/val'
+    flag = 'exp61'
+
+
     # # BraTS 2023 Training set
     # data_dir = './Data/BraTS2023/BraTS-GLI-00006-000'
     # pred_dir = './Pred/BraTS23_val_fold2_pred'
@@ -162,9 +178,9 @@ def main():
     flair = load_nifti_image(flair_path)
     gt_mask = load_nifti_image(gt_mask_path).astype(np.uint8)
     pred_mask = load_nifti_image(pred_mask_path).astype(np.uint8)
-    save_dir = './visualise/'
-    save_path = os.path.join(save_dir, f'{case_name}_experiment56.png')
-    # save_path = os.path.join(save_dir, f'{prefix}_output2.png')
+    save_dir = './visualise/BraTS_2020/val'
+    save_path = os.path.join(save_dir, f'{case_name}_{flag}.png')
+
 
     # 可视化中间层 (中间 slice 通常是肿瘤区域)
     best_slice = select_best_slice(gt_mask)

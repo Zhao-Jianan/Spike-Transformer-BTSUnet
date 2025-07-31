@@ -57,17 +57,17 @@ def preprocess_for_inference(image_paths):
         ])
         data = preprocess(data)
     
-    # # Step 3: Center Crop
-    # def center_crop(img: torch.Tensor, crop_size=(144,144,144)) -> torch.Tensor:
-    #     _, D, H, W = img.shape
-    #     cd, ch, cw = crop_size
-    #     sd = (D - cd) // 2
-    #     sh = (H - ch) // 2
-    #     sw = (W - cw) // 2
-    #     return img[:, sd:sd+cd, sh:sh+ch, sw:sw+cw]
+    # Step 3: Center Crop
+    def center_crop(img: torch.Tensor, crop_size=(144,144,144)) -> torch.Tensor:
+        _, D, H, W = img.shape
+        cd, ch, cw = crop_size
+        sd = (D - cd) // 2
+        sh = (H - ch) // 2
+        sw = (W - cw) // 2
+        return img[:, sd:sd+cd, sh:sh+ch, sw:sw+cw]
     
-    # data["image"] = center_crop(data["image"])
-    # data["label"] = center_crop(data["label"])
+    data["image"] = center_crop(data["image"])
+    data["label"] = center_crop(data["label"])
     
     # Step 4: Intensity Normalization
     normalize = NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True)
@@ -289,18 +289,66 @@ def build_inference_engine():
     )            
 
 
+def run_inference_all_folds(
+    build_model_func,
+    build_inference_engine_func,
+    run_inference_func,
+    val_cases_dir,
+    ckpt_dir,
+    case_dir,
+    output_base_dir,
+    device='cuda',
+    num_folds=5,
+    fold_to_run=None  # None表示跑所有fold，否则跑指定fold
+):
+    inference_engine = build_inference_engine_func()
+
+    # folds从1开始到num_folds
+    folds = [fold_to_run] if fold_to_run is not None else list(range(1, num_folds + 1))
+
+    for fold in folds:
+        ckpt_path = os.path.join(ckpt_dir, f"best_model_fold{fold}.pth")
+        model = build_model_func(ckpt_path)
+        model.to(device)
+        model.eval()
+
+        val_list_path = os.path.join(val_cases_dir, f"val_cases_fold{fold}.txt")
+        if not os.path.exists(val_list_path):
+            print(f"Validation case list not found for fold {fold}: {val_list_path}")
+            continue
+
+        with open(val_list_path, 'r') as f:
+            whitelist = [line.strip() for line in f if line.strip()]
+
+        print(f"Running inference for fold {fold} with {len(whitelist)} cases")
+
+        output_dir = os.path.join(output_base_dir, f"val_fold{fold}_pred")
+        os.makedirs(output_dir, exist_ok=True)
+
+        run_inference_func(case_dir, output_dir, model, inference_engine, device, whitelist)
+
+        print(f"Fold {fold} inference done. Results saved in {output_dir}")
+
+
+
 def main():
-    print("Starting single-model inference...")
-    ckpt_path = "/hpc/ajhz839/checkpoint/experiment_61/best_model_fold1.pth"  # 模型ckpt
-    case_dir = "/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData/"
-    output_dir = "/hpc/ajhz839/validation/BraTS2020_val_fold1_pred_exp61/"
-    
-    with open('val_cases_fold1.txt', 'r') as f:
-        brats2020_case_whitelist = [line.strip() for line in f if line.strip()]
+    val_cases_dir = './val_cases/'  # 存放验证集case名单txt的文件夹
+    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_56/"  # 模型ckpt所在目录
+    case_dir = "/hpc/ajhz839/data/BraTS2018/train/"
+    output_base_dir = "/hpc/ajhz839/validation/"    
         
-    model = build_model(ckpt_path)
-    inference_engine = build_inference_engine()
-    run_inference_folder_single(case_dir, output_dir, model, inference_engine, cfg.device, brats2020_case_whitelist)
+    run_inference_all_folds(
+        build_model_func=build_model,
+        build_inference_engine_func=build_inference_engine,
+        run_inference_func=run_inference_folder_single,
+        val_cases_dir=val_cases_dir,
+        ckpt_dir=ckpt_dir,
+        case_dir=case_dir,
+        output_base_dir=output_base_dir,
+        device=cfg.device,
+        num_folds=5,
+        fold_to_run=None  # 跑全部fold 1~5
+    )
 
     
     # # Clinical data inference

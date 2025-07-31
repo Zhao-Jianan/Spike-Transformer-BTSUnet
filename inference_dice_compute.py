@@ -101,13 +101,20 @@ def batch_compute_dice(gt_dir, pred_dir):
 
 def find_gt_path(gt_root, case_name):
     """
-    在 HGG 和 LGG 下查找对应 case 的 seg.nii.gz
+    自动判断是否存在 HGG/LGG 子文件夹，兼容 BraTS2018 和 BraTS2020 目录结构。
     """
+    # BraTS2020 结构（无 HGG/LGG）
+    candidate_path = os.path.join(gt_root, case_name, f"{case_name}_seg.nii")
+    if os.path.exists(candidate_path):
+        return candidate_path
+
+    # BraTS2018 结构（有 HGG/LGG）
     for grade in ["HGG", "LGG"]:
         candidate_path = os.path.join(gt_root, grade, case_name, f"{case_name}_seg.nii")
         if os.path.exists(candidate_path):
             return candidate_path
-        print(f"GT not found in {candidate_path}")
+
+    print(f"GT not found for {case_name} in {gt_root}")
     return None
 
 def batch_compute_dice_trainingset(gt_root, pred_dir):
@@ -150,15 +157,22 @@ def main():
     
     if batch_compute:
         # 批量计算 Dice
-        # BraTS 2018 val dataset
-        gt_dir = './Pred/nnUNetTrainer'
-        pred_dir = './Pred/test_pred_experiment56'
-        batch_compute_dice(gt_dir, pred_dir)
+        # # BraTS 2018 val dataset
+        # gt_dir = './Pred/nnUNetTrainer'
+        # pred_dir = './Pred/test_pred_experiment56'
+        # batch_compute_dice(gt_dir, pred_dir)
         
         # # BraTS 2018 Training set
         # gt_root = './data/BraTS2018/MICCAI_BraTS_2018_Data_Training'
         # pred_dir = './Pred/val_fold2_pred_experiment56'
         # batch_compute_dice_trainingset(gt_root, pred_dir)
+        
+        # BraTS 2020 Training set
+        gt_root = './data/BraTS2020/MICCAI_BraTS2020_TrainingData'
+        pred_dir = './Pred/BraTS2020_val_fold1_pred_exp61'
+        batch_compute_dice_trainingset(gt_root, pred_dir)        
+        
+        
     else:
         # compute single case Dice
         data_dir = './data/MICCAI_BraTS_2018_Data_Training/HGG/Brats18_2013_27_1'

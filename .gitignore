@@ -8,3 +8,4 @@ train_log/
 val_pred/
 visualise/
 metrics/
+Compared_exp/nnUnet/val_cases/
