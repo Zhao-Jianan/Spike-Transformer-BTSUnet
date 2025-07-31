@@ -237,28 +237,56 @@ def pred_single_case_soft(case_dir, prob_save_dir, model, inference_engine, devi
     np.save(prob_path, output_prob)
     print(f"Saved probability map: {prob_path}")
 
+    B, C, D, H, W = x_batch.shape
 
 
-def run_inference_soft(case_dir, save_dir, model, inference_engine, device):
+def check_all_folds_ckpt_exist(ckpt_dir):
+    """
+    检查 fold1~fold5 的 checkpoint 是否都存在。
+    若缺少任意一个，则报错退出。
+    """
+    missing_folds = []
+    for fold in range(1, 6):
+        ckpt_path = os.path.join(ckpt_dir, f"best_model_fold{fold}.pth")
+        if not os.path.isfile(ckpt_path):
+            missing_folds.append(fold)
+
+    if missing_folds:
+        raise FileNotFoundError(f"[Warning] Missing checkpoint(s) for fold(s): {missing_folds} in {ckpt_dir}")
+    else:
+        print("All 5 fold checkpoints found.")
+
+
+
+
+def read_case_list(txt_path):
+    with open(txt_path, "r") as f:
+        return sorted([line.strip() for line in f.readlines() if line.strip()])
+
+   
+def run_inference_folder_soft(case_root, save_dir, model, inference_engine, device, case_list=None):
     os.makedirs(save_dir, exist_ok=True)
-    pred_single_case_soft(case_dir, save_dir, model, inference_engine, device)
 
-def run_inference_folder_soft(case_root, save_dir, model, inference_engine, device):
-    os.makedirs(save_dir, exist_ok=True)
-    case_dirs = sorted([
-        os.path.join(case_root, name) for name in os.listdir(case_root)
-        if os.path.isdir(os.path.join(case_root, name))
-    ])
+    # 仅包含在 test_case_list 中的目录
+    if case_list is not None:
+        case_dirs = [
+            os.path.join(case_root, name) for name in case_list
+            if os.path.isdir(os.path.join(case_root, name))
+        ]
+    else:
+        case_dirs = sorted([
+            os.path.join(case_root, name) for name in os.listdir(case_root)
+            if os.path.isdir(os.path.join(case_root, name))
+        ])
+
     print(f"Found {len(case_dirs)} cases to infer.")
 
     for case_dir in tqdm(case_dirs, desc="Soft Voting Inference"):
-        run_inference_soft(case_dir, save_dir, model, inference_engine, device)
+        pred_single_case_soft(case_dir, save_dir, model, inference_engine, device)
 
 
-def soft_ensemble(prob_base_dir, case_dir, ckpt_dir):
-    case_dir = case_dir
-    prob_base_dir = prob_base_dir
-
+   
+def soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list):
     for fold in range(1, 6):
         print(f"Running inference for fold {fold}")
         model_ckpt = os.path.join(ckpt_dir, f"best_model_fold{fold}.pth")
@@ -291,7 +319,7 @@ def soft_ensemble(prob_base_dir, case_dir, ckpt_dir):
         # )
 
         fold_prob_dir = os.path.join(prob_base_dir, f"fold{fold}")
-        run_inference_folder_soft(case_dir, fold_prob_dir, model, inference_engine, cfg.device)
+        run_inference_folder_soft(case_dir, fold_prob_dir, model, inference_engine, cfg.device, test_case_list)
 
 
 def ensemble_soft_voting(prob_root, case_dir, output_dir):
@@ -326,13 +354,27 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir):
 
 
 def main():
-    # BraTS2018 inference
-    prob_base_dir = "/hpc/ajhz839/validation/test_prob_folds/"
-    ensemble_output_dir = "/hpc/ajhz839/validation/test_pred_soft_ensemble/"
-    case_dir = "/hpc/ajhz839/validation/val/"
-    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_41/"
+    # # BraTS2018 inference
+    # prob_base_dir = "/hpc/ajhz839/validation/test_prob_folds/"
+    # ensemble_output_dir = "/hpc/ajhz839/validation/test_pred_soft_ensemble/"
+    # case_dir = "/hpc/ajhz839/validation/val/"
+    # ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_41/"
 
-    soft_ensemble(prob_base_dir, case_dir, ckpt_dir)
+    # soft_ensemble(prob_base_dir, case_dir, ckpt_dir)
+    # ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir)
+    
+    
+    # BraTS2020 test data inference
+    prob_base_dir = "/hpc/ajhz839/validation/test_prob_folds_exp64/"
+    ensemble_output_dir = "/hpc/ajhz839/validation/test_pred_soft_ensemble_exp64/"
+    case_dir = "/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData/"
+    test_cases_txt =  './val_cases/test_cases.txt'
+    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_64/"
+
+    check_all_folds_ckpt_exist(ckpt_dir)
+
+    test_case_list = read_case_list(test_cases_txt)
+    soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list) 
     ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir)
 
     

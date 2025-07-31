@@ -151,6 +151,8 @@ def batch_compute_dice_trainingset(gt_root, pred_dir):
     print(f"Mean_Dice:   {np.mean(mean_dice):.4f}")
 
 
+# TODO: HD95 Computing
+
 
 def main():
     batch_compute = True

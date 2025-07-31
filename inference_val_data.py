@@ -1,6 +1,6 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import torch
 import nibabel as nib
 import numpy as np
@@ -67,7 +67,6 @@ def preprocess_for_inference(image_paths):
         return img[:, sd:sd+cd, sh:sh+ch, sw:sw+cw]
     
     data["image"] = center_crop(data["image"])
-    data["label"] = center_crop(data["label"])
     
     # Step 4: Intensity Normalization
     normalize = NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True)
@@ -289,6 +288,40 @@ def build_inference_engine():
     )            
 
 
+def check_all_folds_ckpt_exist(ckpt_dir):
+    """
+    检查 fold1~fold5 的 checkpoint 是否都存在。
+    若缺少任意一个，则报错退出。
+    """
+    missing_folds = []
+    for fold in range(1, 6):
+        ckpt_path = os.path.join(ckpt_dir, f"best_model_fold{fold}.pth")
+        if not os.path.isfile(ckpt_path):
+            missing_folds.append(fold)
+
+    if missing_folds:
+        raise FileNotFoundError(f"[Warning] Missing checkpoint(s) for fold(s): {missing_folds} in {ckpt_dir}")
+    else:
+        print("All 5 fold checkpoints found.")
+
+        
+def check_all_folds_val_txt_exist(val_cases_dir):
+    """
+    检查 val_cases_dir 中是否存在 val_cases_fold1.txt 到 val_cases_fold5.txt。
+    若缺少任意一个，则报错退出。
+    """
+    missing_txts = []
+    for fold in range(1, 6):
+        txt_path = os.path.join(val_cases_dir, f"val_cases_fold{fold}.txt")
+        if not os.path.isfile(txt_path):
+            missing_txts.append(fold)
+
+    if missing_txts:
+        raise FileNotFoundError(f"[Warning] Missing val_cases_fold txt file(s) for fold(s): {missing_txts} in {val_cases_dir}")
+    else:
+        print("All 5 fold val_cases txt files found.")
+
+
 def run_inference_all_folds(
     build_model_func,
     build_inference_engine_func,
@@ -333,10 +366,15 @@ def run_inference_all_folds(
 
 def main():
     val_cases_dir = './val_cases/'  # 存放验证集case名单txt的文件夹
-    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_56/"  # 模型ckpt所在目录
-    case_dir = "/hpc/ajhz839/data/BraTS2018/train/"
-    output_base_dir = "/hpc/ajhz839/validation/"    
-        
+    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_64/"  # 模型ckpt所在目录
+    case_dir = "/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData/"
+    output_base_dir = "/hpc/ajhz839/validation/BraTS2020_val_pred_exp64/"    
+
+    check_all_folds_ckpt_exist(ckpt_dir)
+    check_all_folds_val_txt_exist(val_cases_dir)
+
+    print("5 fold validation data inference started.")
+
     run_inference_all_folds(
         build_model_func=build_model,
         build_inference_engine_func=build_inference_engine,
@@ -361,7 +399,7 @@ def main():
     # ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir)
     
     
-    print("Single-model inference completed.")
+    print("5 fold validation data inference completed.")
 
 if __name__ == "__main__":
     main()
