@@ -165,9 +165,9 @@ def run_inference_all_folds(
 
 def main():
     val_cases_dir = './val_cases/'  # 存放验证集case名单txt的文件夹
-    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_65/"  # 模型ckpt所在目录
+    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_69/"  # 模型ckpt所在目录
     case_dir = "/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData/"
-    output_base_dir = "/hpc/ajhz839/validation/BraTS2020_val_pred_exp65/"    
+    output_base_dir = "/hpc/ajhz839/validation/BraTS2020_val_pred_exp69/"
 
     check_all_folds_ckpt_exist(ckpt_dir)
     check_all_folds_val_txt_exist(val_cases_dir)
@@ -184,7 +184,7 @@ def main():
         output_base_dir=output_base_dir,
         device=cfg.device,
         num_folds=5,
-        center_crop=False,  # 是否进行中心裁剪
+        center_crop=True,  # 是否进行中心裁剪
         fold_to_run=None  # 跑全部fold 1~5
     )
 

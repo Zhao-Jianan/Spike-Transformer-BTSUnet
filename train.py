@@ -397,12 +397,11 @@ def train_one_fold(
     lr_history = []
 
     patch_best_dice = 0.0
-    best_patch_epoch = 0
     entire_best_dice = 0.0
     min_dice_threshold = 0.80
+    sliding_window_threshold = 0.86
     warmup_epochs = cfg.num_warmup_epochs
     train_crop_mode = cfg.train_crop_mode
-    sliding_window_interval = cfg.sliding_window_interval
 
 
     for epoch in range(num_epochs):
@@ -451,20 +450,15 @@ def train_one_fold(
             print(f"95HD: {patch_val_hd95:.4f}")
         
         
-        flag = False
         
         # 保存检查点
         if patch_val_mean_dice > patch_best_dice and patch_val_mean_dice >= min_dice_threshold:
             patch_best_dice = patch_val_mean_dice
             torch.save(model.state_dict(), f'best_model_fold{fold}.pth')
             print(f"[Fold {fold}] Epoch {epoch+1}: New best Patch Dice = {patch_val_mean_dice:.4f}, model saved.")
-            flag = True
-            best_patch_epoch = epoch
-            
-        
-        if epoch+1 >= 200 and cfg.val_crop_mode != 'sliding_window' and cfg.sliding_window_val:
-            if flag or (epoch - best_patch_epoch) % sliding_window_interval == 0:
-                # 每隔 sliding_window_interval 轮进行滑动窗口验证
+
+            # 滑动窗口验证
+            if  patch_val_mean_dice >= sliding_window_threshold and cfg.val_crop_mode != 'sliding_window' and cfg.sliding_window_val:
                 print(f"[Fold {fold}] Epoch {epoch+1}: Performing sliding window validation...")
                 # 计时开始
                 entire_val_start_time = time.time()

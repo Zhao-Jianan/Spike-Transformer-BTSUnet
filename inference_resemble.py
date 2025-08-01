@@ -173,7 +173,7 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, meta
         else:
             restored_label = label_np
                 
-        ref_nii_path = os.path.join(case_dir, case, f"{cfg.modalities[cfg.modalities.index('t1ce')]}.nii.gz")
+        ref_nii_path = os.path.join(case_dir, case, f"{case}_{cfg.modalities[cfg.modalities.index('t1ce')]}.nii")
         ref_nii = nib.load(ref_nii_path)
         pred_nii = nib.Nifti1Image(restored_label, affine=ref_nii.affine, header=ref_nii.header)
 
@@ -193,19 +193,20 @@ def main():
     
     
     # BraTS2020 test data inference
-    prob_base_dir = "/hpc/ajhz839/validation/test_prob_folds_exp65/"
-    ensemble_output_dir = "/hpc/ajhz839/validation/test_pred_soft_ensemble_exp65/"
+    prob_base_dir = "/hpc/ajhz839/inference/BraTS2020/test_prob_folds_exp69/"
+    ensemble_output_dir = "/hpc/ajhz839/inference/BraTS2020/test_pred_soft_ensemble_exp69/"
     case_dir = "/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData/"
     test_cases_txt =  './val_cases/test_cases.txt'
     ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_65/"
     
-    center_crop=False
+    center_crop=True
 
     check_all_folds_ckpt_exist(ckpt_dir)
     check_test_txt_exist(test_cases_txt)
 
     test_case_list = read_case_list(test_cases_txt)
-    metadata_json_path=soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list, center_crop=center_crop) 
+    metadata_json_path=soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list, center_crop=center_crop)
+
     ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir, center_crop=center_crop, metadata_json_path=metadata_json_path)
 
     

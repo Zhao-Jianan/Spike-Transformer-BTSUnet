@@ -171,10 +171,10 @@ def main():
         
         # BraTS 2020 Training set
         gt_root = './data/BraTS2020/MICCAI_BraTS2020_TrainingData'
-        pred_dir = './Pred/BraTS2020_val_pred_exp64/val_fold1_pred'
-        batch_compute_dice_trainingset(gt_root, pred_dir)        
-        
-        
+        pred_dir = './Pred/BraTS2020/test_dataset/test_pred_soft_ensemble_exp65'
+        batch_compute_dice_trainingset(gt_root, pred_dir)
+
+
     else:
         # compute single case Dice
         data_dir = './data/MICCAI_BraTS_2018_Data_Training/HGG/Brats18_2013_27_1'

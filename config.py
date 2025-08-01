@@ -63,8 +63,7 @@ class Config:
         self.loss_weights = [1.0, 1.0, 1.0] # [2.0, 1.0, 4.0] [1.0, 1.0, 1.0]
         self.train_crop_mode = "tumor_aware_random"  # tumor_aware_random, warmup_weighted_random, random, tumor_center
         self.val_crop_mode = 'tumor_aware_random' # tumor_aware_random, sliding_window, random, tumor_center
-        self.sliding_window_val = False # 是否200epoch后，每sliding_window_interval个间隔使用滑动窗口验证
-        self.sliding_window_interval = 10  # 滑动窗口验证的间隔
+        self.sliding_window_val = True # 是否200epoch后，在best_patch_dice_score的epoch使用滑动窗口验证
         self.overlap = 0.125
         self.num_workers = 8
 
