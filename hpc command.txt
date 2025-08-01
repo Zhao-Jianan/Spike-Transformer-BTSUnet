@@ -157,7 +157,7 @@ nohup python spikeformerunet8/main.py > New-71-log_bra20_spikeformerunet_144c64p
 ps -u $USER -f | grep python
 pgrep -u $USER -a python
 pkill -f filename.py
-pkill -f spikeformerunet12/main.py
+pkill -f spikeformerunet13/inference_val_data.py
 
 pkill -f spikeformerunet15/inference_resemble.py
 [infer]
@@ -165,7 +165,7 @@ nohup python spikeformerunet15/inference_resemble.py > inference_log_exp63.out 2
 nohup python spikeformerunet15/inference_single_checkpoint.py > single_inference_log_exp63.out 2>&1 &
 
 nohup python spikeformerunet1/inference_val_data.py > inference_log_exp64_val_data.out 2>&1 &
-
+nohup python spikeformerunet13/inference_val_data.py > inference_log_exp65_val_data.out 2>&1 &
 
 
 [check val data]

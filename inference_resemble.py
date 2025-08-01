@@ -16,9 +16,10 @@ import time
 from scipy.ndimage import binary_dilation, binary_opening, label, generate_binary_structure
 from inference_helper import TemporalSlidingWindowInference, TemporalSlidingWindowInferenceWithROI
 from tqdm import tqdm
+import json
 
 
-def preprocess_for_inference(image_paths):
+def preprocess_for_inference(image_paths, center_crop=True):
     """
     image_paths: list of 4 modality paths [t1, t1ce, t2, flair]
     
@@ -58,16 +59,22 @@ def preprocess_for_inference(image_paths):
         data = preprocess(data)
     
     # Step 3: Center Crop
-    def center_crop(img: torch.Tensor, crop_size=(144,144,144)) -> torch.Tensor:
+    def center_crop(img: torch.Tensor, crop_size=(144,144,144)):
         _, D, H, W = img.shape
         cd, ch, cw = crop_size
         sd = (D - cd) // 2
         sh = (H - ch) // 2
         sw = (W - cw) // 2
-        return img[:, sd:sd+cd, sh:sh+ch, sw:sw+cw]
+        cropped = img[:, sd:sd+cd, sh:sh+ch, sw:sw+cw]
+        crop_start = (sd, sh, sw)
+        return cropped, (D, H, W), crop_start
     
-    data["image"] = center_crop(data["image"])
-    data["label"] = center_crop(data["label"])
+    if center_crop:
+        data["image"], original_shape, crop_start = center_crop(data["image"])
+    else:
+        original_shape = data["image"].shape[1:]  # (D, H, W)
+        crop_start = (0, 0, 0)
+    
     
     # Step 4: Intensity Normalization
     normalize = NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True)
@@ -81,7 +88,11 @@ def preprocess_for_inference(image_paths):
     img = data["image"]  # shape: (C, D, H, W)
     img = img.unsqueeze(0) # (B=1, C, D, H, W)
     
-    return img
+    return img, {
+        "original_shape": original_shape,  # (D, H, W)
+        "crop_start": crop_start           # (sd, sh, sw)
+    }
+
 
 
 
@@ -219,12 +230,18 @@ def postprocess_brats_label(pred_mask: np.ndarray) -> np.ndarray:
 
 
 
-def pred_single_case_soft(case_dir, prob_save_dir, model, inference_engine, device):
+def pred_single_case_soft(case_dir, prob_save_dir, model, inference_engine, device, center_crop=True):
     case_name = os.path.basename(case_dir)
     print(f"Processing case: {case_name}")
     image_paths = [os.path.join(case_dir, f"{mod}.nii.gz") for mod in cfg.modalities]
 
-    x_batch = preprocess_for_inference(image_paths).to(device)
+    x_batch, metadata = preprocess_for_inference(image_paths, center_crop=center_crop)
+    if not center_crop:
+        metadata = None
+        
+    # 将数据移动到指定设备
+    x_batch = x_batch.to(device)
+    
     B, C, D, H, W = x_batch.shape
     brain_width = np.array([[0, 0, 0], [D-1, H-1, W-1]])
     
@@ -233,11 +250,14 @@ def pred_single_case_soft(case_dir, prob_save_dir, model, inference_engine, devi
         # output = inference_engine(x_batch, brain_width, model)
 
     output_prob = torch.sigmoid(output).squeeze(0).cpu().numpy()  # [C, D, H, W]
+    
+    os.makedirs(prob_save_dir, exist_ok=True)
     prob_path = os.path.join(prob_save_dir, f"{case_name}_prob.npy")
     np.save(prob_path, output_prob)
     print(f"Saved probability map: {prob_path}")
 
-    B, C, D, H, W = x_batch.shape
+    return case_name, metadata
+
 
 
 def check_all_folds_ckpt_exist(ckpt_dir):
@@ -257,14 +277,39 @@ def check_all_folds_ckpt_exist(ckpt_dir):
         print("All 5 fold checkpoints found.")
 
 
+def check_test_txt_exist(test_cases_txt):
+    """
+    检查 test_cases_txt 中是否存在 test_cases.txt。
+    若缺少，则报错退出。
+    """
+    missing_txts = False
 
+    txt_path = os.path.join(test_cases_txt, f"test_cases.txt")
+    if not os.path.isfile(txt_path):
+        missing_txts = True
+
+    if missing_txts:
+        raise FileNotFoundError(f"[Warning] Missing test_cases.txt file in {test_cases_txt}")
+    else:
+        print("test_cases.txt file found.")
+        
 
 def read_case_list(txt_path):
     with open(txt_path, "r") as f:
         return sorted([line.strip() for line in f.readlines() if line.strip()])
 
-   
-def run_inference_folder_soft(case_root, save_dir, model, inference_engine, device, case_list=None):
+def restore_to_original_shape(cropped_label, original_shape, crop_start):
+    """
+    将中心裁剪过的预测结果还原回原图大小。
+    """
+    restored = np.zeros(original_shape, dtype=cropped_label.dtype)
+    z, y, x = crop_start
+    dz, dy, dx = cropped_label.shape
+    restored[z:z+dz, y:y+dy, x:x+dx] = cropped_label
+    return restored
+
+  
+def run_inference_folder_soft(case_root, save_dir, model, inference_engine, device, case_list=None,center_crop=True):
     os.makedirs(save_dir, exist_ok=True)
 
     # 仅包含在 test_case_list 中的目录
@@ -281,12 +326,26 @@ def run_inference_folder_soft(case_root, save_dir, model, inference_engine, devi
 
     print(f"Found {len(case_dirs)} cases to infer.")
 
+    metadata_dict = {}
+
     for case_dir in tqdm(case_dirs, desc="Soft Voting Inference"):
-        pred_single_case_soft(case_dir, save_dir, model, inference_engine, device)
+        if center_crop:
+            case_name, metadata = pred_single_case_soft(case_dir, save_dir, model, inference_engine, device, center_crop=center_crop)
+            metadata_dict[case_name] = metadata
+        else:
+            pred_single_case_soft(case_dir, save_dir, model, inference_engine, device, center_crop=center_crop)
+    
+    if center_crop:
+        return metadata_dict
 
 
    
-def soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list):
+def soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list, center_crop=True):
+    metadata_dir = os.path.join(prob_base_dir, "metadata")
+    os.makedirs(metadata_dir, exist_ok=True)
+    
+    metadata_dict = None
+    
     for fold in range(1, 6):
         print(f"Running inference for fold {fold}")
         model_ckpt = os.path.join(ckpt_dir, f"best_model_fold{fold}.pth")
@@ -319,11 +378,32 @@ def soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list):
         # )
 
         fold_prob_dir = os.path.join(prob_base_dir, f"fold{fold}")
-        run_inference_folder_soft(case_dir, fold_prob_dir, model, inference_engine, cfg.device, test_case_list)
+        
+        if center_crop:
+            if fold == 1:
+                metadata_dict = run_inference_folder_soft(case_dir, fold_prob_dir, model, inference_engine, cfg.device, test_case_list, center_crop=center_crop)
+                # 保存metadata_dict为json文件
+                metadata_json_path = os.path.join(metadata_dir, "case_metadata.json")
+                with open(metadata_json_path, "w") as f:
+                    json.dump(metadata_dict, f)
+                print(f"Saved metadata JSON to {metadata_json_path}")
+            else:
+                run_inference_folder_soft(case_dir, fold_prob_dir, model, inference_engine, cfg.device, test_case_list, center_crop=center_crop)
+        else:
+            run_inference_folder_soft(case_dir, fold_prob_dir, model, inference_engine, cfg.device, test_case_list, center_crop=center_crop)
+
+            
+    return metadata_json_path if center_crop else None
 
 
-def ensemble_soft_voting(prob_root, case_dir, output_dir):
+def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, metadata_json_path=None):
     os.makedirs(output_dir, exist_ok=True)
+    
+    if metadata_json_path and center_crop:
+        with open(metadata_json_path, "r") as f:
+            case_metadata = json.load(f)
+    
+    
     case_names = sorted(list(set([f.split('_prob.npy')[0] for f in os.listdir(os.path.join(prob_root, 'fold1'))])))
 
     for case in tqdm(case_names, desc="Soft Voting Ensemble"):
@@ -345,9 +425,19 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir):
         # label_np = postprocess_brats_label(label_np)
         print(f"Processed case {case}, label shape: {label_np.shape}")
         
+        if metadata_json_path and center_crop:
+            metadata = case_metadata[case]
+            original_shape = metadata["original_shape"]  # (D, H, W)
+            crop_start = metadata["crop_start"]          # (sd, sh, sw)
+
+            restored_label = restore_to_original_shape(label_np, tuple(original_shape), tuple(crop_start))
+        else:
+            restored_label = label_np
+        
+        
         ref_nii_path = os.path.join(case_dir, case, f"{cfg.modalities[cfg.modalities.index('t1ce')]}.nii.gz")
         ref_nii = nib.load(ref_nii_path)
-        pred_nii = nib.Nifti1Image(label_np, affine=ref_nii.affine, header=ref_nii.header)
+        pred_nii = nib.Nifti1Image(restored_label, affine=ref_nii.affine, header=ref_nii.header)
 
         save_path = os.path.join(output_dir, f"{case}_pred_mask.nii.gz")
         nib.save(pred_nii, save_path)
@@ -370,12 +460,15 @@ def main():
     case_dir = "/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData/"
     test_cases_txt =  './val_cases/test_cases.txt'
     ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_64/"
+    
+    center_crop=True
 
     check_all_folds_ckpt_exist(ckpt_dir)
+    check_test_txt_exist(test_cases_txt)
 
     test_case_list = read_case_list(test_cases_txt)
-    soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list) 
-    ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir)
+    metadata_json_path=soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list, center_crop=center_crop) 
+    ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir, center_crop=center_crop, metadata_json_path=metadata_json_path)
 
     
     # # Clinical data inference

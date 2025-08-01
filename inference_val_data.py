@@ -1,6 +1,6 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 import torch
 import nibabel as nib
 import numpy as np
@@ -18,7 +18,7 @@ from inference_helper import TemporalSlidingWindowInference, TemporalSlidingWind
 from tqdm import tqdm
 
 
-def preprocess_for_inference(image_paths):
+def preprocess_for_inference(image_paths, center_crop=False):
     """
     image_paths: list of 4 modality paths [t1, t1ce, t2, flair]
     
@@ -58,15 +58,24 @@ def preprocess_for_inference(image_paths):
         data = preprocess(data)
     
     # Step 3: Center Crop
-    def center_crop(img: torch.Tensor, crop_size=(144,144,144)) -> torch.Tensor:
+    def _center_crop_fn(img: torch.Tensor, crop_size=(144,144,144)):
         _, D, H, W = img.shape
         cd, ch, cw = crop_size
         sd = (D - cd) // 2
         sh = (H - ch) // 2
         sw = (W - cw) // 2
-        return img[:, sd:sd+cd, sh:sh+ch, sw:sw+cw]
+        cropped = img[:, sd:sd+cd, sh:sh+ch, sw:sw+cw]
+        crop_start = (sd, sh, sw)
+        return cropped, (D, H, W), crop_start
     
-    data["image"] = center_crop(data["image"])
+    if center_crop:
+        print("Applying center crop...")
+        data["image"], original_shape, crop_start = _center_crop_fn(data["image"])
+    else:
+        print("No center crop applied.")
+        original_shape = data["image"].shape[1:]  # (D, H, W)
+        crop_start = (0, 0, 0)
+    
     
     # Step 4: Intensity Normalization
     normalize = NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True)
@@ -80,7 +89,13 @@ def preprocess_for_inference(image_paths):
     img = data["image"]  # shape: (C, D, H, W)
     img = img.unsqueeze(0) # (B=1, C, D, H, W)
     
-    return img
+    print("Preprocessed image shape:", img.shape)  # (B=1, C, D, H, W)
+    
+    return img, {
+        "original_shape": original_shape,  # (D, H, W)
+        "crop_start": crop_start           # (sd, sh, sw)
+    }
+
 
 
 
@@ -196,12 +211,14 @@ def postprocess_brats_label(pred_mask: np.ndarray) -> np.ndarray:
 
 
 
-def pred_single_case(case_dir, model, inference_engine, device):
+def pred_single_case(case_dir, model, inference_engine, device, center_crop=True):
     case_name = os.path.basename(case_dir)
     print(f"Processing case: {case_name}")
     image_paths = [os.path.join(case_dir, f"{case_name}_{mod}.nii") for mod in cfg.modalities]
 
-    x_batch = preprocess_for_inference(image_paths).to(device)
+    # 获取预处理输出和原图信息（包括原始shape和crop位置）
+    x_batch, metadata = preprocess_for_inference(image_paths, center_crop=center_crop)
+    x_batch = x_batch.to(device)
     B, C, D, H, W = x_batch.shape
     brain_width = np.array([[0, 0, 0], [D-1, H-1, W-1]])
     
@@ -211,28 +228,48 @@ def pred_single_case(case_dir, model, inference_engine, device):
 
     output_prob = torch.sigmoid(output).squeeze(0).cpu().numpy()  # [C, D, H, W]
 
-    return output_prob
+    return output_prob, metadata
 
 
+def restore_to_original_shape(cropped_label, original_shape, crop_start):
+    """
+    将中心裁剪过的预测结果还原回原图大小。
+    """
+    restored = np.zeros(original_shape, dtype=cropped_label.dtype)
+    z, y, x = crop_start
+    dz, dy, dx = cropped_label.shape
+    restored[z:z+dz, y:y+dy, x:x+dx] = cropped_label
+    return restored
 
 
-def run_inference_soft_single(case_dir, save_dir, model, inference_engine, device):
+def run_inference_soft_single(case_dir, save_dir, model, inference_engine, device, center_crop=True):
     os.makedirs(save_dir, exist_ok=True)
-    
-    prob = pred_single_case(case_dir, model, inference_engine, device)
+    prob, metadata = pred_single_case(case_dir, model, inference_engine, device, center_crop=center_crop)
 
     label_np = convert_prediction_to_label_suppress_fp(prob)  # shape: (D, H, W)
     label_np = np.transpose(label_np, (1, 2, 0))  # to (H, W, D)
 
+    if center_crop:
+        # 还原原始空间
+        restored_label = restore_to_original_shape(
+            label_np,
+            metadata["original_shape"],
+            metadata["crop_start"]
+        )
+    else:
+        # 如果没有中心裁剪，直接使用原始shape
+        restored_label = label_np
+
     case_name = os.path.basename(case_dir)
     ref_nii_path = os.path.join(case_dir, f"{case_name}_{cfg.modalities[cfg.modalities.index('t1ce')]}.nii")
     ref_nii = nib.load(ref_nii_path)
-    pred_nii = nib.Nifti1Image(label_np, affine=ref_nii.affine, header=ref_nii.header)
+    pred_nii = nib.Nifti1Image(restored_label, affine=ref_nii.affine, header=ref_nii.header)
 
     save_path = os.path.join(save_dir, f"{case_name}_pred_mask.nii.gz")
     nib.save(pred_nii, save_path)
+    
 
-def run_inference_folder_single(case_root, save_dir, model, inference_engine, device, whitelist=None):
+def run_inference_folder_single(case_root, save_dir, model, inference_engine, device, whitelist=None, center_crop=True):
     os.makedirs(save_dir, exist_ok=True)
     
     # For other dataset
@@ -262,7 +299,7 @@ def run_inference_folder_single(case_root, save_dir, model, inference_engine, de
     print(f"Found {len(case_dirs)} cases to run.")
 
     for case_dir in tqdm(case_dirs, desc="Single Model Inference"):
-        run_inference_soft_single(case_dir, save_dir, model, inference_engine, device)
+        run_inference_soft_single(case_dir, save_dir, model, inference_engine, device, center_crop=center_crop)
 
 
 def build_model(ckpt_path):
@@ -332,6 +369,7 @@ def run_inference_all_folds(
     output_base_dir,
     device='cuda',
     num_folds=5,
+    center_crop=True,  # 是否进行中心裁剪
     fold_to_run=None  # None表示跑所有fold，否则跑指定fold
 ):
     inference_engine = build_inference_engine_func()
@@ -358,7 +396,7 @@ def run_inference_all_folds(
         output_dir = os.path.join(output_base_dir, f"val_fold{fold}_pred")
         os.makedirs(output_dir, exist_ok=True)
 
-        run_inference_func(case_dir, output_dir, model, inference_engine, device, whitelist)
+        run_inference_func(case_dir, output_dir, model, inference_engine, device, whitelist, center_crop=center_crop)
 
         print(f"Fold {fold} inference done. Results saved in {output_dir}")
 
@@ -366,9 +404,9 @@ def run_inference_all_folds(
 
 def main():
     val_cases_dir = './val_cases/'  # 存放验证集case名单txt的文件夹
-    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_64/"  # 模型ckpt所在目录
+    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_65/"  # 模型ckpt所在目录
     case_dir = "/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData/"
-    output_base_dir = "/hpc/ajhz839/validation/BraTS2020_val_pred_exp64/"    
+    output_base_dir = "/hpc/ajhz839/validation/BraTS2020_val_pred_exp65/"    
 
     check_all_folds_ckpt_exist(ckpt_dir)
     check_all_folds_val_txt_exist(val_cases_dir)
@@ -385,6 +423,7 @@ def main():
         output_base_dir=output_base_dir,
         device=cfg.device,
         num_folds=5,
+        center_crop=False,  # 是否进行中心裁剪
         fold_to_run=None  # 跑全部fold 1~5
     )
 

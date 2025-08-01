@@ -1,77 +1,68 @@
-class BNAndPad3DLayer(nn.Module):
-    def __init__(self, pad_voxels, num_features, step_mode='m', **bn_kwargs):
-        """
-        3D BN+ padding组合，支持单步和多步模式。
+def pred_single_case(case_dir, model, inference_engine, device):
+    case_name = os.path.basename(case_dir)
+    print(f"Processing case: {case_name}")
+    image_paths = [os.path.join(case_dir, f"{case_name}_{mod}.nii") for mod in cfg.modalities]
 
-        :param pad_voxels: int，前后上下左右各方向填充的体素数
-        :param num_features: 通道数
-        :param bn_kwargs: 传给 BatchNorm3d 的额外参数，如 eps、momentum 等
-        """
-        super().__init__()
-        self.pad_voxels = pad_voxels
-        # self.bn = layer.BatchNorm3d(num_features, step_mode=step_mode, **bn_kwargs)
-        self.bn = layer.GroupNorm(num_groups=8, num_channels=num_features, step_mode=step_mode)
-        
-        self.step_mode = step_mode
+    # 获取预处理输出和原图信息（包括原始shape和crop位置）
+    x_batch, metadata = preprocess_for_inference(image_paths, return_metadata=True)  # 修改点1
+    x_batch = x_batch.to(device)
+    B, C, D, H, W = x_batch.shape
+    brain_width = np.array([[0, 0, 0], [D - 1, H - 1, W - 1]])
 
-    def _compute_pad_value(self):
-        if self.bn.affine:
-            pad_value = (
-                self.bn.bias.detach()
-                - self.bn.running_mean * self.bn.weight.detach() / torch.sqrt(self.bn.running_var + self.bn.eps))
-        else:
-            pad_value = -self.bn.running_mean / torch.sqrt(self.bn.running_var + self.bn.eps)
-        return pad_value.view(1, -1, 1, 1, 1)  # reshape to [1, C, 1, 1, 1]
+    with torch.no_grad():
+        output = inference_engine(x_batch, model)
 
-    def _pad_tensor(self, x, pad_value):
-        pad = [self.pad_voxels] * 6  # [W_left, W_right, H_top, H_bottom, D_front, D_back]
-        x = F.pad(x, pad)  # 使用0填充
-        # 再替换成 pad_value
-        x[:, :, :self.pad_voxels, :, :] = pad_value
-        x[:, :, -self.pad_voxels:, :, :] = pad_value
-        x[:, :, :, :self.pad_voxels, :] = pad_value
-        x[:, :, :, -self.pad_voxels:, :] = pad_value
-        x[:, :, :, :, :self.pad_voxels] = pad_value
-        x[:, :, :, :, -self.pad_voxels:] = pad_value
-        return x
+    output_prob = torch.sigmoid(output).squeeze(0).cpu().numpy()  # [C, D, H, W]
+    return output_prob, metadata
 
-    def forward(self, x):
-        if self.step_mode == 's':
-            x = self.bn(x)  # shape: [N, C, D, H, W]
-            if self.pad_voxels > 0:
-                pad_value = self._compute_pad_value()
-                x = self._pad_tensor(x, pad_value)
-            return x
 
-        elif self.step_mode == 'm':
-            if x.dim() != 6:
-                raise ValueError(f"Expected input shape [T, N, C, D, H, W], but got {x.shape}")
-            x = self.bn(x)
-            if self.pad_voxels > 0:
-                pad_value = self._compute_pad_value()
-                # 对每个时间步进行 padding
-                padded = []
-                for t in range(x.shape[0]):
-                    padded.append(self._pad_tensor(x[t], pad_value))
-                x = torch.stack(padded, dim=0)  # [T, N, C, D+2p, H+2p, W+2p]
-            return x
+def restore_to_original_shape(cropped_label, original_shape, crop_start):
+    """
+    将中心裁剪过的预测结果还原回原图大小。
+    """
+    restored = np.zeros(original_shape, dtype=cropped_label.dtype)
+    z, y, x = crop_start
+    dz, dy, dx = cropped_label.shape
+    restored[z:z+dz, y:y+dy, x:x+dx] = cropped_label
+    return restored
 
-    @property
-    def weight(self):
-        return self.bn.weight
 
-    @property
-    def bias(self):
-        return self.bn.bias
+def run_inference_soft_single(case_dir, save_dir, model, inference_engine, device):
+    os.makedirs(save_dir, exist_ok=True)
+    
+    prob, metadata = pred_single_case(case_dir, model, inference_engine, device)
 
-    @property
-    def running_mean(self):
-        return self.bn.running_mean
+    label_np = convert_prediction_to_label_suppress_fp(prob)  # (D, H, W)
+    label_np = np.transpose(label_np, (1, 2, 0))  # (H, W, D)
 
-    @property
-    def running_var(self):
-        return self.bn.running_var
+    # 还原原始空间（前提是 metadata 包含 'original_shape' 和 'crop_start'）
+    restored_label = restore_to_original_shape(
+        label_np,
+        metadata["original_shape"],  # e.g., (H, W, D)
+        metadata["crop_start"]       # e.g., (z, y, x)
+    )
 
-    @property
-    def eps(self):
-        return self.bn.eps
+    case_name = os.path.basename(case_dir)
+    ref_nii_path = os.path.join(case_dir, f"{case_name}_{cfg.modalities[cfg.modalities.index('t1ce')]}.nii")
+    ref_nii = nib.load(ref_nii_path)
+    pred_nii = nib.Nifti1Image(restored_label, affine=ref_nii.affine, header=ref_nii.header)
+
+    save_path = os.path.join(save_dir, f"{case_name}_pred_mask.nii.gz")
+    nib.save(pred_nii, save_path)
+
+
+def preprocess_for_inference(image_paths, return_metadata=False):
+    # 假设原图为 (H_orig, W_orig, D_orig)
+    # 假设你做了中心裁剪后的 shape 是 (144, 144, 144)
+
+    # 示例实现：
+    image, original_shape, crop_start = center_crop_and_normalize(image_paths)
+    x_batch = torch.from_numpy(image).unsqueeze(0)  # shape: [1, C, D, H, W]
+
+    if return_metadata:
+        return x_batch, {
+            "original_shape": original_shape,  # e.g., (H, W, D)
+            "crop_start": crop_start           # e.g., (z, y, x)
+        }
+    else:
+        return x_batch

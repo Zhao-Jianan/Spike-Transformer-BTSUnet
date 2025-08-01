@@ -171,7 +171,7 @@ def main():
         
         # BraTS 2020 Training set
         gt_root = './data/BraTS2020/MICCAI_BraTS2020_TrainingData'
-        pred_dir = './Pred/BraTS2020_val_fold1_pred_exp61'
+        pred_dir = './Pred/BraTS2020_val_pred_exp65/val_fold1_pred'
         batch_compute_dice_trainingset(gt_root, pred_dir)        
         
         
