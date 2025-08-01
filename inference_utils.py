@@ -1,4 +1,5 @@
 import os
+os.chdir(os.path.dirname(__file__))
 import torch
 import nibabel as nib
 import numpy as np
@@ -242,20 +243,12 @@ def check_all_folds_ckpt_exist(ckpt_dir):
     else:
         print("All 5 fold checkpoints found.")
 
-
-def check_test_txt_exist(test_cases_txt):
+def check_test_txt_exist(txt_path):
     """
-    检查 test_cases_txt 中是否存在 test_cases.txt。
-    若缺少，则报错退出。
+    参数应是 test_cases.txt 的完整路径。
     """
-    missing_txts = False
-
-    txt_path = os.path.join(test_cases_txt, f"test_cases.txt")
     if not os.path.isfile(txt_path):
-        missing_txts = True
-
-    if missing_txts:
-        raise FileNotFoundError(f"[Warning] Missing test_cases.txt file in {test_cases_txt}")
+        raise FileNotFoundError(f"[Warning] Missing test_cases.txt file in {txt_path}")
     else:
         print("test_cases.txt file found.")
         

@@ -1,6 +1,6 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 import torch
 import nibabel as nib
 import numpy as np
@@ -22,7 +22,7 @@ from inference_utils import (
 def pred_single_case_soft(case_dir, prob_save_dir, model, inference_engine, device, center_crop=True):
     case_name = os.path.basename(case_dir)
     print(f"Processing case: {case_name}")
-    image_paths = [os.path.join(case_dir, f"{mod}.nii.gz") for mod in cfg.modalities]
+    image_paths = [os.path.join(case_dir, f"{case_name}_{mod}.nii") for mod in cfg.modalities]
 
     x_batch, metadata = preprocess_for_inference(image_paths, center_crop=center_crop)
     if not center_crop:
@@ -193,13 +193,13 @@ def main():
     
     
     # BraTS2020 test data inference
-    prob_base_dir = "/hpc/ajhz839/validation/test_prob_folds_exp64/"
-    ensemble_output_dir = "/hpc/ajhz839/validation/test_pred_soft_ensemble_exp64/"
+    prob_base_dir = "/hpc/ajhz839/validation/test_prob_folds_exp65/"
+    ensemble_output_dir = "/hpc/ajhz839/validation/test_pred_soft_ensemble_exp65/"
     case_dir = "/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData/"
     test_cases_txt =  './val_cases/test_cases.txt'
-    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_64/"
+    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_65/"
     
-    center_crop=True
+    center_crop=False
 
     check_all_folds_ckpt_exist(ckpt_dir)
     check_test_txt_exist(test_cases_txt)
