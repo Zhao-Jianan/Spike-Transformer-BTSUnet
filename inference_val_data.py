@@ -42,7 +42,7 @@ def run_inference_soft_single(case_dir, save_dir, model, inference_engine, devic
     prob, metadata = pred_single_case(case_dir, model, inference_engine, device, center_crop=center_crop)
 
     label_np = convert_prediction_to_label_suppress_fp(prob)  # shape: (D, H, W)
-    label_np = np.transpose(label_np, (1, 2, 0))  # to (H, W, D)
+
 
     if center_crop:
         # 还原原始空间
@@ -54,6 +54,9 @@ def run_inference_soft_single(case_dir, save_dir, model, inference_engine, devic
     else:
         # 如果没有中心裁剪，直接使用原始shape
         restored_label = label_np
+        
+    # 将标签从 (D, H, W) 转换为 (H, W, D)
+    restored_label = np.transpose(restored_label, (1, 2, 0))  # to (H, W, D)
 
     case_name = os.path.basename(case_dir)
     ref_nii_path = os.path.join(case_dir, f"{case_name}_{cfg.modalities[cfg.modalities.index('t1ce')]}.nii")

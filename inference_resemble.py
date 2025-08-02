@@ -158,13 +158,8 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, meta
 
         label_np = convert_prediction_to_label_suppress_fp(mean_prob)
 
-        print("Label shape before transposing:", label_np.shape)  # (D, H, W)
-        label_np = np.transpose(label_np, (1, 2, 0))
-        print("Label shape before postprocessing:", label_np.shape)  # (H, W, D)
-        # 后处理
-        # label_np = postprocess_brats_label(label_np)
-        print(f"Processed case {case}, label shape: {label_np.shape}")
-        
+        print("Label shape before restoring to original shape:", label_np.shape)  # (D, H, W)
+
         if metadata_json_path and center_crop:
             metadata = case_metadata[case]
             original_shape = metadata["original_shape"]  # (D, H, W)
@@ -172,10 +167,17 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, meta
             restored_label = restore_to_original_shape(label_np, tuple(original_shape), tuple(crop_start))
         else:
             restored_label = label_np
-                
+
+        print("Label shape before transposing:", restored_label.shape)  # (D, H, W)
+        final_label = np.transpose(restored_label, (1, 2, 0))
+        print("Label shape before postprocessing:", final_label.shape)  # (H, W, D)
+        # 后处理
+        # final_label = postprocess_brats_label(final_label)
+        print(f"Processed case {case}, label shape: {final_label.shape}")
+
         ref_nii_path = os.path.join(case_dir, case, f"{case}_{cfg.modalities[cfg.modalities.index('t1ce')]}.nii")
         ref_nii = nib.load(ref_nii_path)
-        pred_nii = nib.Nifti1Image(restored_label, affine=ref_nii.affine, header=ref_nii.header)
+        pred_nii = nib.Nifti1Image(final_label, affine=ref_nii.affine, header=ref_nii.header)
 
         save_path = os.path.join(output_dir, f"{case}_pred_mask.nii.gz")
         nib.save(pred_nii, save_path)

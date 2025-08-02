@@ -169,10 +169,15 @@ def main():
         # pred_dir = './Pred/val_fold2_pred_experiment56'
         # batch_compute_dice_trainingset(gt_root, pred_dir)
         
-        # BraTS 2020 Training set
+        # BraTS 2020 Validation
         gt_root = './data/BraTS2020/MICCAI_BraTS2020_TrainingData'
-        pred_dir = './Pred/BraTS2020/test_dataset/test_pred_soft_ensemble_exp65'
+        pred_dir = './Pred/BraTS2020/validation_dataset/BraTS2020_val_pred_exp64/val_fold5_pred'
         batch_compute_dice_trainingset(gt_root, pred_dir)
+        
+        # # BraTS 2020 Test
+        # gt_root = './data/BraTS2020/MICCAI_BraTS2020_TrainingData'
+        # pred_dir = './Pred/BraTS2020/test_dataset/test_pred_soft_ensemble_exp69'
+        # batch_compute_dice_trainingset(gt_root, pred_dir)
 
 
     else:
