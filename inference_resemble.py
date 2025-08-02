@@ -198,12 +198,13 @@ def main():
     
     
     # BraTS2020 test data inference
-    prob_base_dir = "/hpc/ajhz839/inference/BraTS2020/test_prob_folds_exp69/"
-    ensemble_output_dir = "/hpc/ajhz839/inference/BraTS2020/test_pred_soft_ensemble_exp69/"
+    experiment_id = 68
+    prob_base_dir = f"/hpc/ajhz839/inference/BraTS2020/test_prob_folds_exp{experiment_id}/"
+    ensemble_output_dir = f"/hpc/ajhz839/inference/BraTS2020/test_pred_soft_ensemble_exp{experiment_id}/"
     case_dir = "/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData/"
     test_cases_txt =  './val_cases/test_cases.txt'
-    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_69/"
-    
+    ckpt_dir = f"/hpc/ajhz839/checkpoint/experiment_{experiment_id}/"
+
     center_crop=True
 
     check_all_folds_ckpt_exist(ckpt_dir)

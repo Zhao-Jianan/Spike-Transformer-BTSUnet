@@ -174,10 +174,12 @@ def run_inference_all_folds(
 
 
 def main():
+    # BraTS 2020 validation data inference
+    experiment_id = 68
     val_cases_dir = './val_cases/'  # 存放验证集case名单txt的文件夹
-    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_69/"  # 模型ckpt所在目录
+    ckpt_dir = f"/hpc/ajhz839/checkpoint/experiment_{experiment_id}/"  # 模型ckpt所在目录
     case_dir = "/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData/"
-    output_base_dir = "/hpc/ajhz839/validation/BraTS2020_val_pred_exp69/"
+    output_base_dir = f"/hpc/ajhz839/validation/BraTS2020_val_pred_exp{experiment_id}/"
 
     check_all_folds_ckpt_exist(ckpt_dir)
     check_all_folds_val_txt_exist(val_cases_dir)

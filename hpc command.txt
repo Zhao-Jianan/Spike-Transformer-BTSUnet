@@ -168,9 +168,10 @@ nohup python spikeformerunet15/inference_resemble.py > inference_log_exp63.out 2
 nohup python spikeformerunet15/inference_single_checkpoint.py > single_inference_log_exp63.out 2>&1 &
 
 nohup python spikeformerunet1/inference_val_data.py > inference_log_exp64_val_data.out 2>&1 &
-nohup python spikeformerunet10/inference_val_data.py > inference_log_exp69_val_data.out 2>&1 &
 
-nohup python spikeformerunet10/inference_resemble.py > inference_log_exp69_test_data.out 2>&1 &
+nohup python spikeformerunet68/inference_val_data.py > inference_log_exp68_val_data.out 2>&1 &
+
+nohup python spikeformerunet68/inference_resemble.py > inference_log_exp68_test_data.out 2>&1 &
 
 [check val data]
 nohup python spikeformerunet15/check_dataset_split.py > dataset_split_log.out 2>&1 &

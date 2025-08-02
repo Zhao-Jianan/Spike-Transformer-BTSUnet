@@ -60,44 +60,6 @@ def compute_dice_from_nifti(pred_path, gt_path):
     }
 
 
-
-def batch_compute_dice(pred_dir, gt_dir):
-    all_dice_scores = []
-
-    for pred_file in os.listdir(pred_dir):
-        if not pred_file.endswith('_pred_mask.nii.gz'):
-            continue
-
-        # 获取病例名
-        case_name = pred_file.replace('_pred_mask.nii.gz', '')
-
-        # 构造文件路径
-        pred_path = os.path.join(pred_dir, pred_file)
-        gt_path = os.path.join(gt_dir, case_name + '.nii.gz')
-
-        if not os.path.exists(gt_path):
-            print(f"[Warning] Ground truth not found for {case_name}, skipping.")
-            continue
-
-        # 计算 Dice
-        dice = compute_dice_from_nifti(pred_path, gt_path)
-        all_dice_scores.append(dice)
-
-        print(f"{case_name}: {dice}")
-
-    # 计算平均值
-    dice_tc = [d["Dice_TC"] for d in all_dice_scores]
-    dice_wt = [d["Dice_WT"] for d in all_dice_scores]
-    dice_et = [d["Dice_ET"] for d in all_dice_scores]
-    mean_dice = [d["Mean_Dice"] for d in all_dice_scores]
-
-    print("\n=== Average Dice Scores ===")
-    print(f"Dice_TC Mean: {np.mean(dice_tc):.4f}")
-    print(f"Dice_WT Mean: {np.mean(dice_wt):.4f}")
-    print(f"Dice_ET Mean: {np.mean(dice_et):.4f}")
-    print(f"Mean_Dice:   {np.mean(mean_dice):.4f}")
-
-
 def compute_hd95_from_nifti(pred_path, gt_path, spacing=(1.0, 1.0, 1.0)):
     pred = nib.load(pred_path).get_fdata().astype(np.uint8)
     gt = nib.load(gt_path).get_fdata().astype(np.uint8)
@@ -125,52 +87,59 @@ def compute_hd95_from_nifti(pred_path, gt_path, spacing=(1.0, 1.0, 1.0)):
     hd95_et = _compute_hd(pred_et, gt_et)
     hd95_mean = np.nanmean([hd95_tc, hd95_wt, hd95_et])
 
-    print("Sum TC:", pred_tc.sum(), "GT TC:", gt_tc.sum())
-    print("Sum WT:", pred_wt.sum(), "GT WT:", gt_wt.sum())
-    print("Sum ET:", pred_et.sum(), "GT ET:", gt_et.sum())
-    print('Sum NCR/NET:', (pred == 1).sum(), "GT NCR/NET:", (gt == 1).sum())
-    print('Sum ED:', (pred == 2).sum(), "GT ED:", (gt == 2).sum())
-    print('Sum BG:', (pred == 0).sum(), "GT BG:", (gt == 0).sum())
-
     return {
         "HD95_TC": round(hd95_tc, 4) if not np.isnan(hd95_tc) else None,
         "HD95_WT": round(hd95_wt, 4) if not np.isnan(hd95_wt) else None,
         "HD95_ET": round(hd95_et, 4) if not np.isnan(hd95_et) else None,
         "Mean_HD95": round(hd95_mean, 4) if not np.isnan(hd95_mean) else None,
     }
-    
 
-def batch_compute_hd95(pred_dir, gt_dir, spacing=(1.0, 1.0, 1.0)):
-    all_hd95_scores = []
 
-    for pred_file in os.listdir(pred_dir):
-        if not pred_file.endswith('_pred_mask.nii.gz'):
-            continue
+def compute_sensitivity_specificity_from_nifti(pred_path, gt_path):
+    pred = nib.load(pred_path).get_fdata().astype(np.uint8)
+    gt = nib.load(gt_path).get_fdata().astype(np.uint8)
 
-        case_name = pred_file.replace('_pred_mask.nii.gz', '')
-        pred_path = os.path.join(pred_dir, pred_file)
-        gt_path = os.path.join(gt_dir, case_name + '.nii.gz')
+    # TC: label 1 or 4
+    pred_tc = np.isin(pred, [1, 4])
+    gt_tc   = np.isin(gt, [1, 4])
 
-        if not os.path.exists(gt_path):
-            print(f"[Warning] Ground truth not found for {case_name}, skipping.")
-            continue
+    # WT: label 1 or 2 or 4
+    pred_wt = np.isin(pred, [1, 2, 4])
+    gt_wt   = np.isin(gt, [1, 2, 4])
 
-        hd95 = compute_hd95_from_nifti(pred_path, gt_path, spacing)
-        all_hd95_scores.append(hd95)
+    # ET: label 4
+    pred_et = (pred == 4)
+    gt_et   = (gt == 4)
 
-        print(f"{case_name}: {hd95}")
+    def _compute_metrics(pred_mask, gt_mask):
+        TP = np.logical_and(pred_mask, gt_mask).sum()
+        FN = np.logical_and(np.logical_not(pred_mask), gt_mask).sum()
+        TN = np.logical_and(np.logical_not(pred_mask), np.logical_not(gt_mask)).sum()
+        FP = np.logical_and(pred_mask, np.logical_not(gt_mask)).sum()
 
-    # 计算平均值（忽略 None）
-    hd95_tc = [d["HD95_TC"] for d in all_hd95_scores if d["HD95_TC"] is not None]
-    hd95_wt = [d["HD95_WT"] for d in all_hd95_scores if d["HD95_WT"] is not None]
-    hd95_et = [d["HD95_ET"] for d in all_hd95_scores if d["HD95_ET"] is not None]
-    mean_hd95 = [d["Mean_HD95"] for d in all_hd95_scores if d["Mean_HD95"] is not None]
+        sensitivity = TP / (TP + FN) if (TP + FN) > 0 else np.nan
+        specificity = TN / (TN + FP) if (TN + FP) > 0 else np.nan
 
-    print("\n=== Average HD95 Scores ===")
-    print(f"HD95_TC Mean: {np.mean(hd95_tc):.4f}" if hd95_tc else "HD95_TC Mean: N/A")
-    print(f"HD95_WT Mean: {np.mean(hd95_wt):.4f}" if hd95_wt else "HD95_WT Mean: N/A")
-    print(f"HD95_ET Mean: {np.mean(hd95_et):.4f}" if hd95_et else "HD95_ET Mean: N/A")
-    print(f"Mean_HD95:    {np.mean(mean_hd95):.4f}" if mean_hd95 else "Mean_HD95: N/A")
+        return sensitivity, specificity
+
+    sens_tc, spec_tc = _compute_metrics(pred_tc, gt_tc)
+    sens_wt, spec_wt = _compute_metrics(pred_wt, gt_wt)
+    sens_et, spec_et = _compute_metrics(pred_et, gt_et)
+
+    mean_sens = np.nanmean([sens_tc, sens_wt, sens_et])
+    mean_spec = np.nanmean([spec_tc, spec_wt, spec_et])
+
+    return {
+        "Sensitivity_TC": round(sens_tc, 4) if not np.isnan(sens_tc) else None,
+        "Specificity_TC": round(spec_tc, 4) if not np.isnan(spec_tc) else None,
+        "Sensitivity_WT": round(sens_wt, 4) if not np.isnan(sens_wt) else None,
+        "Specificity_WT": round(spec_wt, 4) if not np.isnan(spec_wt) else None,
+        "Sensitivity_ET": round(sens_et, 4) if not np.isnan(sens_et) else None,
+        "Specificity_ET": round(spec_et, 4) if not np.isnan(spec_et) else None,
+        "Mean_Sensitivity": round(mean_sens, 4) if not np.isnan(mean_sens) else None,
+        "Mean_Specificity": round(mean_spec, 4) if not np.isnan(mean_spec) else None,
+    }
+
 
 
 
@@ -193,10 +162,11 @@ def find_gt_path(gt_root, case_name):
     return None
 
 
-def batch_compute_metrics(pred_dir, gt_root, compute_hd95=False):
+def batch_compute_metrics(pred_dir, gt_root, compute_hd95=False, compute_sensitivity_specificity=False):
     pred_files = sorted([f for f in os.listdir(pred_dir) if f.endswith(".nii.gz")])
     all_dice_scores = []
     all_hd95_scores = []
+    all_sensitivity_specificity_scores = []
 
     for pred_file in pred_files:
         case_name = pred_file.replace("_pred_mask.nii.gz", "")
@@ -217,8 +187,15 @@ def batch_compute_metrics(pred_dir, gt_root, compute_hd95=False):
         if compute_hd95:
             hd95 = compute_hd95_from_nifti(pred_path, gt_path)
             all_hd95_scores.append(hd95)
+            
+        # 计算敏感性和特异性
+        if compute_sensitivity_specificity:
+            scores = compute_sensitivity_specificity_from_nifti(pred_path, gt_path)
+            all_sensitivity_specificity_scores.append(scores)
 
         print(f"{case_name}: dice: {dice} | HD95: {hd95 if compute_hd95 else 'N/A'}")
+        if compute_sensitivity_specificity:
+            print(f"{case_name}: sensitivity & specificity: {scores}")
 
     # 计算平均值
     dice_tc = [d["Dice_TC"] for d in all_dice_scores]
@@ -227,22 +204,54 @@ def batch_compute_metrics(pred_dir, gt_root, compute_hd95=False):
     mean_dice = [d["Mean_Dice"] for d in all_dice_scores]
 
     print("\n=== Average Dice Scores ===")
-    print(f"Dice_TC Mean: {np.mean(dice_tc):.4f}")
     print(f"Dice_WT Mean: {np.mean(dice_wt):.4f}")
+    print(f"Dice_TC Mean: {np.mean(dice_tc):.4f}")
     print(f"Dice_ET Mean: {np.mean(dice_et):.4f}")
     print(f"Mean_Dice:   {np.mean(mean_dice):.4f}")
     
     # 计算平均值（忽略 None）
-    hd95_tc = [d["HD95_TC"] for d in all_hd95_scores if d["HD95_TC"] is not None]
-    hd95_wt = [d["HD95_WT"] for d in all_hd95_scores if d["HD95_WT"] is not None]
-    hd95_et = [d["HD95_ET"] for d in all_hd95_scores if d["HD95_ET"] is not None]
-    mean_hd95 = [d["Mean_HD95"] for d in all_hd95_scores if d["Mean_HD95"] is not None]
+    if compute_hd95:
+        hd95_tc = [d["HD95_TC"] for d in all_hd95_scores if d["HD95_TC"] is not None]
+        hd95_wt = [d["HD95_WT"] for d in all_hd95_scores if d["HD95_WT"] is not None]
+        hd95_et = [d["HD95_ET"] for d in all_hd95_scores if d["HD95_ET"] is not None]
+        mean_hd95 = [d["Mean_HD95"] for d in all_hd95_scores if d["Mean_HD95"] is not None]
 
-    print("\n=== Average HD95 Scores ===")
-    print(f"HD95_TC Mean: {np.mean(hd95_tc):.4f}" if hd95_tc else "HD95_TC Mean: N/A")
-    print(f"HD95_WT Mean: {np.mean(hd95_wt):.4f}" if hd95_wt else "HD95_WT Mean: N/A")
-    print(f"HD95_ET Mean: {np.mean(hd95_et):.4f}" if hd95_et else "HD95_ET Mean: N/A")
-    print(f"Mean_HD95:    {np.mean(mean_hd95):.4f}" if mean_hd95 else "Mean_HD95: N/A")
+        print("\n=== Average HD95 Scores ===")
+        print(f"HD95_WT Mean: {np.mean(hd95_wt):.4f}" if hd95_wt else "HD95_WT Mean: N/A")
+        print(f"HD95_TC Mean: {np.mean(hd95_tc):.4f}" if hd95_tc else "HD95_TC Mean: N/A")
+        print(f"HD95_ET Mean: {np.mean(hd95_et):.4f}" if hd95_et else "HD95_ET Mean: N/A")
+        print(f"Mean_HD95:    {np.mean(mean_hd95):.4f}" if mean_hd95 else "Mean_HD95: N/A")
+    
+    
+    
+    
+    def safe_mean(lst):
+        filtered = [v for v in lst if v is not None]
+        return np.mean(filtered) if filtered else float('nan')
+    
+    if compute_sensitivity_specificity:
+        sens_tc = [d["Sensitivity_TC"] for d in all_sensitivity_specificity_scores if d["Sensitivity_TC"] is not None]
+        spec_tc = [d["Specificity_TC"] for d in all_sensitivity_specificity_scores if d["Specificity_TC"] is not None]
+        sens_wt = [d["Sensitivity_WT"] for d in all_sensitivity_specificity_scores if d["Sensitivity_WT"] is not None]
+        spec_wt = [d["Specificity_WT"] for d in all_sensitivity_specificity_scores if d["Specificity_WT"] is not None]
+        sens_et = [d["Sensitivity_ET"] for d in all_sensitivity_specificity_scores if d["Sensitivity_ET"] is not None]
+        spec_et = [d["Specificity_ET"] for d in all_sensitivity_specificity_scores if d["Specificity_ET"] is not None]
+        mean_sens = [d["Mean_Sensitivity"] for d in all_sensitivity_specificity_scores if d["Mean_Sensitivity"] is not None]
+        mean_spec = [d["Mean_Specificity"] for d in all_sensitivity_specificity_scores if d["Mean_Specificity"] is not None]
+
+        print("\n=== Average Sensitivity & Specificity Scores ===")
+        print(f"Sensitivity_WT Mean: {safe_mean(sens_wt):.4f}" if sens_wt else "Sensitivity_WT Mean: N/A")
+        print(f"Sensitivity_TC Mean: {safe_mean(sens_tc):.4f}" if sens_tc else "Sensitivity_TC Mean: N/A")
+        print(f"Sensitivity_ET Mean: {safe_mean(sens_et):.4f}" if sens_et else "Sensitivity_ET Mean: N/A")
+        print(f"Mean_Sensitivity:    {safe_mean(mean_sens):.4f}" if mean_sens else "Mean_Sensitivity: N/A")        
+        print('-----------------------')
+        print(f"Specificity_WT Mean: {safe_mean(spec_wt):.4f}" if spec_wt else "Specificity_WT Mean: N/A")
+        print(f"Specificity_TC Mean: {safe_mean(spec_tc):.4f}" if spec_tc else "Specificity_TC Mean: N/A")
+        print(f"Specificity_ET Mean: {safe_mean(spec_et):.4f}" if spec_et else "Specificity_ET Mean: N/A")
+        print(f"Mean_Specificity:    {safe_mean(mean_spec):.4f}" if mean_spec else "Mean_Specificity: N/A")
+    
+    
+    
 
 
 # TODO: HD95 Computing
@@ -266,12 +275,12 @@ def main():
         # # BraTS 2020 Validation
         # gt_root = './data/BraTS2020/MICCAI_BraTS2020_TrainingData'
         # pred_dir = './Pred/BraTS2020/validation_dataset/BraTS2020_val_pred_exp69/val_fold5_pred'
-        # batch_compute_metrics(pred_dir, gt_root, compute_hd95=False)
+        # batch_compute_metrics(pred_dir, gt_root, compute_hd95=False, compute_sensitivity_specificity=False)
 
         # BraTS 2020 Test
         gt_root = './data/BraTS2020/MICCAI_BraTS2020_TrainingData'
-        pred_dir = './Pred/BraTS2020/test_dataset/test_pred_soft_ensemble_exp69'
-        batch_compute_metrics(pred_dir, gt_root, compute_hd95=True)
+        pred_dir = './Pred/BraTS2020/test_dataset/test_pred_soft_ensemble_exp65'
+        batch_compute_metrics(pred_dir, gt_root, compute_hd95=True, compute_sensitivity_specificity=True)
 
 
     else:
