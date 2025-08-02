@@ -128,7 +128,7 @@ def main():
     # pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction  
 
     
-    # BraTS 2020 Training set
+    # BraTS 2020 val
     data_dir = './data/BraTS2020/MICCAI_BraTS2020_TrainingData/BraTS20_Training_360'
     pred_dir = './Pred/BraTS2020_val_pred_exp65/val_fold5_pred'
     case_name = os.path.basename(data_dir)
@@ -142,6 +142,21 @@ def main():
     
     save_dir = './visualise/BraTS_2020/val'
     flag = 'exp65'
+    
+    # BraTS 2020 test
+    data_dir = './data/BraTS2020/MICCAI_BraTS2020_TrainingData/BraTS20_Training_279'
+    pred_dir = './Pred/BraTS2020/test_dataset/test_pred_soft_ensemble_exp69'
+    case_name = os.path.basename(data_dir)
+    
+    t1_path = os.path.join(data_dir, f'{case_name}_t1.nii')
+    t1ce_path = os.path.join(data_dir, f'{case_name}_t1ce.nii')
+    t2_path = os.path.join(data_dir, f'{case_name}_t2.nii')
+    flair_path = os.path.join(data_dir, f'{case_name}_flair.nii')
+    gt_mask_path = os.path.join(data_dir, f'{case_name}_seg.nii')     # ground truth
+    pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction   
+    
+    save_dir = './visualise/BraTS_2020/test'
+    flag = 'test_exp69'
 
 
     # # BraTS 2023 Training set
@@ -178,7 +193,6 @@ def main():
     flair = load_nifti_image(flair_path)
     gt_mask = load_nifti_image(gt_mask_path).astype(np.uint8)
     pred_mask = load_nifti_image(pred_mask_path).astype(np.uint8)
-    save_dir = './visualise/BraTS_2020/val'
     save_path = os.path.join(save_dir, f'{case_name}_{flag}.png')
 
 

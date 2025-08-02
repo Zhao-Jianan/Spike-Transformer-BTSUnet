@@ -46,6 +46,7 @@ def run_inference_soft_single(case_dir, save_dir, model, inference_engine, devic
 
     if center_crop:
         # 还原原始空间
+        print("Restoring label to original shape using metadata...")
         restored_label = restore_to_original_shape(
             label_np,
             metadata["original_shape"],
@@ -56,12 +57,18 @@ def run_inference_soft_single(case_dir, save_dir, model, inference_engine, devic
         restored_label = label_np
         
     # 将标签从 (D, H, W) 转换为 (H, W, D)
-    restored_label = np.transpose(restored_label, (1, 2, 0))  # to (H, W, D)
+    final_label = np.transpose(restored_label, (1, 2, 0))  # to (H, W, D)
+    print("Label shape before postprocessing:", restored_label.shape)  # (H, W, D)
+    # 后处理
+    # final_label = postprocess_brats_label(final_label)
+
 
     case_name = os.path.basename(case_dir)
+    print(f"Processed case {case_name}, label shape: {final_label.shape}")   
+    
     ref_nii_path = os.path.join(case_dir, f"{case_name}_{cfg.modalities[cfg.modalities.index('t1ce')]}.nii")
     ref_nii = nib.load(ref_nii_path)
-    pred_nii = nib.Nifti1Image(restored_label, affine=ref_nii.affine, header=ref_nii.header)
+    pred_nii = nib.Nifti1Image(final_label, affine=ref_nii.affine, header=ref_nii.header)
 
     save_path = os.path.join(save_dir, f"{case_name}_pred_mask.nii.gz")
     nib.save(pred_nii, save_path)

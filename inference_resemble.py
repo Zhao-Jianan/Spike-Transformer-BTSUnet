@@ -142,6 +142,7 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, meta
     
     if metadata_json_path and center_crop:
         with open(metadata_json_path, "r") as f:
+            print("Loading metadata from JSON file...")
             case_metadata = json.load(f)
         
     case_names = sorted(list(set([f.split('_prob.npy')[0] for f in os.listdir(os.path.join(prob_root, 'fold1'))])))
@@ -161,6 +162,8 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, meta
         print("Label shape before restoring to original shape:", label_np.shape)  # (D, H, W)
 
         if metadata_json_path and center_crop:
+            print("Restoring label to original shape using metadata...")
+            # 使用case_metadata中的信息恢复标签到原始形状
             metadata = case_metadata[case]
             original_shape = metadata["original_shape"]  # (D, H, W)
             crop_start = metadata["crop_start"]          # (sd, sh, sw)
@@ -199,7 +202,7 @@ def main():
     ensemble_output_dir = "/hpc/ajhz839/inference/BraTS2020/test_pred_soft_ensemble_exp69/"
     case_dir = "/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData/"
     test_cases_txt =  './val_cases/test_cases.txt'
-    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_65/"
+    ckpt_dir = "/hpc/ajhz839/checkpoint/experiment_69/"
     
     center_crop=True
 
