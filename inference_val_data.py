@@ -1,6 +1,6 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 import torch
 import nibabel as nib
 import numpy as np
@@ -14,9 +14,10 @@ from tqdm import tqdm
 import json
 from inference_utils import (
     preprocess_for_inference, convert_prediction_to_label_suppress_fp, postprocess_brats_label,
-    check_all_folds_ckpt_exist, check_all_folds_val_txt_exist, restore_to_original_shape
+    check_all_folds_ckpt_exist, check_all_folds_val_txt_exist, preprocess_for_label, restore_to_original_shape
     )
 
+from metrics import dice_score_braTS
 
 def pred_single_case(case_dir, model, inference_engine, device, center_crop=True):
     case_name = os.path.basename(case_dir)
@@ -33,19 +34,21 @@ def pred_single_case(case_dir, model, inference_engine, device, center_crop=True
         # output = inference_engine(x_batch, brain_width, model)
         output = inference_engine(x_batch, model)
 
+    output_for_dice =output.squeeze(0).cpu().numpy()
     output_prob = torch.sigmoid(output).squeeze(0).cpu().numpy()  # [C, D, H, W]
-
-    return output_prob, metadata
+    
+    return output_prob, output_for_dice, metadata
 
 
 def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inference_engine, device, center_crop=True):
     os.makedirs(save_dir, exist_ok=True)
     if prob_save_dir is not None:
         os.makedirs(prob_save_dir, exist_ok=True)
-        
-    prob, metadata = pred_single_case(case_dir, model, inference_engine, device, center_crop=center_crop)
-
+    
+    # 1. 推理获得概率图和 metadata    
+    prob, output_for_dice, metadata = pred_single_case(case_dir, model, inference_engine, device, center_crop=center_crop)
     case_name = os.path.basename(case_dir)
+
     if prob_save_dir:
         prob_save_path = os.path.join(prob_save_dir, f"{case_name}_prob.npy")
         np.save(prob_save_path, prob)
@@ -73,7 +76,25 @@ def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inferenc
         with open(metadata_json_path, "w") as f:
             json.dump(all_metadata, f, indent=2)
         print(f"Updated metadata file: {metadata_json_path}")
-            
+
+               
+    # 读取 ground truth 并计算 Dice（logits 阶段）
+    seg_path = os.path.join(case_dir, f"{case_name}_seg.nii")
+    if os.path.exists(seg_path):
+        # 读取 label 和预测概率图（已经是 [1, 3, D, H, W]）
+        label_tensor = preprocess_for_label(seg_path, center_crop=center_crop)  # [1, 3, D, H, W]
+        pred_tensor = torch.from_numpy(output_for_dice).unsqueeze(0)  # [1, 3, D, H, W]
+
+        # 概率二值化
+        pred_tensor = (pred_tensor > 0.5).float()
+
+        # 计算 Dice
+        dice_dict = dice_score_braTS(pred_tensor, label_tensor)
+        print(f"Dice - Case {case_name} | TC: {dice_dict['TC']:.4f}, WT: {dice_dict['WT']:.4f}, ET: {dice_dict['ET']:.4f}")
+    else:
+        print(f"Warning: Ground truth not found for case {case_name} at {seg_path}, Dice not computed.")
+
+
     # 将预测结果转换为标签
     label_np = convert_prediction_to_label_suppress_fp(prob)  # shape: (D, H, W)
 
@@ -106,6 +127,8 @@ def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inferenc
     save_path = os.path.join(save_dir, f"{case_name}_pred_mask.nii.gz")
     nib.save(pred_nii, save_path)
     
+    return dice_dict
+    
 
 def run_inference_folder_single(case_root, save_dir, prob_save_dir, model, inference_engine, device, whitelist=None, center_crop=True):
     os.makedirs(save_dir, exist_ok=True)
@@ -136,8 +159,15 @@ def run_inference_folder_single(case_root, save_dir, prob_save_dir, model, infer
 
     print(f"Found {len(case_dirs)} cases to run.")
 
+    dice_dicts = []
     for case_dir in tqdm(case_dirs, desc="Single Model Inference"):
-        run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inference_engine, device, center_crop=center_crop)
+        dice_dict = run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inference_engine, device, center_crop=center_crop)
+        dice_dicts.append(dice_dict)
+
+    # 计算平均 Dice
+    if dice_dicts:
+        avg_dice = {key: sum(d[key] for d in dice_dicts) / len(dice_dicts) for key in dice_dicts[0]}
+        print(f"Average Dice - TC: {avg_dice['TC']:.4f}, WT: {avg_dice['WT']:.4f}, ET: {avg_dice['ET']:.4f}")
 
 
 def build_model(ckpt_path):

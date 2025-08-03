@@ -7,14 +7,14 @@ import torch.nn.functional as F
 from config import config as cfg
 from monai.transforms import (
     Compose, LoadImaged, EnsureChannelFirstd, NormalizeIntensityd,
-    Orientationd, Spacingd, ToTensord
+    Orientationd, Spacingd, ToTensord, ConvertToMultiChannelBasedOnBratsClassesd
     )
 
 from scipy.ndimage import binary_dilation, binary_opening, label, generate_binary_structure
 
 
 
-def preprocess_for_inference(image_paths, center_crop=False):
+def preprocess_for_inference(image_paths, center_crop=True):
     """
     image_paths: list of 4 modality paths [t1, t1ce, t2, flair]
     
@@ -93,7 +93,76 @@ def preprocess_for_inference(image_paths, center_crop=False):
     }
     
     
+def preprocess_for_label(label_paths, center_crop=True):
+    """
+    label_paths: Ground Truth label path
     
+    Returns:
+        x_seq: torch.Tensor, shape (B=1, C, D, H, W)
+    """
+    label_dict = {"label": label_paths}
+    
+    # Step 1: Load + Channel First
+    load_transform = Compose([
+        LoadImaged(keys=["label"]),
+        EnsureChannelFirstd(keys=["label"]),
+        ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
+    ])
+    data = load_transform(label_dict)
+    data["label"] = data["label"].permute(0, 3, 1, 2).contiguous()
+    print("Loaded label shape:", data["label"].shape)  # (C, D, H, W)
+
+    img_meta = data["label"].meta
+    img_spacing = img_meta.get("pixdim", None)
+
+    # Step 2: Spatial Normalization (Orientation + Spacing)
+    need_orientation_or_spacing = False
+    if img_meta.get("spatial_shape") is None:
+        need_orientation_or_spacing = True
+    else:
+        if not torch.allclose(torch.tensor(img_spacing[:3]), torch.tensor([1.0, 1.0, 1.0])):
+            need_orientation_or_spacing = True
+        if not (img_meta.get("original_channel_dim", None) == 0 and img_meta.get("original_affine", None) is not None):
+            need_orientation_or_spacing = True
+    
+    if need_orientation_or_spacing:
+        print("DO PREPROCESS!!!")
+        preprocess = Compose([
+            Orientationd(keys=["label"], axcodes="RAS"),
+            Spacingd(keys=["label"], pixdim=(1.0, 1.0, 1.0), mode="nearest"),
+        ])
+        data = preprocess(data)
+    
+    # Step 3: Center Crop
+    def _center_crop_fn(img: torch.Tensor, crop_size=(144,144,144)):
+        _, D, H, W = img.shape
+        cd, ch, cw = crop_size
+        sd = (D - cd) // 2
+        sh = (H - ch) // 2
+        sw = (W - cw) // 2
+        cropped = img[:, sd:sd+cd, sh:sh+ch, sw:sw+cw]
+        crop_start = (sd, sh, sw)
+        return cropped, (D, H, W), crop_start
+    
+    if center_crop:
+        print("Applying center crop...")
+        data["label"], _, _ = _center_crop_fn(data["label"])
+    else:
+        print("No center crop applied.")
+    
+    # Step 4: ToTensor
+    to_tensor = ToTensord(keys=["label"])
+    data = to_tensor(data)
+    
+    # Step 5: Add batch dimension
+    label = data["label"]  # shape: (C, D, H, W)
+    label = label.unsqueeze(0) # (B=1, C, D, H, W)
+
+    print("Preprocessed label shape:", label.shape)  # (B=1, C, D, H, W)
+
+    return label
+    
+        
 def convert_prediction_to_label_backup(mean_prob: np.ndarray, threshold: float = 0.5) -> np.ndarray:
     """
     BraTS标签转换，输入 mean_prob 顺序：TC, WT, ET
