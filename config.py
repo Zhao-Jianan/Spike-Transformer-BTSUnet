@@ -4,8 +4,9 @@ class Config:
     def __init__(self):
         self.gpu_name = 'cuda:0'
         self.device = torch.device(self.gpu_name if torch.cuda.is_available() else "cpu")
-        self.seed =  42 # 42, 3407
+        self.seed =  3407 # 42, 3407
         self.use_amp = True  # 使用自动混合精度训练
+        self.split_data = False  # 是否划分测试集
         self.test_ratio = 0.1  # 测试集比例
         
         # # BraTS2018
@@ -15,12 +16,12 @@ class Config:
         # self.image_suffix = ".nii"
         # self.et_label = 4
         
-        # BraTS2020
-        self.root_dirs = ['/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData'] 
-        self.modalities = ['t1', 't1ce', 't2', 'flair']
-        self.modality_separator = "_"
-        self.image_suffix = ".nii"
-        self.et_label = 4
+        # # BraTS2020
+        # self.root_dirs = ['/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData'] 
+        # self.modalities = ['t1', 't1ce', 't2', 'flair']
+        # self.modality_separator = "_"
+        # self.image_suffix = ".nii"
+        # self.et_label = 4
         
         # # BraTS2021
         # self.root_dirs = ['/hpc/ajhz839/data/BraTS2021_Training_Data']
@@ -29,12 +30,12 @@ class Config:
         # self.image_suffix = ".nii.gz"
         # self.et_label = 4
         
-        # # BraTS2023
-        # self.root_dirs = ['/hpc/ajhz839/data/BraTS2023/train/']
-        # self.modalities = ['t1n', 't1c', 't2w', 't2f']
-        # self.modality_separator = "-" 
-        # self.image_suffix = ".nii.gz"    
-        # self.et_label = 3
+        # BraTS2023
+        self.root_dirs = ['/hpc/ajhz839/data/BraTS2023/train/']
+        self.modalities = ['t1n', 't1c', 't2w', 't2f']
+        self.modality_separator = "-" 
+        self.image_suffix = ".nii.gz"    
+        self.et_label = 3
         
         # # BraTS2025 SSA
         # self.root_dirs = ['/hpc/ajhz839/data/BraTS2023-SSA-V2/']
@@ -59,11 +60,11 @@ class Config:
         self.batch_size = 4
         self.k_folds = 5
         
-        self.loss_function = 'tversky' # dice, focal, dice_with_fp_penalty, tversky, adaptive_regional
+        self.loss_function = 'dice' # dice, focal, dice_with_fp_penalty, tversky, adaptive_regional
         self.loss_weights = [1.0, 1.0, 1.0] # [2.0, 1.0, 4.0] [1.0, 1.0, 1.0]
         self.train_crop_mode = "tumor_aware_random"  # tumor_aware_random, warmup_weighted_random, random, tumor_center
         self.val_crop_mode = 'tumor_aware_random' # tumor_aware_random, sliding_window, random, tumor_center
-        self.sliding_window_val = True # 是否200epoch后，在best_patch_dice_score的epoch使用滑动窗口验证
+        self.sliding_window_val = False # 是否200epoch后，在best_patch_dice_score的epoch使用滑动窗口验证
         self.overlap = 0.125
         self.num_workers = 8
 

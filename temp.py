@@ -1,68 +1,57 @@
-def pred_single_case(case_dir, model, inference_engine, device):
-    case_name = os.path.basename(case_dir)
-    print(f"Processing case: {case_name}")
-    image_paths = [os.path.join(case_dir, f"{case_name}_{mod}.nii") for mod in cfg.modalities]
+def batch_compute_metrics(
+    pred_dir, 
+    gt_root,
+    prob_dir=None,
+    metric_obj=None,
+    compute_hd95=False,
+    compute_sensitivity_specificity=False,
+    folded_prob_dir=False,
+):
+    pred_files = sorted([f for f in os.listdir(pred_dir) if f.endswith(".nii.gz")])
+    all_dice_scores = []
+    all_soft_dice_scores = []
+    all_hd95_scores = []
+    all_sensitivity_specificity_scores = []
 
-    # 获取预处理输出和原图信息（包括原始shape和crop位置）
-    x_batch, metadata = preprocess_for_inference(image_paths, return_metadata=True)  # 修改点1
-    x_batch = x_batch.to(device)
-    B, C, D, H, W = x_batch.shape
-    brain_width = np.array([[0, 0, 0], [D - 1, H - 1, W - 1]])
+    for pred_file in pred_files:
+        case_name = pred_file.replace("_pred_mask.nii.gz", "")
+        print(f"\nProcessing case: {case_name}")
+        pred_path = os.path.join(pred_dir, pred_file)
+        gt_path = find_gt_path(gt_root, case_name)
 
-    with torch.no_grad():
-        output = inference_engine(x_batch, model)
+        if gt_path is None:
+            print(f"[Warning] GT not found for {case_name}")
+            continue
 
-    output_prob = torch.sigmoid(output).squeeze(0).cpu().numpy()  # [C, D, H, W]
-    return output_prob, metadata
+        # ---- Hard Dice ----
+        dice = compute_dice_from_nifti(pred_path, gt_path)
+        all_dice_scores.append(dice)
 
+        # ---- Soft Dice ----
+        if prob_dir is not None and metric_obj is not None:
+            if folded_prob_dir:
+                prob_path = None
+                # 搜索5折中的匹配文件
+                for fold in range(5):
+                    candidate = os.path.join(prob_dir, f"fold{fold}", case_name + "_prob.npy")
+                    if os.path.exists(candidate):
+                        prob_path = candidate
+                        break
+                if prob_path is None:
+                    print(f"[Warning] Probability file not found for {case_name} in any fold.")
+                    continue
+            else:
+                prob_path = os.path.join(prob_dir, case_name + "_prob.npy")
+                if not os.path.exists(prob_path):
+                    print(f"[Warning] Probability file not found for {case_name}.")
+                    continue
 
-def restore_to_original_shape(cropped_label, original_shape, crop_start):
-    """
-    将中心裁剪过的预测结果还原回原图大小。
-    """
-    restored = np.zeros(original_shape, dtype=cropped_label.dtype)
-    z, y, x = crop_start
-    dz, dy, dx = cropped_label.shape
-    restored[z:z+dz, y:y+dy, x:x+dx] = cropped_label
-    return restored
+            prob_np = np.load(prob_path)  # shape (C, D, H, W)
+            gt_tensor = load_nifti_as_tensor(gt_path).long()
+            C = prob_np.shape[0]
+            gt_onehot = torch.nn.functional.one_hot(gt_tensor, num_classes=C).permute(3, 0, 1, 2).float()
+            prob_tensor = torch.from_numpy(prob_np).float()
+            soft_dice = compute_soft_dice(prob_tensor, gt_onehot, metric_obj)
+            all_soft_dice_scores.append(soft_dice)
 
-
-def run_inference_soft_single(case_dir, save_dir, model, inference_engine, device):
-    os.makedirs(save_dir, exist_ok=True)
-    
-    prob, metadata = pred_single_case(case_dir, model, inference_engine, device)
-
-    label_np = convert_prediction_to_label_suppress_fp(prob)  # (D, H, W)
-    label_np = np.transpose(label_np, (1, 2, 0))  # (H, W, D)
-
-    # 还原原始空间（前提是 metadata 包含 'original_shape' 和 'crop_start'）
-    restored_label = restore_to_original_shape(
-        label_np,
-        metadata["original_shape"],  # e.g., (H, W, D)
-        metadata["crop_start"]       # e.g., (z, y, x)
-    )
-
-    case_name = os.path.basename(case_dir)
-    ref_nii_path = os.path.join(case_dir, f"{case_name}_{cfg.modalities[cfg.modalities.index('t1ce')]}.nii")
-    ref_nii = nib.load(ref_nii_path)
-    pred_nii = nib.Nifti1Image(restored_label, affine=ref_nii.affine, header=ref_nii.header)
-
-    save_path = os.path.join(save_dir, f"{case_name}_pred_mask.nii.gz")
-    nib.save(pred_nii, save_path)
-
-
-def preprocess_for_inference(image_paths, return_metadata=False):
-    # 假设原图为 (H_orig, W_orig, D_orig)
-    # 假设你做了中心裁剪后的 shape 是 (144, 144, 144)
-
-    # 示例实现：
-    image, original_shape, crop_start = center_crop_and_normalize(image_paths)
-    x_batch = torch.from_numpy(image).unsqueeze(0)  # shape: [1, C, D, H, W]
-
-    if return_metadata:
-        return x_batch, {
-            "original_shape": original_shape,  # e.g., (H, W, D)
-            "crop_start": crop_start           # e.g., (z, y, x)
-        }
-    else:
-        return x_batch
+        # ----

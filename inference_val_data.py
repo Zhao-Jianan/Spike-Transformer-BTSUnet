@@ -1,6 +1,6 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import torch
 import nibabel as nib
 import numpy as np
@@ -11,6 +11,7 @@ from config import config as cfg
 import time
 from inference_helper import TemporalSlidingWindowInference, TemporalSlidingWindowInferenceWithROI
 from tqdm import tqdm
+import json
 from inference_utils import (
     preprocess_for_inference, convert_prediction_to_label_suppress_fp, postprocess_brats_label,
     check_all_folds_ckpt_exist, check_all_folds_val_txt_exist, restore_to_original_shape
@@ -37,12 +38,44 @@ def pred_single_case(case_dir, model, inference_engine, device, center_crop=True
     return output_prob, metadata
 
 
-def run_inference_soft_single(case_dir, save_dir, model, inference_engine, device, center_crop=True):
+def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inference_engine, device, center_crop=True):
     os.makedirs(save_dir, exist_ok=True)
+    if prob_save_dir is not None:
+        os.makedirs(prob_save_dir, exist_ok=True)
+        
     prob, metadata = pred_single_case(case_dir, model, inference_engine, device, center_crop=center_crop)
 
-    label_np = convert_prediction_to_label_suppress_fp(prob)  # shape: (D, H, W)
+    case_name = os.path.basename(case_dir)
+    if prob_save_dir:
+        prob_save_path = os.path.join(prob_save_dir, f"{case_name}_prob.npy")
+        np.save(prob_save_path, prob)
+        print(f"Saved probability map: {prob_save_path}")
 
+        # 保存metadata信息        
+        # 统一保存所有case的metadata.json路径
+        prob_base_dir = os.path.dirname(prob_save_dir.rstrip("/"))
+        metadata_json_path = os.path.join(prob_base_dir, "metadata.json")
+
+        # 读取已有metadata，如果文件不存在则创建空字典
+        if os.path.exists(metadata_json_path):
+            with open(metadata_json_path, "r") as f:
+                all_metadata = json.load(f)
+        else:
+            all_metadata = {}
+
+        # 更新当前case的metadata
+        all_metadata[case_name] = {
+            "original_shape": metadata["original_shape"],
+            "crop_start": metadata["crop_start"]
+        }
+
+        # 保存回metadata.json
+        with open(metadata_json_path, "w") as f:
+            json.dump(all_metadata, f, indent=2)
+        print(f"Updated metadata file: {metadata_json_path}")
+            
+    # 将预测结果转换为标签
+    label_np = convert_prediction_to_label_suppress_fp(prob)  # shape: (D, H, W)
 
     if center_crop:
         # 还原原始空间
@@ -74,7 +107,7 @@ def run_inference_soft_single(case_dir, save_dir, model, inference_engine, devic
     nib.save(pred_nii, save_path)
     
 
-def run_inference_folder_single(case_root, save_dir, model, inference_engine, device, whitelist=None, center_crop=True):
+def run_inference_folder_single(case_root, save_dir, prob_save_dir, model, inference_engine, device, whitelist=None, center_crop=True):
     os.makedirs(save_dir, exist_ok=True)
     
     # For other dataset
@@ -104,7 +137,7 @@ def run_inference_folder_single(case_root, save_dir, model, inference_engine, de
     print(f"Found {len(case_dirs)} cases to run.")
 
     for case_dir in tqdm(case_dirs, desc="Single Model Inference"):
-        run_inference_soft_single(case_dir, save_dir, model, inference_engine, device, center_crop=center_crop)
+        run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inference_engine, device, center_crop=center_crop)
 
 
 def build_model(ckpt_path):
@@ -137,6 +170,7 @@ def run_inference_all_folds(
     val_cases_dir,
     ckpt_dir,
     case_dir,
+    prob_base_dir,
     output_base_dir,
     device='cuda',
     num_folds=5,
@@ -163,13 +197,18 @@ def run_inference_all_folds(
             whitelist = [line.strip() for line in f if line.strip()]
 
         print(f"Running inference for fold {fold} with {len(whitelist)} cases")
-
+        
+        # 创建输出目录和概率保存目录
         output_dir = os.path.join(output_base_dir, f"val_fold{fold}_pred")
+        prob_save_dir = os.path.join(prob_base_dir, f"fold{fold}")
         os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(prob_save_dir, exist_ok=True)
 
-        run_inference_func(case_dir, output_dir, model, inference_engine, device, whitelist, center_crop=center_crop)
+        run_inference_func(case_dir, output_dir, prob_save_dir, model, inference_engine, device, whitelist, 
+                           center_crop=center_crop)
 
         print(f"Fold {fold} inference done. Results saved in {output_dir}")
+        print(f"Probabilities saved in {prob_save_dir}")
 
 
 
@@ -180,6 +219,7 @@ def main():
     ckpt_dir = f"/hpc/ajhz839/checkpoint/experiment_{experiment_id}/"  # 模型ckpt所在目录
     case_dir = "/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData/"
     output_base_dir = f"/hpc/ajhz839/validation/BraTS2020_val_pred_exp{experiment_id}/"
+    prob_base_dir = f"/hpc/ajhz839/validation/BraTS2020_val_prob_folds_exp{experiment_id}/"
 
     check_all_folds_ckpt_exist(ckpt_dir)
     check_all_folds_val_txt_exist(val_cases_dir)
@@ -193,6 +233,7 @@ def main():
         val_cases_dir=val_cases_dir,
         ckpt_dir=ckpt_dir,
         case_dir=case_dir,
+        prob_base_dir=prob_base_dir,
         output_base_dir=output_base_dir,
         device=cfg.device,
         num_folds=5,

@@ -1,6 +1,6 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "6"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import torch
 import torch.optim as optim
 from sklearn.model_selection import KFold, train_test_split
@@ -80,10 +80,15 @@ def main():
         raise ValueError(f"Unsupported loss function: {cfg.loss_function}")
     
     # 训练验证集 + 测试集划分
-    train_val_dirs, test_dirs = train_test_split(
-        case_dirs, test_size=cfg.test_ratio, random_state=cfg.seed, shuffle=True
-    )
-    save_case_list(test_dirs, name='test_cases', fold=None)
+    if cfg.split_data:
+        train_val_dirs, test_dirs = train_test_split(
+            case_dirs, test_size=cfg.test_ratio, random_state=cfg.seed, shuffle=True
+        )
+        save_case_list(test_dirs, name='test_cases', fold=None)
+    else:
+        train_val_dirs = case_dirs
+        test_dirs = []
+    # 打印数据集信息
     print(f"Total cases: {len(case_dirs)} | Train+Val: {len(train_val_dirs)} | Test: {len(test_dirs)}")
 
 

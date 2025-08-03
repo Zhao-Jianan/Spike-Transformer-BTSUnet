@@ -285,4 +285,26 @@ def restore_to_original_shape(cropped_label, original_shape, crop_start):
 
 def read_case_list(txt_path):
     with open(txt_path, "r") as f:
-        return sorted([line.strip() for line in f.readlines() if line.strip()])     
+        return sorted([line.strip() for line in f.readlines() if line.strip()]) 
+    
+    
+def convert_gt_to_structural_onehot(gt_tensor: torch.Tensor) -> torch.Tensor:
+    """
+    将 Ground Truth 标签 (值为 0, 1, 2, 4) 转换为结构级 one-hot tensor：
+    通道顺序为 [TC, WT, ET]，shape = (3, D, H, W)
+
+    TC: label 1 or 2
+    WT: label 1, 2, or 4
+    ET: label 1 only
+    """
+    if not isinstance(gt_tensor, torch.Tensor):
+        gt_tensor = torch.from_numpy(gt_tensor)
+
+    gt_np = gt_tensor.cpu().numpy()  # (D, H, W)
+    gt_tc = np.isin(gt_np, [1, 2])
+    gt_wt = np.isin(gt_np, [1, 2, 4])
+    gt_et = (gt_np == 1)
+
+    gt_structural = np.stack([gt_tc, gt_wt, gt_et], axis=0).astype(np.float32)  # (3, D, H, W)
+    return torch.from_numpy(gt_structural)  # float tensor
+    
