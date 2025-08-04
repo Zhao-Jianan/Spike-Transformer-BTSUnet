@@ -74,6 +74,36 @@ def dice_score_braTS(pred, target, eps=1e-5):
     return dice_dict
 
 
+def dice_score_braTS_batch(pred, target, eps=1e-5):
+    """
+    逐样本计算Dice，再求平均。
+    Args:
+        pred (Tensor): [B, 3, D, H, W], logits
+        target (Tensor): [B, 3, D, H, W], one-hot gt
+    Returns:
+        dice_dict (dict): 各类别平均Dice
+    """
+    def compute_dice(p, t):
+        inter = (p * t).sum()
+        union = p.sum() + t.sum()
+        return (2. * inter + eps) / (union + eps)
+
+    pred_prob = torch.sigmoid(pred)
+    pred_bin = (pred_prob > 0.5).float()
+    target_bin = target.float()
+
+    batch_size = pred.shape[0]
+    dice_sum = {'TC': 0.0, 'WT': 0.0, 'ET': 0.0}
+    for b in range(batch_size):
+        for i, key in enumerate(['TC', 'WT', 'ET']):
+            dice_val = compute_dice(pred_bin[b, i], target_bin[b, i])
+            dice_sum[key] += dice_val.item()
+
+    dice_avg = {k: v / batch_size for k, v in dice_sum.items()}
+    return dice_avg
+
+
+
 
 
 class BratsDiceMetric(nn.Module):

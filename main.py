@@ -1,6 +1,6 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 import torch
 import torch.optim as optim
 from sklearn.model_selection import KFold, train_test_split

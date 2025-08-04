@@ -1,6 +1,6 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "6"
 import torch
 import nibabel as nib
 import numpy as np
@@ -17,7 +17,7 @@ from inference_utils import (
     check_all_folds_ckpt_exist, check_all_folds_val_txt_exist, preprocess_for_label, restore_to_original_shape
     )
 
-from metrics import dice_score_braTS
+from metrics import dice_score_braTS, dice_score_braTS_batch
 
 def pred_single_case(case_dir, model, inference_engine, device, center_crop=True):
     case_name = os.path.basename(case_dir)
@@ -25,16 +25,16 @@ def pred_single_case(case_dir, model, inference_engine, device, center_crop=True
     image_paths = [os.path.join(case_dir, f"{case_name}_{mod}.nii") for mod in cfg.modalities]
 
     # 获取预处理输出和原图信息（包括原始shape和crop位置）
-    x_batch, metadata = preprocess_for_inference(image_paths, center_crop=center_crop)
-    x_batch = x_batch.to(device)
-    B, C, D, H, W = x_batch.shape
+    img, metadata = preprocess_for_inference(image_paths, center_crop=center_crop)
+    img = img.to(device)
+    B, C, D, H, W = img.shape
     brain_width = np.array([[0, 0, 0], [D-1, H-1, W-1]])
     
     with torch.no_grad():
         # output = inference_engine(x_batch, brain_width, model)
-        output = inference_engine(x_batch, model)
+        output = inference_engine(img, model)
 
-    output_for_dice =output.squeeze(0).cpu().numpy()
+    output_for_dice = output
     output_prob = torch.sigmoid(output).squeeze(0).cpu().numpy()  # [C, D, H, W]
     
     return output_prob, output_for_dice, metadata
@@ -46,7 +46,7 @@ def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inferenc
         os.makedirs(prob_save_dir, exist_ok=True)
     
     # 1. 推理获得概率图和 metadata    
-    prob, output_for_dice, metadata = pred_single_case(case_dir, model, inference_engine, device, center_crop=center_crop)
+    prob, pred_tensor, metadata = pred_single_case(case_dir, model, inference_engine, device, center_crop=center_crop)
     case_name = os.path.basename(case_dir)
 
     if prob_save_dir:
@@ -83,13 +83,20 @@ def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inferenc
     if os.path.exists(seg_path):
         # 读取 label 和预测概率图（已经是 [1, 3, D, H, W]）
         label_tensor = preprocess_for_label(seg_path, center_crop=center_crop)  # [1, 3, D, H, W]
-        pred_tensor = torch.from_numpy(output_for_dice).unsqueeze(0)  # [1, 3, D, H, W]
 
-        # 概率二值化
-        pred_tensor = (pred_tensor > 0.5).float()
+        print(f"label_tensor shape: {label_tensor.shape}")
+        print(f"pred_tensor shape: {pred_tensor.shape}")
+        
+        label_tensor = label_tensor.float().to(device)
+        if pred_tensor.device != device:
+            pred_tensor = pred_tensor.to(device)
+
+        print("Unique values in label tensor:", torch.unique(label_tensor))
+        print(f"[label] shape: {label_tensor.shape} | min: {label_tensor.min().item()} | max: {label_tensor.max().item()}")
+        print(f"[logits] shape: {pred_tensor.shape} | min: {pred_tensor.min().item()} | max: {pred_tensor.max().item()}")
 
         # 计算 Dice
-        dice_dict = dice_score_braTS(pred_tensor, label_tensor)
+        dice_dict = dice_score_braTS_batch(pred_tensor, label_tensor)
         print(f"Dice - Case {case_name} | TC: {dice_dict['TC']:.4f}, WT: {dice_dict['WT']:.4f}, ET: {dice_dict['ET']:.4f}")
     else:
         print(f"Warning: Ground truth not found for case {case_name} at {seg_path}, Dice not computed.")

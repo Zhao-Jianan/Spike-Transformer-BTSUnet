@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from metrics import dice_score_braTS, compute_hd95
+from metrics import dice_score_braTS, compute_hd95, dice_score_braTS_batch
 import time
 from inference_helper import TemporalSlidingWindowInference
 from config import config as cfg
@@ -283,7 +283,7 @@ def validate(val_loader, model, criterion, device, compute_hd, monitor=None, deb
                     print(f"Output: {output}")
                     break
 
-            dice = dice_score_braTS(output, y_onehot)  # dict: {'TC':..., 'WT':..., 'ET':...}
+            dice = dice_score_braTS_batch(output, y_onehot)  # dict: {'TC':..., 'WT':..., 'ET':...}
             # 累加各类别的dice值
             for key in total_dice.keys():
                 total_dice[key] += dice[key]
@@ -317,7 +317,7 @@ def validate_sliding_window(val_loader, model, criterion, device, compute_hd, mo
     total_dice = {'TC': 0.0, 'WT': 0.0, 'ET': 0.0}
 
     hd95s = []
-    print('Valid -------------->>>>>>>')
+    print('Sliding Window Valid -------------->>>>>>>')
     with torch.no_grad():
         for i, (x_seq, y) in enumerate(val_loader):
             if debug:
@@ -342,7 +342,7 @@ def validate_sliding_window(val_loader, model, criterion, device, compute_hd, mo
                     print(f"Output: {output}")
                     break
 
-            dice = dice_score_braTS(output, y_onehot)  # dict: {'TC':..., 'WT':..., 'ET':...}
+            dice = dice_score_braTS_batch(output, y_onehot)  # dict: {'TC':..., 'WT':..., 'ET':...}
             # 累加各类别的dice值
             for key in total_dice.keys():
                 total_dice[key] += dice[key]
@@ -458,33 +458,34 @@ def train_one_fold(
             print(f"[Fold {fold}] Epoch {epoch+1}: New best Patch Dice = {patch_val_mean_dice:.4f}, model saved.")
 
             # 滑动窗口验证
-            if  patch_val_mean_dice >= sliding_window_threshold and cfg.val_crop_mode != 'sliding_window' and cfg.sliding_window_val:
-                print(f"[Fold {fold}] Epoch {epoch+1}: Performing sliding window validation...")
-                # 计时开始
-                entire_val_start_time = time.time()
-                entire_val_loss, entire_val_dice, entire_val_hd95 = validate_sliding_window(
-                    sliding_window_val_loader, model, criterion, device, compute_hd, monitor=monitor_val, use_amp=use_amp)
-                entire_val_end_time = time.time()
-                entire_val_elapsed_time = entire_val_end_time - entire_val_start_time
-                print(f"[Fold {fold}] Epoch {epoch+1} entire val time: {entire_val_elapsed_time:.2f} seconds")
-                entire_val_mean_dice = sum(entire_val_dice.values()) / 3
-                entire_val_losses.append(entire_val_loss)
-                entire_val_dices.append(entire_val_dice)
-                entire_val_mean_dices.append(entire_val_mean_dice)
-                if compute_hd:
-                    entire_val_hd95s.append(entire_val_hd95)
+            if cfg.val_crop_mode != 'sliding_window' and cfg.sliding_window_val:
+                if  patch_val_mean_dice >= sliding_window_threshold or epoch == 0:
+                    print(f"[Fold {fold}] Epoch {epoch+1}: Performing sliding window validation...")
+                    # 计时开始
+                    entire_val_start_time = time.time()
+                    entire_val_loss, entire_val_dice, entire_val_hd95 = validate_sliding_window(
+                        sliding_window_val_loader, model, criterion, device, compute_hd, monitor=monitor_val, use_amp=use_amp)
+                    entire_val_end_time = time.time()
+                    entire_val_elapsed_time = entire_val_end_time - entire_val_start_time
+                    print(f"[Fold {fold}] Epoch {epoch+1} entire val time: {entire_val_elapsed_time:.2f} seconds")
+                    entire_val_mean_dice = sum(entire_val_dice.values()) / 3
+                    entire_val_losses.append(entire_val_loss)
+                    entire_val_dices.append(entire_val_dice)
+                    entire_val_mean_dices.append(entire_val_mean_dice)
+                    if compute_hd:
+                        entire_val_hd95s.append(entire_val_hd95)
 
-                val_dice_str = " | ".join([f"{k}: {v:.4f}" for k, v in entire_val_dice.items()])
+                    val_dice_str = " | ".join([f"{k}: {v:.4f}" for k, v in entire_val_dice.items()])
 
-                print(f"Sliding Window Validation Results | ")
-                print(f"Dice: {val_dice_str} | Mean: {entire_val_mean_dice:.4f}")
-                if compute_hd:
-                    print(f"95HD: {entire_val_hd95:.4f}")
-                    
-                if entire_val_mean_dice > entire_best_dice:
-                    entire_best_dice = entire_val_mean_dice
-                    torch.save(model.state_dict(), f'entire_best_model_fold{fold}.pth')
-                    print(f"[Fold {fold}] Epoch {epoch+1}: Sliding Window New best Dice = {entire_val_mean_dice:.4f}, model saved.")
+                    print(f"Sliding Window Validation Results | ")
+                    print(f"Dice: {val_dice_str} | Mean: {entire_val_mean_dice:.4f}")
+                    if compute_hd:
+                        print(f"95HD: {entire_val_hd95:.4f}")
+                        
+                    if entire_val_mean_dice > entire_best_dice:
+                        entire_best_dice = entire_val_mean_dice
+                        torch.save(model.state_dict(), f'entire_best_model_fold{fold}.pth')
+                        print(f"[Fold {fold}] Epoch {epoch+1}: Sliding Window New best Dice = {entire_val_mean_dice:.4f}, model saved.")
 
 
         if scheduler is not None:
