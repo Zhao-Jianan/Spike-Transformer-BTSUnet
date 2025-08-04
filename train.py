@@ -531,6 +531,10 @@ def train_one_fold(
                         entire_best_dice = entire_val_mean_dice
                         torch.save(model.state_dict(), f'entire_best_model_fold{fold}.pth')
                         print(f"[Fold {fold}] Epoch {epoch+1}: Sliding Window New best Dice = {entire_val_mean_dice:.4f}, model saved.")
+                    
+                    if entire_val_mean_dice_style2 > entire_best_dice_style2:
+                        entire_best_dice_style2 = entire_val_mean_dice_style2
+                        print(f"[Fold {fold}] Epoch {epoch+1}: Sliding Window New Style2 best Dice = {entire_val_mean_dice_style2:.4f}.")
 
 
         if scheduler is not None:

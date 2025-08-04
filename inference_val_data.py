@@ -1,6 +1,6 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "6"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import torch
 import nibabel as nib
 import numpy as np
@@ -18,6 +18,7 @@ from inference_utils import (
     )
 
 from metrics import dice_score_braTS, dice_score_braTS_batch
+from inference_dice_compute import dice_score_braTS_style
 
 def pred_single_case(case_dir, model, inference_engine, device, center_crop=True):
     case_name = os.path.basename(case_dir)
@@ -34,10 +35,9 @@ def pred_single_case(case_dir, model, inference_engine, device, center_crop=True
         # output = inference_engine(x_batch, brain_width, model)
         output = inference_engine(img, model)
 
-    output_for_dice = output
     output_prob = torch.sigmoid(output).squeeze(0).cpu().numpy()  # [C, D, H, W]
     
-    return output_prob, output_for_dice, metadata
+    return output_prob, output, metadata
 
 
 def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inference_engine, device, center_crop=True):
@@ -103,10 +103,29 @@ def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inferenc
             print(f"{name} pred voxels: {(pred_bin[0, i] > 0).sum().item()}")
             print(f"[label > 0.5] sum: {(label_tensor[0, i] > 0.5).sum().item()}")       # 目标中正样本体素数
             print(f"[pred_bin > 0.5] sum: {(pred_bin[0] > 0.5).sum().item()}")  # 预测中正样本体素数
+            
+
+        for i, key in enumerate(['TC', 'WT', 'ET']):
+            p = pred_bin[0, i]
+            t = label_tensor[0, i]
+            inter = (p * t).sum().item()
+            p_sum = p.sum().item()
+            t_sum = t.sum().item()
+            dice_val = (2 * inter + 1e-5) / (p_sum + t_sum + 1e-5)
+            print(f"Class {key}: pred sum={p_sum}, target sum={t_sum}, intersection={inter}, dice={dice_val:.6f}")
+
+            
 
         # 计算 Dice
-        dice_dict = dice_score_braTS(pred_tensor, label_tensor)
+        dice_dict = dice_score_braTS_batch(pred_tensor, label_tensor)
         print(f"Dice - Case {case_name} | TC: {dice_dict['TC']:.4f}, WT: {dice_dict['WT']:.4f}, ET: {dice_dict['ET']:.4f}")
+        
+        pred_tensor_style = pred_tensor.squeeze(0)  # 从 [1, 3, D, H, W] -> [3, D, H, W]
+        label_tensor_style = label_tensor.squeeze(0)
+        dice_dict_test2 = dice_score_braTS_style(pred_tensor_style, label_tensor_style)
+        tc, wt, et = dice_dict_test2
+        print(f"Dice (style) - Case {case_name} | TC: {tc:.4f}, WT: {wt:.4f}, ET: {et:.4f}")
+        
     else:
         print(f"Warning: Ground truth not found for case {case_name} at {seg_path}, Dice not computed.")
 
@@ -283,7 +302,7 @@ def main():
         output_base_dir=output_base_dir,
         device=cfg.device,
         num_folds=5,
-        center_crop=True,  # 是否进行中心裁剪
+        center_crop=False,  # 是否进行中心裁剪
         fold_to_run=None  # 跑全部fold 1~5
     )
 
