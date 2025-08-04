@@ -13,8 +13,8 @@ from inference_helper import TemporalSlidingWindowInference, TemporalSlidingWind
 from tqdm import tqdm
 import json
 from inference_utils import (
-    preprocess_for_inference, convert_prediction_to_label_suppress_fp, postprocess_brats_label,
-    check_all_folds_ckpt_exist, check_all_folds_val_txt_exist, preprocess_for_label, restore_to_original_shape
+    preprocess_for_inference_valid, convert_prediction_to_label_suppress_fp,
+    check_all_folds_ckpt_exist, check_all_folds_val_txt_exist, restore_to_original_shape
     )
 
 from metrics import dice_score_braTS, dice_score_braTS_batch
@@ -24,10 +24,14 @@ def pred_single_case(case_dir, model, inference_engine, device, center_crop=True
     case_name = os.path.basename(case_dir)
     print(f"Processing case: {case_name}")
     image_paths = [os.path.join(case_dir, f"{case_name}_{mod}.nii") for mod in cfg.modalities]
-
+    seg_path = os.path.join(case_dir, f"{case_name}_seg.nii")
+    print(f"Image paths: {image_paths}")
+    print(f"Ground truth path: {seg_path}")
+    
     # 获取预处理输出和原图信息（包括原始shape和crop位置）
-    img, metadata = preprocess_for_inference(image_paths, center_crop=center_crop)
+    img, gt_label, metadata = preprocess_for_inference_valid(image_paths, seg_path, center_crop=center_crop)
     img = img.to(device)
+    gt_label = gt_label.to(device)
     B, C, D, H, W = img.shape
     brain_width = np.array([[0, 0, 0], [D-1, H-1, W-1]])
     
@@ -35,9 +39,10 @@ def pred_single_case(case_dir, model, inference_engine, device, center_crop=True
         # output = inference_engine(x_batch, brain_width, model)
         output = inference_engine(img, model)
 
+
     output_prob = torch.sigmoid(output).squeeze(0).cpu().numpy()  # [C, D, H, W]
     
-    return output_prob, output, metadata
+    return output_prob, output, gt_label, metadata
 
 
 def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inference_engine, device, center_crop=True):
@@ -46,7 +51,7 @@ def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inferenc
         os.makedirs(prob_save_dir, exist_ok=True)
     
     # 1. 推理获得概率图和 metadata    
-    prob, pred_tensor, metadata = pred_single_case(case_dir, model, inference_engine, device, center_crop=center_crop)
+    prob, pred_tensor, label_tensor, metadata = pred_single_case(case_dir, model, inference_engine, device, center_crop=center_crop)
     case_name = os.path.basename(case_dir)
 
     if prob_save_dir:
@@ -78,58 +83,45 @@ def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inferenc
         print(f"Updated metadata file: {metadata_json_path}")
 
                
-    # 读取 ground truth 并计算 Dice（logits 阶段）
-    seg_path = os.path.join(case_dir, f"{case_name}_seg.nii")
-    if os.path.exists(seg_path):
-        # 读取 label 和预测概率图（已经是 [1, 3, D, H, W]）
-        label_tensor = preprocess_for_label(seg_path, center_crop=center_crop)  # [1, 3, D, H, W]
+    # 计算 Dice（logits 阶段）
+    print(f"label_tensor shape: {label_tensor.shape}")
+    print(f"pred_tensor shape: {pred_tensor.shape}")
+    
+    print("Unique values in label tensor:", torch.unique(label_tensor))
+    print(f"[label] shape: {label_tensor.shape} | min: {label_tensor.min().item()} | max: {label_tensor.max().item()}")
+    print(f"[logits] shape: {pred_tensor.shape} | min: {pred_tensor.min().item()} | max: {pred_tensor.max().item()}")
+    
+    pred_prob = torch.sigmoid(pred_tensor)
+    pred_bin = (pred_prob > 0.5).float()
 
-        print(f"label_tensor shape: {label_tensor.shape}")
-        print(f"pred_tensor shape: {pred_tensor.shape}")
+    for i, name in enumerate(['TC', 'WT', 'ET']):
+        print(f"{name} label voxels: {(label_tensor[0, i] > 0).sum().item()}")
+        print(f"{name} pred voxels: {(pred_bin[0, i] > 0).sum().item()}")
+        print(f"[label > 0.5] sum: {(label_tensor[0, i] > 0.5).sum().item()}")       # 目标中正样本体素数
+        print(f"[pred_bin > 0.5] sum: {(pred_bin[0] > 0.5).sum().item()}")  # 预测中正样本体素数
         
-        label_tensor = label_tensor.float().to(device)
-        if pred_tensor.device != device:
-            pred_tensor = pred_tensor.to(device)
 
-        print("Unique values in label tensor:", torch.unique(label_tensor))
-        print(f"[label] shape: {label_tensor.shape} | min: {label_tensor.min().item()} | max: {label_tensor.max().item()}")
-        print(f"[logits] shape: {pred_tensor.shape} | min: {pred_tensor.min().item()} | max: {pred_tensor.max().item()}")
-        
-        pred_prob = torch.sigmoid(pred_tensor)
-        pred_bin = (pred_prob > 0.5).float()
-
-        for i, name in enumerate(['TC', 'WT', 'ET']):
-            print(f"{name} label voxels: {(label_tensor[0, i] > 0).sum().item()}")
-            print(f"{name} pred voxels: {(pred_bin[0, i] > 0).sum().item()}")
-            print(f"[label > 0.5] sum: {(label_tensor[0, i] > 0.5).sum().item()}")       # 目标中正样本体素数
-            print(f"[pred_bin > 0.5] sum: {(pred_bin[0] > 0.5).sum().item()}")  # 预测中正样本体素数
-            
-
-        for i, key in enumerate(['TC', 'WT', 'ET']):
-            p = pred_bin[0, i]
-            t = label_tensor[0, i]
-            inter = (p * t).sum().item()
-            p_sum = p.sum().item()
-            t_sum = t.sum().item()
-            dice_val = (2 * inter + 1e-5) / (p_sum + t_sum + 1e-5)
-            print(f"Class {key}: pred sum={p_sum}, target sum={t_sum}, intersection={inter}, dice={dice_val:.6f}")
+    for i, key in enumerate(['TC', 'WT', 'ET']):
+        p = pred_bin[0, i]
+        t = label_tensor[0, i]
+        inter = (p * t).sum().item()
+        p_sum = p.sum().item()
+        t_sum = t.sum().item()
+        dice_val = (2 * inter + 1e-5) / (p_sum + t_sum + 1e-5)
+        print(f"Class {key}: pred sum={p_sum}, target sum={t_sum}, intersection={inter}, dice={dice_val:.6f}")
 
             
 
-        # 计算 Dice
-        dice_dict = dice_score_braTS_batch(pred_tensor, label_tensor)
-        print(f"Dice - Case {case_name} | TC: {dice_dict['TC']:.4f}, WT: {dice_dict['WT']:.4f}, ET: {dice_dict['ET']:.4f}")
+    # 计算 Dice
+    dice_dict = dice_score_braTS_batch(pred_tensor, label_tensor)
+    print(f"Dice - Case {case_name} | TC: {dice_dict['TC']:.4f}, WT: {dice_dict['WT']:.4f}, ET: {dice_dict['ET']:.4f}")
+    
+    pred_tensor_style = pred_tensor.squeeze(0)  # 从 [1, 3, D, H, W] -> [3, D, H, W]
+    label_tensor_style = label_tensor.squeeze(0)
+    dice_dict_test2 = dice_score_braTS_style(pred_tensor_style, label_tensor_style)
+    tc, wt, et = dice_dict_test2
+    print(f"Dice (style) - Case {case_name} | TC: {tc:.4f}, WT: {wt:.4f}, ET: {et:.4f}")
         
-        pred_tensor_style = pred_tensor.squeeze(0)  # 从 [1, 3, D, H, W] -> [3, D, H, W]
-        label_tensor_style = label_tensor.squeeze(0)
-        dice_dict_test2 = dice_score_braTS_style(pred_tensor_style, label_tensor_style)
-        tc, wt, et = dice_dict_test2
-        print(f"Dice (style) - Case {case_name} | TC: {tc:.4f}, WT: {wt:.4f}, ET: {et:.4f}")
-        
-    else:
-        print(f"Warning: Ground truth not found for case {case_name} at {seg_path}, Dice not computed.")
-
-
     # 将预测结果转换为标签
     label_np = convert_prediction_to_label_suppress_fp(prob)  # shape: (D, H, W)
 

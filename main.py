@@ -1,6 +1,6 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import torch
 import torch.optim as optim
 from sklearn.model_selection import KFold, train_test_split
@@ -136,17 +136,17 @@ def main():
 
 
         # 调用训练函数
-        train_losses, val_losses, val_dices, val_mean_dices, val_hd95s, lr_history = train_fold(
+        train_losses, val_losses, val_dices, val_mean_dices, val_dices_style2, val_mean_dices_style2, val_hd95s, lr_history = train_fold(
             train_loader, val_loader, sliding_window_val_loader, model, optimizer, criterion, cfg.device, cfg.num_epochs, \
                 fold, cfg.compute_hd, scheduler, early_stopping, cfg.use_amp
         )
         
         # 保存指标
-        save_metrics_to_file(train_losses, val_losses, val_dices, val_mean_dices, val_hd95s, lr_history, fold)
+        save_metrics_to_file(train_losses, val_losses, val_dices, val_mean_dices, val_dices_style2, val_mean_dices_style2, val_hd95s, lr_history, fold)
 
         # 绘制训练过程的图形
         plot_metrics(
-            train_losses, val_losses,  val_dices, val_mean_dices, val_hd95s, lr_history, fold
+            train_losses, val_losses,  val_dices, val_mean_dices, val_dices_style2, val_mean_dices_style2, val_hd95s, lr_history, fold
         )
 
     print("\nTraining and Validation completed across all folds.")

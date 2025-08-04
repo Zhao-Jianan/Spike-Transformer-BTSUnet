@@ -13,7 +13,7 @@ from inference_helper import TemporalSlidingWindowInference, TemporalSlidingWind
 from tqdm import tqdm
 import json
 from inference_utils import (
-    preprocess_for_inference, convert_prediction_to_label_suppress_fp, postprocess_brats_label,
+    preprocess_for_inference_test, convert_prediction_to_label_suppress_fp, postprocess_brats_label,
     check_all_folds_ckpt_exist, check_test_txt_exist, restore_to_original_shape, read_case_list
     )
 
@@ -24,7 +24,7 @@ def pred_single_case_soft(case_dir, prob_save_dir, model, inference_engine, devi
     print(f"Processing case: {case_name}")
     image_paths = [os.path.join(case_dir, f"{case_name}_{mod}.nii") for mod in cfg.modalities]
 
-    x_batch, metadata = preprocess_for_inference(image_paths, center_crop=center_crop)
+    x_batch, metadata = preprocess_for_inference_test(image_paths, center_crop=center_crop)
     if not center_crop:
         metadata = None
         

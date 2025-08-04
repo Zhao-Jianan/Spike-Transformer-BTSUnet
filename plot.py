@@ -1,31 +1,45 @@
 import matplotlib.pyplot as plt
 import os
 
-def plot_metrics(train_losses, val_losses, val_dices, val_mean_dices, val_hd95s, lr_history, fold_number):
+def plot_metrics(
+    train_losses, 
+    val_losses, 
+    val_dices, 
+    val_mean_dices, 
+    val_dices_style2, 
+    val_mean_dices_style2, 
+    val_hd95s, 
+    lr_history, 
+    fold_number):
+    
     epochs = range(1, len(train_losses) + 1)
 
-    # 拆分 val_dices 为多个类别
+    # 拆分 val_dices 和 val_dices_style2 为多个类别
     val_dices_wt = [d['WT'] for d in val_dices]
     val_dices_tc = [d['TC'] for d in val_dices]
     val_dices_et = [d['ET'] for d in val_dices]
-    
-    if len(val_hd95s) == len(epochs):
-        subplot_num = 4
-    else:
-        subplot_num = 3
-    
-    plt.figure(figsize=(20, subplot_num))  # 调整为更宽的图像，以适应4个子图
 
-    # Learning Rate 曲线
-    plt.subplot(1, subplot_num, 1)
+    val_dices_wt_style2 = [d['WT'] for d in val_dices_style2]
+    val_dices_tc_style2 = [d['TC'] for d in val_dices_style2]
+    val_dices_et_style2 = [d['ET'] for d in val_dices_style2]
+
+    # 判断是否绘制 HD95 曲线
+    has_hd95 = len(val_hd95s) == len(epochs)
+    rows = 3 if has_hd95 else 2
+    cols = 2
+
+    plt.figure(figsize=(12, rows * 4))
+
+    # Subplot 1: Learning Rate
+    plt.subplot(rows, cols, 1)
     plt.plot(epochs, lr_history, label='Learning Rate', color='orange')
     plt.title("Learning Rate Schedule")
     plt.xlabel("Epoch")
     plt.ylabel("LR")
     plt.grid(True)
 
-    # Loss 曲线
-    plt.subplot(1, subplot_num, 2)
+    # Subplot 2: Loss
+    plt.subplot(rows, cols, 2)
     plt.plot(epochs, train_losses, label='Train Loss')
     plt.plot(epochs, val_losses, label='Val Loss')
     plt.title("Loss Curve")
@@ -34,21 +48,33 @@ def plot_metrics(train_losses, val_losses, val_dices, val_mean_dices, val_hd95s,
     plt.legend()
     plt.grid(True)
 
-    # Dice 曲线
-    plt.subplot(1, subplot_num, 3)
+    # Subplot 3: Dice Scores (Style 1)
+    plt.subplot(rows, cols, 3)
     plt.plot(epochs, val_dices_wt, label='WT Dice')
     plt.plot(epochs, val_dices_tc, label='TC Dice')
     plt.plot(epochs, val_dices_et, label='ET Dice')
     plt.plot(epochs, val_mean_dices, label='Mean Dice', linestyle='--', color='black')
-    plt.title("Validation Dice Scores")
+    plt.title("Validation Dice Scores (Style 1)")
     plt.xlabel("Epoch")
     plt.ylabel("Dice")
     plt.legend()
     plt.grid(True)
 
-    # 95HD 曲线（仅当长度匹配时才绘制）
-    if len(val_hd95s) == len(epochs):
-        plt.subplot(1, 4, 4)
+    # Subplot 4: Dice Scores (Style 2)
+    plt.subplot(rows, cols, 4)
+    plt.plot(epochs, val_dices_wt_style2, label='WT Dice')
+    plt.plot(epochs, val_dices_tc_style2, label='TC Dice')
+    plt.plot(epochs, val_dices_et_style2, label='ET Dice')
+    plt.plot(epochs, val_mean_dices_style2, label='Mean Dice', linestyle='--', color='black')
+    plt.title("Validation Dice Scores (Style 2)")
+    plt.xlabel("Epoch")
+    plt.ylabel("Dice")
+    plt.legend()
+    plt.grid(True)
+
+    # Subplot 5 (optional): HD95
+    if has_hd95:
+        plt.subplot(rows, cols, 5)
         plt.plot(epochs, val_hd95s, 'r', label='Val 95HD')
         plt.title("Validation 95% Hausdorff Distance")
         plt.xlabel("Epoch")
@@ -64,3 +90,7 @@ def plot_metrics(train_losses, val_losses, val_dices, val_mean_dices, val_hd95s,
     save_path = f"visualise/metrics_fold{fold_number+1}.png"
     plt.savefig(save_path)
     plt.close()
+
+    
+    
+    

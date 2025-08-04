@@ -486,6 +486,7 @@ def train_one_fold(
 
         if patch_val_mean_dice_style2 > patch_best_dice_style2 and patch_val_mean_dice_style2 >= min_dice_threshold_style2:
             patch_best_dice_style2 = patch_val_mean_dice_style2
+            torch.save(model.state_dict(), f'best_model_fold{fold}_dice_style2.pth')
             print(f"[Fold {fold}] Epoch {epoch+1}: New Style2 best Patch Dice = {patch_val_mean_dice_style2:.4f}.")
         
         
@@ -497,7 +498,7 @@ def train_one_fold(
 
             # 滑动窗口验证
             if cfg.val_crop_mode != 'sliding_window' and cfg.sliding_window_val:
-                if  patch_val_mean_dice >= sliding_window_threshold or epoch == 0:
+                if  patch_val_mean_dice >= sliding_window_threshold:
                     print(f"[Fold {fold}] Epoch {epoch+1}: Performing sliding window validation...")
                     # 计时开始
                     entire_val_start_time = time.time()
@@ -534,6 +535,7 @@ def train_one_fold(
                     
                     if entire_val_mean_dice_style2 > entire_best_dice_style2:
                         entire_best_dice_style2 = entire_val_mean_dice_style2
+                        torch.save(model.state_dict(), f'entire_best_model_fold{fold}_dice_style2.pth')
                         print(f"[Fold {fold}] Epoch {epoch+1}: Sliding Window New Style2 best Dice = {entire_val_mean_dice_style2:.4f}.")
 
 
@@ -550,18 +552,18 @@ def train_one_fold(
                 print(f"[Fold {fold}] Early stopping at epoch {epoch+1}")
                 break
 
-    return train_losses, patch_val_losses, patch_val_dices, patch_val_mean_dices, patch_val_hd95s, lr_history
+    return train_losses, patch_val_losses, patch_val_dices, patch_val_mean_dices, patch_val_dices_style2, patch_val_mean_dices_style2, patch_val_hd95s, lr_history
 
 
 # 折训练函数
 def train_fold(train_loader, val_loader, sliding_window_val_loader, model, optimizer, criterion, device, num_epochs, fold, compute_hd, scheduler, early_stopping,use_amp):
     print(f"\n[Fold {fold+1}] Training Started")
     
-    train_losses, val_losses, val_dices, val_mean_dices, val_hd95s, lr_history = train_one_fold(
+    train_losses, val_losses, val_dices, val_mean_dices, val_dices_style2, val_mean_dices_style2, val_hd95s, lr_history = train_one_fold(
         train_loader, val_loader, sliding_window_val_loader, model, optimizer, criterion, device, num_epochs, fold+1, compute_hd, scheduler, early_stopping,use_amp
     )
     
     print(f"[Fold {fold+1}] Training Completed")
     
-    return train_losses, val_losses, val_dices, val_mean_dices, val_hd95s, lr_history
+    return train_losses, val_losses, val_dices, val_mean_dices, val_dices_style2, val_mean_dices_style2, val_hd95s, lr_history
 

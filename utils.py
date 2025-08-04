@@ -38,13 +38,17 @@ def init_weights(module):
             nn.init.constant_(module.out_proj.bias, 0)
 
 
-def save_metrics_to_file(train_losses, val_losses, val_dices, val_mean_dices, val_hd95s, lr_history, fold, output_dir="metrics"):
+def save_metrics_to_file(train_losses, val_losses, val_dices, val_mean_dices, val_dices_style2, val_mean_dices_style2, val_hd95s, lr_history, fold, output_dir="metrics"):
     os.makedirs(output_dir, exist_ok=True)
 
     # 拆分 val_dices 字典数组为独立的列表
     val_dices_wt = [d['WT'] for d in val_dices]
     val_dices_tc = [d['TC'] for d in val_dices]
     val_dices_et = [d['ET'] for d in val_dices]
+    
+    val_dices_wt_style2 = [d['WT'] for d in val_dices_style2]
+    val_dices_tc_style2 = [d['TC'] for d in val_dices_style2]
+    val_dices_et_style2 = [d['ET'] for d in val_dices_style2]
 
     data = {
         "train_losses": train_losses,
@@ -53,6 +57,10 @@ def save_metrics_to_file(train_losses, val_losses, val_dices, val_mean_dices, va
         "val_dices_tc": val_dices_tc,
         "val_dices_et": val_dices_et,
         "val_mean_dices": val_mean_dices,
+        "val_dices_wt_style2": val_dices_wt_style2,
+        "val_dices_tc_style2": val_dices_tc_style2,
+        "val_dices_et_style2": val_dices_et_style2,
+        "val_mean_dices_style2": val_mean_dices_style2,
         "val_hd95s": val_hd95s,
         "lr_history": lr_history
     }
