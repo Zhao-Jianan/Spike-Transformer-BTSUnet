@@ -249,6 +249,7 @@ def validate(val_loader, model, criterion, device, compute_hd, monitor=None, deb
     
     total_loss = 0.0
     total_dice = {'TC': 0.0, 'WT': 0.0, 'ET': 0.0}
+    total_dice_style2 = {'TC': 0.0, 'WT': 0.0, 'ET': 0.0}
 
     hd95s = []
     print('Valid -------------->>>>>>>')
@@ -283,10 +284,14 @@ def validate(val_loader, model, criterion, device, compute_hd, monitor=None, deb
                     print(f"Output: {output}")
                     break
 
-            dice = dice_score_braTS_batch(output, y_onehot)  # dict: {'TC':..., 'WT':..., 'ET':...}
+            dice = dice_score_braTS(output, y_onehot)  # dict: {'TC':..., 'WT':..., 'ET':...}
+            dice_style2 = dice_score_braTS_batch(output, y_onehot)
             # 累加各类别的dice值
             for key in total_dice.keys():
                 total_dice[key] += dice[key]
+                
+            for key in total_dice_style2.keys():
+                total_dice_style2[key] += dice_style2[key]
 
             if compute_hd:
                 hd95 = compute_hd95(output, y_onehot)
@@ -302,9 +307,10 @@ def validate(val_loader, model, criterion, device, compute_hd, monitor=None, deb
     num_batches = len(val_loader)
     avg_loss = total_loss / num_batches
     avg_dice = {k: v / num_batches for k, v in total_dice.items()}
+    avg_dice_style2 = {k: v / num_batches for k, v in total_dice_style2.items()}
     avg_hd95 = np.nanmean(hd95s) if compute_hd else np.nan
     
-    return avg_loss, avg_dice, avg_hd95
+    return avg_loss, avg_dice, avg_dice_style2, avg_hd95
 
 
 def validate_sliding_window(val_loader, model, criterion, device, compute_hd, monitor=None, debug=False, use_amp=True):
@@ -315,6 +321,7 @@ def validate_sliding_window(val_loader, model, criterion, device, compute_hd, mo
     
     total_loss = 0.0
     total_dice = {'TC': 0.0, 'WT': 0.0, 'ET': 0.0}
+    total_dice_style2 = {'TC': 0.0, 'WT': 0.0, 'ET': 0.0}
 
     hd95s = []
     print('Sliding Window Valid -------------->>>>>>>')
@@ -342,10 +349,14 @@ def validate_sliding_window(val_loader, model, criterion, device, compute_hd, mo
                     print(f"Output: {output}")
                     break
 
-            dice = dice_score_braTS_batch(output, y_onehot)  # dict: {'TC':..., 'WT':..., 'ET':...}
+            dice = dice_score_braTS(output, y_onehot)  # dict: {'TC':..., 'WT':..., 'ET':...}
+            dice_style2 = dice_score_braTS_batch(output, y_onehot)
             # 累加各类别的dice值
             for key in total_dice.keys():
                 total_dice[key] += dice[key]
+
+            for key in total_dice_style2.keys():
+                total_dice_style2[key] += dice_style2[key]
 
             if compute_hd:
                 hd95 = compute_hd95(output, y_onehot)
@@ -361,9 +372,10 @@ def validate_sliding_window(val_loader, model, criterion, device, compute_hd, mo
     num_batches = len(val_loader)
     avg_loss = total_loss / num_batches
     avg_dice = {k: v / num_batches for k, v in total_dice.items()}
+    avg_dice_style2 = {k: v / num_batches for k, v in total_dice_style2.items()}
     avg_hd95 = np.nanmean(hd95s) if compute_hd else np.nan
-    
-    return avg_loss, avg_dice, avg_hd95
+
+    return avg_loss, avg_dice, avg_dice_style2, avg_hd95
 
 
 
@@ -386,19 +398,30 @@ def train_one_fold(
     patch_val_losses = []
     patch_val_dices = []
     patch_val_mean_dices = []
+
+    patch_val_dices_style2 = []
+    patch_val_mean_dices_style2 = []
+
     patch_val_hd95s = []
     
     entire_val_losses = []
     entire_val_dices = []
     entire_val_mean_dices = []
+
+    entire_val_dices_style2 = []
+    entire_val_mean_dices_style2 = []
+
     entire_val_hd95s = []
 
 
     lr_history = []
 
     patch_best_dice = 0.0
+    patch_best_dice_style2 = 0.0
     entire_best_dice = 0.0
+    entire_best_dice_style2 = 0.0
     min_dice_threshold = 0.80
+    min_dice_threshold_style2 = 0.70
     sliding_window_threshold = 0.86
     warmup_epochs = cfg.num_warmup_epochs
     train_crop_mode = cfg.train_crop_mode
@@ -429,7 +452,10 @@ def train_one_fold(
         train_losses.append(train_loss)
         
         patch_val_start_time = time.time()
-        patch_val_loss, patch_val_dice, patch_val_hd95 = validate(val_loader, model, criterion, device, compute_hd, monitor=monitor_val, use_amp=use_amp)
+        patch_val_loss, patch_val_dice, patch_val_dice_style2, patch_val_hd95 = validate(
+            val_loader, model, criterion, device, compute_hd, monitor=monitor_val, use_amp=use_amp)
+        
+        
         # 计时结束
         patch_val_end_time = time.time()
         patch_val_elapsed_time = patch_val_end_time - patch_val_start_time
@@ -438,17 +464,29 @@ def train_one_fold(
         patch_val_losses.append(patch_val_loss)
         patch_val_dices.append(patch_val_dice)
         patch_val_mean_dices.append(patch_val_mean_dice)
+
+        patch_val_mean_dice_style2 = sum(patch_val_dice_style2.values()) / 3
+        patch_val_dices_style2.append(patch_val_dice_style2)
+        patch_val_mean_dices_style2.append(patch_val_mean_dice_style2)
+
         if compute_hd:
             patch_val_hd95s.append(patch_val_hd95)
 
         val_dice_str = " | ".join([f"{k}: {v:.4f}" for k, v in patch_val_dice.items()])
+        val_dice_str_style2 = " | ".join([f"{k}: {v:.4f}" for k, v in patch_val_dice_style2.items()])
 
         print(f"[Fold {fold}] Epoch {epoch+1}/{num_epochs} | "
               f"Train Loss: {train_loss:.4f} | Val Loss: {patch_val_loss:.4f}")
         print(f"Dice: {val_dice_str} | Mean: {patch_val_mean_dice:.4f}")
+        print(f"Dice Style2: {val_dice_str_style2} | Mean Style2: {patch_val_mean_dice_style2:.4f}")
         if compute_hd:
             print(f"95HD: {patch_val_hd95:.4f}")
         
+
+
+        if patch_val_mean_dice_style2 > patch_best_dice_style2 and patch_val_mean_dice_style2 >= min_dice_threshold_style2:
+            patch_best_dice_style2 = patch_val_mean_dice_style2
+            print(f"[Fold {fold}] Epoch {epoch+1}: New Style2 best Patch Dice = {patch_val_mean_dice_style2:.4f}.")
         
         
         # 保存检查点
@@ -463,7 +501,7 @@ def train_one_fold(
                     print(f"[Fold {fold}] Epoch {epoch+1}: Performing sliding window validation...")
                     # 计时开始
                     entire_val_start_time = time.time()
-                    entire_val_loss, entire_val_dice, entire_val_hd95 = validate_sliding_window(
+                    entire_val_loss, entire_val_dice, entire_val_dice_style2, entire_val_hd95 = validate_sliding_window(
                         sliding_window_val_loader, model, criterion, device, compute_hd, monitor=monitor_val, use_amp=use_amp)
                     entire_val_end_time = time.time()
                     entire_val_elapsed_time = entire_val_end_time - entire_val_start_time
@@ -472,13 +510,20 @@ def train_one_fold(
                     entire_val_losses.append(entire_val_loss)
                     entire_val_dices.append(entire_val_dice)
                     entire_val_mean_dices.append(entire_val_mean_dice)
+
+                    entire_val_mean_dice_style2 = sum(entire_val_dice_style2.values()) / 3
+                    entire_val_dices_style2.append(entire_val_dice_style2)
+                    entire_val_mean_dices_style2.append(entire_val_mean_dice_style2)
+
                     if compute_hd:
                         entire_val_hd95s.append(entire_val_hd95)
 
                     val_dice_str = " | ".join([f"{k}: {v:.4f}" for k, v in entire_val_dice.items()])
+                    val_dice_str_style2 = " | ".join([f"{k}: {v:.4f}" for k, v in entire_val_dice_style2.items()])
 
                     print(f"Sliding Window Validation Results | ")
                     print(f"Dice: {val_dice_str} | Mean: {entire_val_mean_dice:.4f}")
+                    print(f"Dice Style2: {val_dice_str_style2} | Mean Style2: {entire_val_mean_dice_style2:.4f}")
                     if compute_hd:
                         print(f"95HD: {entire_val_hd95:.4f}")
                         

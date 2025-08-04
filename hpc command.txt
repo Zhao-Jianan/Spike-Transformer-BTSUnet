@@ -159,23 +159,27 @@ nohup python spikeformerunet74/main.py > New-74-log_bra20_spikeformerunet_144c64
 [75]
 nohup python spikeformerunet75/main.py > New-75-log_bra23_spikeformerunet_144c64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed3407_aware05.out 2>&1 &
 [76]
-nohup python spikeformerunet76/main.py > New-76-log_bra20_spikeformerunet_144c64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware05_newmetrics.out 2>&1 &
-[77]
+nohup python spikeformerunet76/main.py > New-76-log_bra20_spikeformerunet_144c64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware05.out 2>&1 &
+[77] NOT START
 nohup python spikeformerunet77/main.py > New-77-log_bra20_spikeformerunet_144c64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware05_sw086_newmetrics.out 2>&1 &
+[78]
+nohup python spikeformerunet78/main.py > New-78-log_bra20_spikeformerunet_144c64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware05_test.out 2>&1 &
+
+
 
 1 10 12 13 15
 
 ps -u $USER -f | grep python
 pgrep -u $USER -a python
 pkill -f filename.py
-pkill -f spikeformerunet73/main.py
-pkill -f spikeformerunet68/inference_val_data.py
+pkill -f spikeformerunet76/main.py
+pkill -f spikeformerunet70/inference_resemble.py
 
 pkill -f spikeformerunet15/inference_resemble.py
 [infer]
-nohup python spikeformerunet68/inference_val_data.py > inference_log_exp68_val_data.out 2>&1 &
+nohup python spikeformerunet70/inference_val_data.py > inference_log_exp70_val_data.out 2>&1 &
 
-nohup python spikeformerunet71/inference_resemble.py > inference_log_exp71_test_data.out 2>&1 &
+nohup python spikeformerunet70/inference_resemble.py > inference_log_exp70_test_data.out 2>&1 &
 
 
 

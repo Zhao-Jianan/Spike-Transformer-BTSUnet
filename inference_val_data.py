@@ -94,9 +94,18 @@ def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inferenc
         print("Unique values in label tensor:", torch.unique(label_tensor))
         print(f"[label] shape: {label_tensor.shape} | min: {label_tensor.min().item()} | max: {label_tensor.max().item()}")
         print(f"[logits] shape: {pred_tensor.shape} | min: {pred_tensor.min().item()} | max: {pred_tensor.max().item()}")
+        
+        pred_prob = torch.sigmoid(pred_tensor)
+        pred_bin = (pred_prob > 0.5).float()
+
+        for i, name in enumerate(['TC', 'WT', 'ET']):
+            print(f"{name} label voxels: {(label_tensor[0, i] > 0).sum().item()}")
+            print(f"{name} pred voxels: {(pred_bin[0, i] > 0).sum().item()}")
+            print(f"[label > 0.5] sum: {(label_tensor[0, i] > 0.5).sum().item()}")       # 目标中正样本体素数
+            print(f"[pred_bin > 0.5] sum: {(pred_bin[0] > 0.5).sum().item()}")  # 预测中正样本体素数
 
         # 计算 Dice
-        dice_dict = dice_score_braTS_batch(pred_tensor, label_tensor)
+        dice_dict = dice_score_braTS(pred_tensor, label_tensor)
         print(f"Dice - Case {case_name} | TC: {dice_dict['TC']:.4f}, WT: {dice_dict['WT']:.4f}, ET: {dice_dict['ET']:.4f}")
     else:
         print(f"Warning: Ground truth not found for case {case_name} at {seg_path}, Dice not computed.")

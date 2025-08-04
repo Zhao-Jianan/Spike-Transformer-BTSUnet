@@ -198,7 +198,7 @@ def main():
     
     
     # BraTS2020 test data inference
-    experiment_id = 71
+    experiment_id = 70
     prob_base_dir = f"/hpc/ajhz839/inference/BraTS2020/test_prob_folds_exp{experiment_id}/"
     ensemble_output_dir = f"/hpc/ajhz839/inference/BraTS2020/test_pred_soft_ensemble_exp{experiment_id}/"
     case_dir = "/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData/"

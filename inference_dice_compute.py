@@ -293,6 +293,7 @@ def batch_compute_metrics(
 ):
     pred_files = sorted([f for f in os.listdir(pred_dir) if f.endswith(".nii.gz")])
     all_dice_scores = []
+    all_dice_scores_style2 = []  # BraTS style Dice
     compare_mode = "crop"  # 默认比较模式为裁剪
     all_soft_dice_scores = []
     all_hd95_scores = []
@@ -317,8 +318,9 @@ def batch_compute_metrics(
 
         # 计算 Hard Dice
         dice = compute_dice_from_nifti(pred_path, gt_path)
-        # dice = compute_dice_from_nifti_braTS_style(pred_path, gt_path)
+        dice_style2 = compute_dice_from_nifti_braTS_style(pred_path, gt_path)
         all_dice_scores.append(dice)
+        all_dice_scores_style2.append(dice_style2)
         
         
         # Soft Dice (if probability maps provided)
@@ -397,6 +399,7 @@ def batch_compute_metrics(
 
     # 打印平均值
     print_avg_metrics(all_dice_scores, prefix="Hard Dice")
+    print_avg_metrics(all_dice_scores_style2, prefix="BraTS Style Dice", keys=["Dice_TC", "Dice_WT", "Dice_ET", "Mean_Dice"])
     if all_soft_dice_scores:
         print_avg_metrics(all_soft_dice_scores, prefix="Soft Dice")
 
@@ -437,42 +440,42 @@ def main():
         # batch_compute_dice_trainingset(gt_root, pred_dir)
         
         # BraTS 2020 Validation
-        # experiment_index = 71
-        # fold_index = 1
-        # gt_root = './data/BraTS2020/MICCAI_BraTS2020_TrainingData'
-        # pred_dir = f'./Pred/BraTS2020/validation_dataset/BraTS2020_val_pred_exp{experiment_index}/val_fold{fold_index}_pred'
-        # prob_dir = f'./Pred/BraTS2020/validation_dataset/BraTS2020_val_prob_folds_exp{experiment_index}/fold{fold_index}'
-        # metric_obj = BratsDiceMetric()
-        # metadata_json_path = f'./Pred/BraTS2020/validation_dataset/BraTS2020_val_prob_folds_exp{experiment_index}/metadata.json'
-
-        # batch_compute_metrics(
-        #     pred_dir=pred_dir,
-        #     gt_root=gt_root,
-        #     prob_dir=prob_dir, # 概率图
-        #     is_resemble=False, # 是否是5折重叠的概率图
-        #     metric_obj=metric_obj, # BratsDiceMetric 实例
-        #     compute_hd95=False,
-        #     compute_sensitivity_specificity=False,
-        #     metadata_json_path=metadata_json_path
-        #     )
-        
-
-        # BraTS 2020 Test
-        experiment_index = 71
+        experiment_index = 70
+        fold_index = 5
         gt_root = './data/BraTS2020/MICCAI_BraTS2020_TrainingData'
-        pred_dir = f'./Pred/BraTS2020/test_dataset/test_pred_soft_ensemble_exp{experiment_index}'
-        prob_dir = None # f'./Pred/BraTS2020/test_dataset/test_prob_soft_ensemble_exp{experiment_index}'
+        pred_dir = f'./Pred/BraTS2020/validation_dataset/BraTS2020_val_pred_exp{experiment_index}/val_fold{fold_index}_pred'
+        prob_dir = f'./Pred/BraTS2020/validation_dataset/BraTS2020_val_prob_folds_exp{experiment_index}/fold{fold_index}'
         metric_obj = None # BratsDiceMetric()
+        metadata_json_path = None # f'./Pred/BraTS2020/validation_dataset/BraTS2020_val_prob_folds_exp{experiment_index}/metadata.json'
 
         batch_compute_metrics(
             pred_dir=pred_dir,
             gt_root=gt_root,
             prob_dir=prob_dir, # 概率图
-            is_resemble=True, # 是否是5折重叠的概率图
+            is_resemble=False, # 是否是5折重叠的概率图
             metric_obj=metric_obj, # BratsDiceMetric 实例
-            compute_hd95=True,
-            compute_sensitivity_specificity=True
+            compute_hd95=False,
+            compute_sensitivity_specificity=False,
+            metadata_json_path=metadata_json_path
             )
+        
+
+        # # BraTS 2020 Test
+        # experiment_index = 70
+        # gt_root = './data/BraTS2020/MICCAI_BraTS2020_TrainingData'
+        # pred_dir = f'./Pred/BraTS2020/test_dataset/test_pred_soft_ensemble_exp{experiment_index}'
+        # prob_dir = None # f'./Pred/BraTS2020/test_dataset/test_prob_soft_ensemble_exp{experiment_index}'
+        # metric_obj = None # BratsDiceMetric()
+
+        # batch_compute_metrics(
+        #     pred_dir=pred_dir,
+        #     gt_root=gt_root,
+        #     prob_dir=prob_dir, # 概率图
+        #     is_resemble=True, # 是否是5折重叠的概率图
+        #     metric_obj=metric_obj, # BratsDiceMetric 实例
+        #     compute_hd95=True,
+        #     compute_sensitivity_specificity=True
+        #     )
 
 
     else:
