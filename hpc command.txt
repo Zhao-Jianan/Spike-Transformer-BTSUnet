@@ -183,3 +183,6 @@ nohup python spikeformerunet70/inference_resemble.py > inference_log_exp70_test_
 
 [check val data]
 nohup python spikeformerunet15/check_dataset_split.py > dataset_split_log.out 2>&1 &
+
+
+[sh]
