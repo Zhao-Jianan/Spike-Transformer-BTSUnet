@@ -1,13 +1,13 @@
 #!/bin/bash
 
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=0
 export nnFormer_raw_data_base="/hpc/ajhz839/compared_models/nnFormer/project/nnFormer_raw/"
 export nnFormer_preprocessed="/hpc/ajhz839/compared_models/nnFormer/project/nnFormer_preprocessed/"
 export RESULTS_FOLDER="/hpc/ajhz839/compared_models/nnFormer/project/nnFormer_results/"
 
 TASK_ID=501
 DATASET_NAME="BraTS2020"
-TASK_DIR="$nnFormer_raw_data_base/Dataset${TASK_ID}_${DATASET_NAME}"
+TASK_DIR="$nnFormer_raw_data_base/Task${TASK_ID}_${DATASET_NAME}"
 cd $TASK_DIR
 
 for i in {0..4}

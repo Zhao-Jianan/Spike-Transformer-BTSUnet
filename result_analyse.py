@@ -12,6 +12,11 @@ def find_best_val_mean_dice(json_path):
     val_dices_tc = data["val_dices_tc"]
     val_dices_et = data["val_dices_et"]
     val_mean_dices = data["val_mean_dices"]
+    if "val_mean_dices_style2" in data:
+        val_dices_wt_style2 = data["val_dices_wt_style2"]
+        val_dices_tc_style2 = data["val_dices_tc_style2"]
+        val_dices_et_style2 = data["val_dices_et_style2"]
+        val_mean_dices_style2 = data["val_mean_dices_style2"]
 
     # 找到 val_mean_dices 的最大值索引
     best_idx = val_mean_dices.index(max(val_mean_dices))
@@ -24,11 +29,24 @@ def find_best_val_mean_dice(json_path):
     print(f"val_dices_tc: {val_dices_tc[best_idx]}")
     print(f"val_dices_et: {val_dices_et[best_idx]}")
     print(f"val_mean_dices: {val_mean_dices[best_idx]}")
+    
+    
+    if "val_mean_dices_style2" in data:
+        best_idx_style2 = val_mean_dices_style2.index(max(val_mean_dices_style2))
+        print(f"\n===================================")
+        print(f"======Best performance style2======")
+        print(f"Best index: {best_idx_style2 + 1}")
+        print(f"train_losses: {train_losses[best_idx_style2]}")
+        print(f"val_losses: {val_losses[best_idx_style2]}")
+        print(f"val_dices_wt_style2: {val_dices_wt_style2[best_idx_style2]}")
+        print(f"val_dices_tc_style2: {val_dices_tc_style2[best_idx_style2]}")
+        print(f"val_dices_et_style2: {val_dices_et_style2[best_idx_style2]}")
+        print(f"val_mean_dices_style2: {val_mean_dices_style2[best_idx_style2]}")
 
 
 def main():
     root_path = "./Result/"
-    experiment_name = "70-bra20_spikeformerunet_144c64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware1"
+    experiment_name = "76-bra20_spikeformerunet_144c64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware05"
     fold_num = "5"
     file_path = f"{root_path}{experiment_name}/fold_{fold_num}_metrics.json"
 

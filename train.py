@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from metrics import dice_score_braTS, compute_hd95, dice_score_braTS_batch
+from metrics import dice_score_braTS_overall, compute_hd95, dice_score_braTS_per_sample_avg
 import time
 from inference_helper import TemporalSlidingWindowInference
 from config import config as cfg
@@ -284,8 +284,8 @@ def validate(val_loader, model, criterion, device, compute_hd, monitor=None, deb
                     print(f"Output: {output}")
                     break
 
-            dice = dice_score_braTS(output, y_onehot)  # dict: {'TC':..., 'WT':..., 'ET':...}
-            dice_style2 = dice_score_braTS_batch(output, y_onehot)
+            dice = dice_score_braTS_overall(output, y_onehot)  # dict: {'TC':..., 'WT':..., 'ET':...}
+            dice_style2 = dice_score_braTS_per_sample_avg(output, y_onehot)
             # 累加各类别的dice值
             for key in total_dice.keys():
                 total_dice[key] += dice[key]
@@ -349,8 +349,8 @@ def validate_sliding_window(val_loader, model, criterion, device, compute_hd, mo
                     print(f"Output: {output}")
                     break
 
-            dice = dice_score_braTS(output, y_onehot)  # dict: {'TC':..., 'WT':..., 'ET':...}
-            dice_style2 = dice_score_braTS_batch(output, y_onehot)
+            dice = dice_score_braTS_overall(output, y_onehot)  # dict: {'TC':..., 'WT':..., 'ET':...}
+            dice_style2 = dice_score_braTS_per_sample_avg(output, y_onehot)
             # 累加各类别的dice值
             for key in total_dice.keys():
                 total_dice[key] += dice[key]

@@ -394,6 +394,7 @@ def batch_compute_metrics(
             all_sensitivity_specificity_scores.append(scores)
 
         print(f"{case_name}: dice: {dice} | HD95: {hd95 if compute_hd95 else 'N/A'}")
+        print(f"{case_name}: dice style2: {dice_style2}")
         if compute_sensitivity_specificity:
             print(f"{case_name}: sensitivity & specificity: {scores}")
 
@@ -415,9 +416,76 @@ def batch_compute_metrics(
                 "Specificity_WT", "Specificity_TC", "Specificity_ET", "Mean_Specificity"
             ]
         )
+    
+    return all_dice_scores, all_dice_scores_style2, all_soft_dice_scores, all_hd95_scores, all_sensitivity_specificity_scores
 
     
-    
+def inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_style, metric_obj=None, metadata_json_path = None):
+    """
+    计算验证集数据的 Dice 分数
+    """
+
+    all_fold_dice_scores = []
+    all_fold_dice_scores_style2 = []
+    all_fold_soft_dice_scores = []
+
+    gt_root = './data/BraTS2020/MICCAI_BraTS2020_TrainingData'
+    for fold_index in range(1, 6):
+        print(f"Processing fold {fold_index} for experiment {experiment_index} with style {dice_score_style}")
+        if dice_score_style == 1:
+            pred_dir = f'./Pred/BraTS2020/validation_dataset/BraTS2020_val_pred_exp{experiment_index}/val_fold{fold_index}_pred'
+            prob_dir = f'./Pred/BraTS2020/validation_dataset/BraTS2020_val_prob_folds_exp{experiment_index}/fold{fold_index}'
+        elif dice_score_style == 2:
+            pred_dir = f'./Pred/BraTS2020/validation_dataset/BraTS2020_val_pred_exp{experiment_index}_dice_style2/val_fold{fold_index}_pred'
+            prob_dir = f'./Pred/BraTS2020/validation_dataset/BraTS2020_val_prob_folds_exp{experiment_index}_dice_style2/fold{fold_index}'
+
+        all_dice_scores, all_dice_scores_style2, all_soft_dice_scores, _, _ = batch_compute_metrics(
+            pred_dir=pred_dir,
+            gt_root=gt_root,
+            prob_dir=prob_dir, # 概率图
+            is_resemble=False, # 是否是5折重叠的概率图
+            metric_obj=metric_obj, # BratsDiceMetric 实例
+            compute_hd95=False,
+            compute_sensitivity_specificity=False,
+            metadata_json_path=metadata_json_path
+            )
+        
+        all_fold_dice_scores.append(all_dice_scores)
+        all_fold_dice_scores_style2.append(all_dice_scores_style2)
+        all_fold_soft_dice_scores.append(all_soft_dice_scores)
+
+    # 打印所有折的平均值
+    print("\n============================================")
+    print("\n============================================")
+    print("\n=== Average Dice Scores across all folds ===")
+    print("\n============================================")
+    print("\n============================================")
+    for i in range(5):
+        print(f"\nFold {i+1}:")
+        print_avg_metrics(all_fold_dice_scores[i], prefix="Hard Dice")
+        print_avg_metrics(all_fold_dice_scores_style2[i], prefix="BraTS Style Dice", keys=["Dice_TC", "Dice_WT", "Dice_ET", "Mean_Dice"])
+        if all_soft_dice_scores:
+            print_avg_metrics(all_fold_soft_dice_scores[i], prefix="Soft Dice")
+
+
+def inference_dice_compute_for_brats20_test_data(experiment_index, dice_score_style, metric_obj=None, metadata_json_path = None):   
+        gt_root = './data/BraTS2020/MICCAI_BraTS2020_TrainingData'
+        if dice_score_style == 1:
+            pred_dir = f'./Pred/BraTS2020/test_dataset/test_pred_soft_ensemble_exp{experiment_index}'
+        elif dice_score_style == 2:
+            pred_dir = f'./Pred/BraTS2020/test_dataset/test_pred_soft_ensemble_exp{experiment_index}_dice_style2'
+        prob_dir = None # f'./Pred/BraTS2020/test_dataset/test_prob_soft_ensemble_exp{experiment_index}'
+        metric_obj = None # BratsDiceMetric()
+
+        batch_compute_metrics(
+            pred_dir=pred_dir,
+            gt_root=gt_root,
+            prob_dir=prob_dir, # 概率图
+            is_resemble=True, # 是否是5折重叠的概率图
+            metric_obj=metric_obj, # BratsDiceMetric 实例
+            compute_hd95=True,
+            compute_sensitivity_specificity=True
+            )
     
 
 
@@ -440,42 +508,16 @@ def main():
         # batch_compute_dice_trainingset(gt_root, pred_dir)
         
         # BraTS 2020 Validation
-        experiment_index = 70
-        fold_index = 5
-        gt_root = './data/BraTS2020/MICCAI_BraTS2020_TrainingData'
-        pred_dir = f'./Pred/BraTS2020/validation_dataset/BraTS2020_val_pred_exp{experiment_index}/val_fold{fold_index}_pred'
-        prob_dir = f'./Pred/BraTS2020/validation_dataset/BraTS2020_val_prob_folds_exp{experiment_index}/fold{fold_index}'
-        metric_obj = None # BratsDiceMetric()
-        metadata_json_path = None # f'./Pred/BraTS2020/validation_dataset/BraTS2020_val_prob_folds_exp{experiment_index}/metadata.json'
+        # experiment_index = 76
+        # dice_score_style = 2
+        # inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_style, metric_obj=None, metadata_json_path = None)
 
-        batch_compute_metrics(
-            pred_dir=pred_dir,
-            gt_root=gt_root,
-            prob_dir=prob_dir, # 概率图
-            is_resemble=False, # 是否是5折重叠的概率图
-            metric_obj=metric_obj, # BratsDiceMetric 实例
-            compute_hd95=False,
-            compute_sensitivity_specificity=False,
-            metadata_json_path=metadata_json_path
-            )
         
 
-        # # BraTS 2020 Test
-        # experiment_index = 70
-        # gt_root = './data/BraTS2020/MICCAI_BraTS2020_TrainingData'
-        # pred_dir = f'./Pred/BraTS2020/test_dataset/test_pred_soft_ensemble_exp{experiment_index}'
-        # prob_dir = None # f'./Pred/BraTS2020/test_dataset/test_prob_soft_ensemble_exp{experiment_index}'
-        # metric_obj = None # BratsDiceMetric()
-
-        # batch_compute_metrics(
-        #     pred_dir=pred_dir,
-        #     gt_root=gt_root,
-        #     prob_dir=prob_dir, # 概率图
-        #     is_resemble=True, # 是否是5折重叠的概率图
-        #     metric_obj=metric_obj, # BratsDiceMetric 实例
-        #     compute_hd95=True,
-        #     compute_sensitivity_specificity=True
-        #     )
+        # BraTS 2020 Test
+        experiment_index = 76
+        dice_score_style = 1
+        inference_dice_compute_for_brats20_test_data(experiment_index, dice_score_style, metric_obj=None, metadata_json_path = None)
 
 
     else:

@@ -44,7 +44,7 @@ def dice_score_per_class(pred, target, num_classes=4, eps=1e-5):
 
 
 
-def dice_score_braTS(pred, target, eps=1e-5):
+def dice_score_braTS_overall(pred, target, eps=1e-5):
     """
     Compute Dice scores for TC, WT, ET masks.
 
@@ -74,7 +74,7 @@ def dice_score_braTS(pred, target, eps=1e-5):
     return dice_dict
 
 
-def dice_score_braTS_batch(pred, target, eps=1e-5):
+def dice_score_braTS_per_sample_avg(pred, target, eps=1e-5):
     """
     逐样本计算Dice，再求平均。
     Args:

@@ -1,6 +1,6 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 import torch
 import nibabel as nib
 import numpy as np
@@ -17,7 +17,7 @@ from inference_utils import (
     check_all_folds_ckpt_exist, check_all_folds_val_txt_exist, restore_to_original_shape
     )
 
-from metrics import dice_score_braTS, dice_score_braTS_batch
+from metrics import dice_score_braTS_overall, dice_score_braTS_per_sample_avg
 from inference_dice_compute import dice_score_braTS_style
 
 def pred_single_case(case_dir, model, inference_engine, device, center_crop=True):
@@ -83,22 +83,22 @@ def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inferenc
         print(f"Updated metadata file: {metadata_json_path}")
 
                
-    # 计算 Dice（logits 阶段）
-    print(f"label_tensor shape: {label_tensor.shape}")
-    print(f"pred_tensor shape: {pred_tensor.shape}")
+    # # 计算 Dice（logits 阶段）
+    # print(f"label_tensor shape: {label_tensor.shape}")
+    # print(f"pred_tensor shape: {pred_tensor.shape}")
     
-    print("Unique values in label tensor:", torch.unique(label_tensor))
-    print(f"[label] shape: {label_tensor.shape} | min: {label_tensor.min().item()} | max: {label_tensor.max().item()}")
-    print(f"[logits] shape: {pred_tensor.shape} | min: {pred_tensor.min().item()} | max: {pred_tensor.max().item()}")
+    # print("Unique values in label tensor:", torch.unique(label_tensor))
+    # print(f"[label] shape: {label_tensor.shape} | min: {label_tensor.min().item()} | max: {label_tensor.max().item()}")
+    # print(f"[logits] shape: {pred_tensor.shape} | min: {pred_tensor.min().item()} | max: {pred_tensor.max().item()}")
     
     pred_prob = torch.sigmoid(pred_tensor)
     pred_bin = (pred_prob > 0.5).float()
 
-    for i, name in enumerate(['TC', 'WT', 'ET']):
-        print(f"{name} label voxels: {(label_tensor[0, i] > 0).sum().item()}")
-        print(f"{name} pred voxels: {(pred_bin[0, i] > 0).sum().item()}")
-        print(f"[label > 0.5] sum: {(label_tensor[0, i] > 0.5).sum().item()}")       # 目标中正样本体素数
-        print(f"[pred_bin > 0.5] sum: {(pred_bin[0] > 0.5).sum().item()}")  # 预测中正样本体素数
+    # for i, name in enumerate(['TC', 'WT', 'ET']):
+    #     print(f"{name} label voxels: {(label_tensor[0, i] > 0).sum().item()}")
+    #     print(f"{name} pred voxels: {(pred_bin[0, i] > 0).sum().item()}")
+    #     print(f"[label > 0.5] sum: {(label_tensor[0, i] > 0.5).sum().item()}")       # 目标中正样本体素数
+    #     print(f"[pred_bin > 0.5] sum: {(pred_bin[0] > 0.5).sum().item()}")  # 预测中正样本体素数
         
 
     for i, key in enumerate(['TC', 'WT', 'ET']):
@@ -113,7 +113,7 @@ def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inferenc
             
 
     # 计算 Dice
-    dice_dict = dice_score_braTS_batch(pred_tensor, label_tensor)
+    dice_dict = dice_score_braTS_per_sample_avg(pred_tensor, label_tensor)
     print(f"Dice - Case {case_name} | TC: {dice_dict['TC']:.4f}, WT: {dice_dict['WT']:.4f}, ET: {dice_dict['ET']:.4f}")
     
     pred_tensor_style = pred_tensor.squeeze(0)  # 从 [1, 3, D, H, W] -> [3, D, H, W]
@@ -195,6 +195,8 @@ def run_inference_folder_single(case_root, save_dir, prob_save_dir, model, infer
     if dice_dicts:
         avg_dice = {key: sum(d[key] for d in dice_dicts) / len(dice_dicts) for key in dice_dicts[0]}
         print(f"Average Dice - TC: {avg_dice['TC']:.4f}, WT: {avg_dice['WT']:.4f}, ET: {avg_dice['ET']:.4f}")
+    
+    return avg_dice if dice_dicts else None
 
 
 def build_model(ckpt_path):
@@ -231,6 +233,7 @@ def run_inference_all_folds(
     output_base_dir,
     device='cuda',
     num_folds=5,
+    dice_style=1,    
     center_crop=True,  # 是否进行中心裁剪
     fold_to_run=None  # None表示跑所有fold，否则跑指定fold
 ):
@@ -238,9 +241,14 @@ def run_inference_all_folds(
 
     # folds从1开始到num_folds
     folds = [fold_to_run] if fold_to_run is not None else list(range(1, num_folds + 1))
+    
+    avg_dice_list = []
 
     for fold in folds:
-        ckpt_path = os.path.join(ckpt_dir, f"best_model_fold{fold}.pth")
+        if dice_style == 1:
+            ckpt_path = os.path.join(ckpt_dir, f"best_model_fold{fold}.pth")
+        elif dice_style == 2:
+            ckpt_path = os.path.join(ckpt_dir, f"best_model_fold{fold}_dice_style2.pth")
         model = build_model_func(ckpt_path)
         model.to(device)
         model.eval()
@@ -261,22 +269,34 @@ def run_inference_all_folds(
         os.makedirs(output_dir, exist_ok=True)
         os.makedirs(prob_save_dir, exist_ok=True)
 
-        run_inference_func(case_dir, output_dir, prob_save_dir, model, inference_engine, device, whitelist, 
+        avg_dice = run_inference_func(case_dir, output_dir, prob_save_dir, model, inference_engine, device, whitelist, 
                            center_crop=center_crop)
+        avg_dice_list.append(avg_dice)
 
         print(f"Fold {fold} inference done. Results saved in {output_dir}")
         print(f"Probabilities saved in {prob_save_dir}")
+        
+    for i, fold in enumerate(folds):
+        if avg_dice_list[i] is not None:
+            print(f"Fold {fold} - Average Dice: TC: {avg_dice_list[i]['TC']:.4f}, WT: {avg_dice_list[i]['WT']:.4f}, ET: {avg_dice_list[i]['ET']:.4f}")
+        else:
+            print(f"Fold {fold} - No valid cases processed.")
 
 
 
 def main():
     # BraTS 2020 validation data inference
-    experiment_id = 68
-    val_cases_dir = './val_cases/'  # 存放验证集case名单txt的文件夹
+    experiment_id = 76
+    dice_style = 2
+    val_cases_dir = './val_cases/'  # 存放验证集case名单txt的文件夹    
     ckpt_dir = f"/hpc/ajhz839/checkpoint/experiment_{experiment_id}/"  # 模型ckpt所在目录
     case_dir = "/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData/"
-    output_base_dir = f"/hpc/ajhz839/validation/BraTS2020_val_pred_exp{experiment_id}/"
-    prob_base_dir = f"/hpc/ajhz839/validation/BraTS2020_val_prob_folds_exp{experiment_id}/"
+    if dice_style == 1:
+        output_base_dir = f"/hpc/ajhz839/validation/BraTS2020_val_pred_exp{experiment_id}/"
+        prob_base_dir = f"/hpc/ajhz839/validation/BraTS2020_val_prob_folds_exp{experiment_id}/"
+    elif dice_style == 2:
+        output_base_dir = f"/hpc/ajhz839/validation/BraTS2020_val_pred_exp{experiment_id}_dice_style2/"
+        prob_base_dir = f"/hpc/ajhz839/validation/BraTS2020_val_prob_folds_exp{experiment_id}_dice_style2/"
 
     check_all_folds_ckpt_exist(ckpt_dir)
     check_all_folds_val_txt_exist(val_cases_dir)
@@ -295,7 +315,8 @@ def main():
         device=cfg.device,
         num_folds=5,
         center_crop=False,  # 是否进行中心裁剪
-        fold_to_run=None  # 跑全部fold 1~5
+        dice_style=dice_style,  # 1表示原始Dice计算，2表示新的Dice计算方式
+        fold_to_run=None,  # 跑全部fold 1~5
     )
 
     

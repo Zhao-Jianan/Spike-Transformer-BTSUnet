@@ -1,0 +1,1136 @@
+{
+    "name": "BraTS2020",
+    "modality": {
+        "0": "T1",
+        "1": "T1ce",
+        "2": "T2",
+        "3": "FLAIR"
+    },
+    "labels": {
+        "background": 0,
+        "whole tumor": [
+            1,
+            2,
+            3
+        ],
+        "tumor core": [
+            2,
+            3
+        ],
+        "enhancing tumor": [
+            3
+        ]
+    },
+    "regions_class_order": [
+        1,
+        2,
+        3
+    ],
+    "file_ending": ".nii",
+    "test": [
+        "./imagesTs/BraTS20_Training_327.nii",
+        "./imagesTs/BraTS20_Training_034.nii",
+        "./imagesTs/BraTS20_Training_016.nii",
+        "./imagesTs/BraTS20_Training_346.nii",
+        "./imagesTs/BraTS20_Training_058.nii",
+        "./imagesTs/BraTS20_Training_240.nii",
+        "./imagesTs/BraTS20_Training_077.nii",
+        "./imagesTs/BraTS20_Training_120.nii",
+        "./imagesTs/BraTS20_Training_306.nii",
+        "./imagesTs/BraTS20_Training_127.nii",
+        "./imagesTs/BraTS20_Training_234.nii",
+        "./imagesTs/BraTS20_Training_040.nii",
+        "./imagesTs/BraTS20_Training_154.nii",
+        "./imagesTs/BraTS20_Training_056.nii",
+        "./imagesTs/BraTS20_Training_156.nii",
+        "./imagesTs/BraTS20_Training_279.nii",
+        "./imagesTs/BraTS20_Training_001.nii",
+        "./imagesTs/BraTS20_Training_232.nii",
+        "./imagesTs/BraTS20_Training_334.nii",
+        "./imagesTs/BraTS20_Training_102.nii",
+        "./imagesTs/BraTS20_Training_010.nii",
+        "./imagesTs/BraTS20_Training_181.nii",
+        "./imagesTs/BraTS20_Training_073.nii",
+        "./imagesTs/BraTS20_Training_238.nii",
+        "./imagesTs/BraTS20_Training_256.nii",
+        "./imagesTs/BraTS20_Training_138.nii",
+        "./imagesTs/BraTS20_Training_226.nii",
+        "./imagesTs/BraTS20_Training_195.nii",
+        "./imagesTs/BraTS20_Training_194.nii",
+        "./imagesTs/BraTS20_Training_366.nii",
+        "./imagesTs/BraTS20_Training_026.nii",
+        "./imagesTs/BraTS20_Training_109.nii",
+        "./imagesTs/BraTS20_Training_043.nii",
+        "./imagesTs/BraTS20_Training_357.nii",
+        "./imagesTs/BraTS20_Training_289.nii",
+        "./imagesTs/BraTS20_Training_115.nii",
+        "./imagesTs/BraTS20_Training_064.nii"
+    ],
+    "training": [
+        {
+            "image": "./imagesTr/BraTS20_Training_023.nii",
+            "label": "./labelsTr/BraTS20_Training_023.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_177.nii",
+            "label": "./labelsTr/BraTS20_Training_177.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_250.nii",
+            "label": "./labelsTr/BraTS20_Training_250.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_298.nii",
+            "label": "./labelsTr/BraTS20_Training_298.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_031.nii",
+            "label": "./labelsTr/BraTS20_Training_031.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_220.nii",
+            "label": "./labelsTr/BraTS20_Training_220.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_110.nii",
+            "label": "./labelsTr/BraTS20_Training_110.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_125.nii",
+            "label": "./labelsTr/BraTS20_Training_125.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_091.nii",
+            "label": "./labelsTr/BraTS20_Training_091.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_057.nii",
+            "label": "./labelsTr/BraTS20_Training_057.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_006.nii",
+            "label": "./labelsTr/BraTS20_Training_006.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_046.nii",
+            "label": "./labelsTr/BraTS20_Training_046.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_146.nii",
+            "label": "./labelsTr/BraTS20_Training_146.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_287.nii",
+            "label": "./labelsTr/BraTS20_Training_287.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_219.nii",
+            "label": "./labelsTr/BraTS20_Training_219.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_251.nii",
+            "label": "./labelsTr/BraTS20_Training_251.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_342.nii",
+            "label": "./labelsTr/BraTS20_Training_342.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_094.nii",
+            "label": "./labelsTr/BraTS20_Training_094.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_078.nii",
+            "label": "./labelsTr/BraTS20_Training_078.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_133.nii",
+            "label": "./labelsTr/BraTS20_Training_133.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_310.nii",
+            "label": "./labelsTr/BraTS20_Training_310.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_079.nii",
+            "label": "./labelsTr/BraTS20_Training_079.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_047.nii",
+            "label": "./labelsTr/BraTS20_Training_047.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_221.nii",
+            "label": "./labelsTr/BraTS20_Training_221.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_074.nii",
+            "label": "./labelsTr/BraTS20_Training_074.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_230.nii",
+            "label": "./labelsTr/BraTS20_Training_230.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_326.nii",
+            "label": "./labelsTr/BraTS20_Training_326.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_209.nii",
+            "label": "./labelsTr/BraTS20_Training_209.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_083.nii",
+            "label": "./labelsTr/BraTS20_Training_083.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_095.nii",
+            "label": "./labelsTr/BraTS20_Training_095.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_311.nii",
+            "label": "./labelsTr/BraTS20_Training_311.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_293.nii",
+            "label": "./labelsTr/BraTS20_Training_293.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_345.nii",
+            "label": "./labelsTr/BraTS20_Training_345.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_193.nii",
+            "label": "./labelsTr/BraTS20_Training_193.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_076.nii",
+            "label": "./labelsTr/BraTS20_Training_076.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_085.nii",
+            "label": "./labelsTr/BraTS20_Training_085.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_358.nii",
+            "label": "./labelsTr/BraTS20_Training_358.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_017.nii",
+            "label": "./labelsTr/BraTS20_Training_017.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_284.nii",
+            "label": "./labelsTr/BraTS20_Training_284.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_008.nii",
+            "label": "./labelsTr/BraTS20_Training_008.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_114.nii",
+            "label": "./labelsTr/BraTS20_Training_114.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_117.nii",
+            "label": "./labelsTr/BraTS20_Training_117.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_164.nii",
+            "label": "./labelsTr/BraTS20_Training_164.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_158.nii",
+            "label": "./labelsTr/BraTS20_Training_158.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_321.nii",
+            "label": "./labelsTr/BraTS20_Training_321.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_223.nii",
+            "label": "./labelsTr/BraTS20_Training_223.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_142.nii",
+            "label": "./labelsTr/BraTS20_Training_142.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_018.nii",
+            "label": "./labelsTr/BraTS20_Training_018.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_247.nii",
+            "label": "./labelsTr/BraTS20_Training_247.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_025.nii",
+            "label": "./labelsTr/BraTS20_Training_025.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_203.nii",
+            "label": "./labelsTr/BraTS20_Training_203.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_325.nii",
+            "label": "./labelsTr/BraTS20_Training_325.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_361.nii",
+            "label": "./labelsTr/BraTS20_Training_361.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_259.nii",
+            "label": "./labelsTr/BraTS20_Training_259.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_141.nii",
+            "label": "./labelsTr/BraTS20_Training_141.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_347.nii",
+            "label": "./labelsTr/BraTS20_Training_347.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_235.nii",
+            "label": "./labelsTr/BraTS20_Training_235.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_365.nii",
+            "label": "./labelsTr/BraTS20_Training_365.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_333.nii",
+            "label": "./labelsTr/BraTS20_Training_333.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_272.nii",
+            "label": "./labelsTr/BraTS20_Training_272.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_173.nii",
+            "label": "./labelsTr/BraTS20_Training_173.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_197.nii",
+            "label": "./labelsTr/BraTS20_Training_197.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_020.nii",
+            "label": "./labelsTr/BraTS20_Training_020.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_354.nii",
+            "label": "./labelsTr/BraTS20_Training_354.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_080.nii",
+            "label": "./labelsTr/BraTS20_Training_080.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_168.nii",
+            "label": "./labelsTr/BraTS20_Training_168.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_199.nii",
+            "label": "./labelsTr/BraTS20_Training_199.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_105.nii",
+            "label": "./labelsTr/BraTS20_Training_105.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_286.nii",
+            "label": "./labelsTr/BraTS20_Training_286.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_119.nii",
+            "label": "./labelsTr/BraTS20_Training_119.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_350.nii",
+            "label": "./labelsTr/BraTS20_Training_350.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_032.nii",
+            "label": "./labelsTr/BraTS20_Training_032.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_184.nii",
+            "label": "./labelsTr/BraTS20_Training_184.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_169.nii",
+            "label": "./labelsTr/BraTS20_Training_169.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_140.nii",
+            "label": "./labelsTr/BraTS20_Training_140.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_336.nii",
+            "label": "./labelsTr/BraTS20_Training_336.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_176.nii",
+            "label": "./labelsTr/BraTS20_Training_176.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_060.nii",
+            "label": "./labelsTr/BraTS20_Training_060.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_112.nii",
+            "label": "./labelsTr/BraTS20_Training_112.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_149.nii",
+            "label": "./labelsTr/BraTS20_Training_149.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_007.nii",
+            "label": "./labelsTr/BraTS20_Training_007.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_254.nii",
+            "label": "./labelsTr/BraTS20_Training_254.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_011.nii",
+            "label": "./labelsTr/BraTS20_Training_011.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_104.nii",
+            "label": "./labelsTr/BraTS20_Training_104.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_082.nii",
+            "label": "./labelsTr/BraTS20_Training_082.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_224.nii",
+            "label": "./labelsTr/BraTS20_Training_224.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_297.nii",
+            "label": "./labelsTr/BraTS20_Training_297.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_352.nii",
+            "label": "./labelsTr/BraTS20_Training_352.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_318.nii",
+            "label": "./labelsTr/BraTS20_Training_318.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_148.nii",
+            "label": "./labelsTr/BraTS20_Training_148.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_204.nii",
+            "label": "./labelsTr/BraTS20_Training_204.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_093.nii",
+            "label": "./labelsTr/BraTS20_Training_093.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_070.nii",
+            "label": "./labelsTr/BraTS20_Training_070.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_351.nii",
+            "label": "./labelsTr/BraTS20_Training_351.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_097.nii",
+            "label": "./labelsTr/BraTS20_Training_097.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_144.nii",
+            "label": "./labelsTr/BraTS20_Training_144.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_282.nii",
+            "label": "./labelsTr/BraTS20_Training_282.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_098.nii",
+            "label": "./labelsTr/BraTS20_Training_098.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_324.nii",
+            "label": "./labelsTr/BraTS20_Training_324.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_024.nii",
+            "label": "./labelsTr/BraTS20_Training_024.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_038.nii",
+            "label": "./labelsTr/BraTS20_Training_038.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_145.nii",
+            "label": "./labelsTr/BraTS20_Training_145.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_123.nii",
+            "label": "./labelsTr/BraTS20_Training_123.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_068.nii",
+            "label": "./labelsTr/BraTS20_Training_068.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_166.nii",
+            "label": "./labelsTr/BraTS20_Training_166.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_353.nii",
+            "label": "./labelsTr/BraTS20_Training_353.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_295.nii",
+            "label": "./labelsTr/BraTS20_Training_295.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_126.nii",
+            "label": "./labelsTr/BraTS20_Training_126.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_147.nii",
+            "label": "./labelsTr/BraTS20_Training_147.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_211.nii",
+            "label": "./labelsTr/BraTS20_Training_211.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_312.nii",
+            "label": "./labelsTr/BraTS20_Training_312.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_182.nii",
+            "label": "./labelsTr/BraTS20_Training_182.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_313.nii",
+            "label": "./labelsTr/BraTS20_Training_313.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_178.nii",
+            "label": "./labelsTr/BraTS20_Training_178.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_281.nii",
+            "label": "./labelsTr/BraTS20_Training_281.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_364.nii",
+            "label": "./labelsTr/BraTS20_Training_364.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_263.nii",
+            "label": "./labelsTr/BraTS20_Training_263.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_291.nii",
+            "label": "./labelsTr/BraTS20_Training_291.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_262.nii",
+            "label": "./labelsTr/BraTS20_Training_262.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_130.nii",
+            "label": "./labelsTr/BraTS20_Training_130.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_039.nii",
+            "label": "./labelsTr/BraTS20_Training_039.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_012.nii",
+            "label": "./labelsTr/BraTS20_Training_012.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_246.nii",
+            "label": "./labelsTr/BraTS20_Training_246.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_186.nii",
+            "label": "./labelsTr/BraTS20_Training_186.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_113.nii",
+            "label": "./labelsTr/BraTS20_Training_113.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_245.nii",
+            "label": "./labelsTr/BraTS20_Training_245.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_233.nii",
+            "label": "./labelsTr/BraTS20_Training_233.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_118.nii",
+            "label": "./labelsTr/BraTS20_Training_118.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_341.nii",
+            "label": "./labelsTr/BraTS20_Training_341.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_356.nii",
+            "label": "./labelsTr/BraTS20_Training_356.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_267.nii",
+            "label": "./labelsTr/BraTS20_Training_267.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_335.nii",
+            "label": "./labelsTr/BraTS20_Training_335.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_165.nii",
+            "label": "./labelsTr/BraTS20_Training_165.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_155.nii",
+            "label": "./labelsTr/BraTS20_Training_155.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_200.nii",
+            "label": "./labelsTr/BraTS20_Training_200.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_198.nii",
+            "label": "./labelsTr/BraTS20_Training_198.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_362.nii",
+            "label": "./labelsTr/BraTS20_Training_362.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_292.nii",
+            "label": "./labelsTr/BraTS20_Training_292.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_116.nii",
+            "label": "./labelsTr/BraTS20_Training_116.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_212.nii",
+            "label": "./labelsTr/BraTS20_Training_212.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_027.nii",
+            "label": "./labelsTr/BraTS20_Training_027.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_121.nii",
+            "label": "./labelsTr/BraTS20_Training_121.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_285.nii",
+            "label": "./labelsTr/BraTS20_Training_285.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_319.nii",
+            "label": "./labelsTr/BraTS20_Training_319.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_128.nii",
+            "label": "./labelsTr/BraTS20_Training_128.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_075.nii",
+            "label": "./labelsTr/BraTS20_Training_075.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_300.nii",
+            "label": "./labelsTr/BraTS20_Training_300.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_030.nii",
+            "label": "./labelsTr/BraTS20_Training_030.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_084.nii",
+            "label": "./labelsTr/BraTS20_Training_084.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_330.nii",
+            "label": "./labelsTr/BraTS20_Training_330.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_108.nii",
+            "label": "./labelsTr/BraTS20_Training_108.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_243.nii",
+            "label": "./labelsTr/BraTS20_Training_243.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_322.nii",
+            "label": "./labelsTr/BraTS20_Training_322.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_134.nii",
+            "label": "./labelsTr/BraTS20_Training_134.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_185.nii",
+            "label": "./labelsTr/BraTS20_Training_185.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_086.nii",
+            "label": "./labelsTr/BraTS20_Training_086.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_187.nii",
+            "label": "./labelsTr/BraTS20_Training_187.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_071.nii",
+            "label": "./labelsTr/BraTS20_Training_071.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_160.nii",
+            "label": "./labelsTr/BraTS20_Training_160.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_013.nii",
+            "label": "./labelsTr/BraTS20_Training_013.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_036.nii",
+            "label": "./labelsTr/BraTS20_Training_036.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_029.nii",
+            "label": "./labelsTr/BraTS20_Training_029.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_171.nii",
+            "label": "./labelsTr/BraTS20_Training_171.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_143.nii",
+            "label": "./labelsTr/BraTS20_Training_143.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_248.nii",
+            "label": "./labelsTr/BraTS20_Training_248.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_151.nii",
+            "label": "./labelsTr/BraTS20_Training_151.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_229.nii",
+            "label": "./labelsTr/BraTS20_Training_229.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_132.nii",
+            "label": "./labelsTr/BraTS20_Training_132.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_052.nii",
+            "label": "./labelsTr/BraTS20_Training_052.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_241.nii",
+            "label": "./labelsTr/BraTS20_Training_241.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_278.nii",
+            "label": "./labelsTr/BraTS20_Training_278.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_096.nii",
+            "label": "./labelsTr/BraTS20_Training_096.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_179.nii",
+            "label": "./labelsTr/BraTS20_Training_179.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_124.nii",
+            "label": "./labelsTr/BraTS20_Training_124.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_042.nii",
+            "label": "./labelsTr/BraTS20_Training_042.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_288.nii",
+            "label": "./labelsTr/BraTS20_Training_288.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_207.nii",
+            "label": "./labelsTr/BraTS20_Training_207.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_255.nii",
+            "label": "./labelsTr/BraTS20_Training_255.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_308.nii",
+            "label": "./labelsTr/BraTS20_Training_308.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_005.nii",
+            "label": "./labelsTr/BraTS20_Training_005.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_257.nii",
+            "label": "./labelsTr/BraTS20_Training_257.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_359.nii",
+            "label": "./labelsTr/BraTS20_Training_359.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_101.nii",
+            "label": "./labelsTr/BraTS20_Training_101.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_227.nii",
+            "label": "./labelsTr/BraTS20_Training_227.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_317.nii",
+            "label": "./labelsTr/BraTS20_Training_317.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_214.nii",
+            "label": "./labelsTr/BraTS20_Training_214.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_172.nii",
+            "label": "./labelsTr/BraTS20_Training_172.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_099.nii",
+            "label": "./labelsTr/BraTS20_Training_099.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_216.nii",
+            "label": "./labelsTr/BraTS20_Training_216.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_062.nii",
+            "label": "./labelsTr/BraTS20_Training_062.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_048.nii",
+            "label": "./labelsTr/BraTS20_Training_048.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_033.nii",
+            "label": "./labelsTr/BraTS20_Training_033.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_329.nii",
+            "label": "./labelsTr/BraTS20_Training_329.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_028.nii",
+            "label": "./labelsTr/BraTS20_Training_028.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_290.nii",
+            "label": "./labelsTr/BraTS20_Training_290.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_231.nii",
+            "label": "./labelsTr/BraTS20_Training_231.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_163.nii",
+            "label": "./labelsTr/BraTS20_Training_163.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_139.nii",
+            "label": "./labelsTr/BraTS20_Training_139.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_063.nii",
+            "label": "./labelsTr/BraTS20_Training_063.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_136.nii",
+            "label": "./labelsTr/BraTS20_Training_136.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_129.nii",
+            "label": "./labelsTr/BraTS20_Training_129.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_009.nii",
+            "label": "./labelsTr/BraTS20_Training_009.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_065.nii",
+            "label": "./labelsTr/BraTS20_Training_065.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_015.nii",
+            "label": "./labelsTr/BraTS20_Training_015.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_339.nii",
+            "label": "./labelsTr/BraTS20_Training_339.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_301.nii",
+            "label": "./labelsTr/BraTS20_Training_301.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_217.nii",
+            "label": "./labelsTr/BraTS20_Training_217.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_280.nii",
+            "label": "./labelsTr/BraTS20_Training_280.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_237.nii",
+            "label": "./labelsTr/BraTS20_Training_237.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_213.nii",
+            "label": "./labelsTr/BraTS20_Training_213.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_296.nii",
+            "label": "./labelsTr/BraTS20_Training_296.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_337.nii",
+            "label": "./labelsTr/BraTS20_Training_337.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_338.nii",
+            "label": "./labelsTr/BraTS20_Training_338.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_270.nii",
+            "label": "./labelsTr/BraTS20_Training_270.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_202.nii",
+            "label": "./labelsTr/BraTS20_Training_202.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_162.nii",
+            "label": "./labelsTr/BraTS20_Training_162.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_191.nii",
+            "label": "./labelsTr/BraTS20_Training_191.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_260.nii",
+            "label": "./labelsTr/BraTS20_Training_260.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_054.nii",
+            "label": "./labelsTr/BraTS20_Training_054.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_002.nii",
+            "label": "./labelsTr/BraTS20_Training_002.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_081.nii",
+            "label": "./labelsTr/BraTS20_Training_081.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_206.nii",
+            "label": "./labelsTr/BraTS20_Training_206.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_035.nii",
+            "label": "./labelsTr/BraTS20_Training_035.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_264.nii",
+            "label": "./labelsTr/BraTS20_Training_264.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_092.nii",
+            "label": "./labelsTr/BraTS20_Training_092.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_053.nii",
+            "label": "./labelsTr/BraTS20_Training_053.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_265.nii",
+            "label": "./labelsTr/BraTS20_Training_265.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_242.nii",
+            "label": "./labelsTr/BraTS20_Training_242.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_014.nii",
+            "label": "./labelsTr/BraTS20_Training_014.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_316.nii",
+            "label": "./labelsTr/BraTS20_Training_316.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_089.nii",
+            "label": "./labelsTr/BraTS20_Training_089.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_274.nii",
+            "label": "./labelsTr/BraTS20_Training_274.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_167.nii",
+            "label": "./labelsTr/BraTS20_Training_167.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_363.nii",
+            "label": "./labelsTr/BraTS20_Training_363.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_135.nii",
+            "label": "./labelsTr/BraTS20_Training_135.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_307.nii",
+            "label": "./labelsTr/BraTS20_Training_307.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_320.nii",
+            "label": "./labelsTr/BraTS20_Training_320.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_244.nii",
+            "label": "./labelsTr/BraTS20_Training_244.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_055.nii",
+            "label": "./labelsTr/BraTS20_Training_055.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_051.nii",
+            "label": "./labelsTr/BraTS20_Training_051.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_175.nii",
+            "label": "./labelsTr/BraTS20_Training_175.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_190.nii",
+            "label": "./labelsTr/BraTS20_Training_190.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_367.nii",
+            "label": "./labelsTr/BraTS20_Training_367.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_188.nii",
+            "label": "./labelsTr/BraTS20_Training_188.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_170.nii",
+            "label": "./labelsTr/BraTS20_Training_170.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_236.nii",
+            "label": "./labelsTr/BraTS20_Training_236.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_253.nii",
+            "label": "./labelsTr/BraTS20_Training_253.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_022.nii",
+            "label": "./labelsTr/BraTS20_Training_022.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_161.nii",
+            "label": "./labelsTr/BraTS20_Training_161.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_277.nii",
+            "label": "./labelsTr/BraTS20_Training_277.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_192.nii",
+            "label": "./labelsTr/BraTS20_Training_192.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_294.nii",
+            "label": "./labelsTr/BraTS20_Training_294.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_344.nii",
+            "label": "./labelsTr/BraTS20_Training_344.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_258.nii",
+            "label": "./labelsTr/BraTS20_Training_258.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_309.nii",
+            "label": "./labelsTr/BraTS20_Training_309.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_150.nii",
+            "label": "./labelsTr/BraTS20_Training_150.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_131.nii",
+            "label": "./labelsTr/BraTS20_Training_131.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_152.nii",
+            "label": "./labelsTr/BraTS20_Training_152.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_088.nii",
+            "label": "./labelsTr/BraTS20_Training_088.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_331.nii",
+            "label": "./labelsTr/BraTS20_Training_331.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_215.nii",
+            "label": "./labelsTr/BraTS20_Training_215.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_369.nii",
+            "label": "./labelsTr/BraTS20_Training_369.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_021.nii",
+            "label": "./labelsTr/BraTS20_Training_021.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_072.nii",
+            "label": "./labelsTr/BraTS20_Training_072.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_107.nii",
+            "label": "./labelsTr/BraTS20_Training_107.nii"
+        },
+        {
+            "image": "./imagesTr/BraTS20_Training_271.nii",
+            "label": "./labelsTr/BraTS20_Training_271.nii"
+        }
+    ],
+    "numTraining": 266
+}

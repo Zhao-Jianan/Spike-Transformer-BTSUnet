@@ -1,6 +1,6 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 import torch
 import nibabel as nib
 import numpy as np
@@ -81,7 +81,7 @@ def run_inference_folder_soft(case_root, save_dir, model, inference_engine, devi
 
 
    
-def soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list, center_crop=True):
+def soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list, dice_style=1, center_crop=True):
     metadata_dir = os.path.join(prob_base_dir, "metadata")
     os.makedirs(metadata_dir, exist_ok=True)
     
@@ -89,7 +89,13 @@ def soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list, center_crop
     
     for fold in range(1, 6):
         print(f"Running inference for fold {fold}")
-        model_ckpt = os.path.join(ckpt_dir, f"best_model_fold{fold}.pth")
+        if dice_style == 1:
+            model_ckpt = os.path.join(ckpt_dir, f"best_model_fold{fold}.pth")
+        elif dice_style == 2:
+            model_ckpt = os.path.join(ckpt_dir, f"best_model_fold{fold}_dice_style2.pth")
+        else:
+            raise ValueError("Unsupported dice style. Use 1 or 2.")
+
         model = spike_former_unet3D_8_384(
             num_classes=cfg.num_classes,
             T=cfg.T,
@@ -198,9 +204,15 @@ def main():
     
     
     # BraTS2020 test data inference
-    experiment_id = 70
-    prob_base_dir = f"/hpc/ajhz839/inference/BraTS2020/test_prob_folds_exp{experiment_id}/"
-    ensemble_output_dir = f"/hpc/ajhz839/inference/BraTS2020/test_pred_soft_ensemble_exp{experiment_id}/"
+    experiment_id = 76
+    dice_style = 2
+    if dice_style == 1:
+        prob_base_dir = f"/hpc/ajhz839/inference/BraTS2020/test_prob_folds_exp{experiment_id}/"
+        ensemble_output_dir = f"/hpc/ajhz839/inference/BraTS2020/test_pred_soft_ensemble_exp{experiment_id}/"
+    elif dice_style == 2:
+        prob_base_dir = f"/hpc/ajhz839/inference/BraTS2020/test_prob_folds_exp{experiment_id}_dice_style2/"
+        ensemble_output_dir = f"/hpc/ajhz839/inference/BraTS2020/test_pred_soft_ensemble_exp{experiment_id}_dice_style2/"
+        
     case_dir = "/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData/"
     test_cases_txt =  './val_cases/test_cases.txt'
     ckpt_dir = f"/hpc/ajhz839/checkpoint/experiment_{experiment_id}/"
@@ -211,7 +223,7 @@ def main():
     check_test_txt_exist(test_cases_txt)
 
     test_case_list = read_case_list(test_cases_txt)
-    metadata_json_path=soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list, center_crop=center_crop)
+    metadata_json_path=soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list, dice_style=dice_style, center_crop=center_crop)
 
     ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir, center_crop=center_crop, metadata_json_path=metadata_json_path)
 
