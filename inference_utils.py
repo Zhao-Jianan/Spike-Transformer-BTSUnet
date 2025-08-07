@@ -328,6 +328,40 @@ def postprocess_brats_label(pred_mask: np.ndarray) -> np.ndarray:
     return new_mask
 
 
+def postprocess_brats_label_nnstyle(pred_mask: np.ndarray) -> np.ndarray:
+    """
+    nnU-Net风格的BraTS预测标签后处理：
+    对每一类标签（ET=4, NCR=1, ED=2）分别：
+    - 保留最大连通区域
+    - 其余区域设为背景（label=0）
+    """
+
+    def keep_largest_connected_component(mask: np.ndarray) -> np.ndarray:
+        """
+        仅保留mask中最大的连通区域，其余设为False
+        """
+        structure = generate_binary_structure(3, 1)
+        labeled, num_features = label(mask, structure)
+        if num_features == 0:
+            return np.zeros_like(mask, dtype=bool)
+        largest_component = np.argmax(np.bincount(labeled.flat)[1:]) + 1  # +1 因为0是背景
+        return labeled == largest_component
+
+    # 输出初始化为背景
+    print("Postprocessing BraTS label...")
+    new_mask = np.zeros_like(pred_mask, dtype=np.uint8)
+
+    for label_id in [4, 2, 1]:  # ET, ED, NCR 按优先级顺序处理
+        binary_mask = (pred_mask == label_id)
+        largest_component_mask = keep_largest_connected_component(binary_mask)
+        new_mask[largest_component_mask] = label_id
+
+    print("Postprocessing done.")
+
+    return new_mask
+
+
+
 def check_all_folds_ckpt_exist(ckpt_dir):
     """
     检查 fold1~fold5 的 checkpoint 是否都存在。

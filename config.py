@@ -4,7 +4,7 @@ class Config:
     def __init__(self):
         self.gpu_name = 'cuda:0'
         self.device = torch.device(self.gpu_name if torch.cuda.is_available() else "cpu")
-        self.seed =  3407 # 42, 3407
+        self.seed =  42 # 42, 3407
         self.use_amp = True  # 使用自动混合精度训练
         self.split_data = True  # 是否划分测试集 2020-True, 2023-False
         self.test_ratio = 0.1  # 测试集比例

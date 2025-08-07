@@ -14,7 +14,8 @@ from tqdm import tqdm
 import json
 from inference_utils import (
     preprocess_for_inference_valid, convert_prediction_to_label_suppress_fp,
-    check_all_folds_ckpt_exist, check_all_folds_val_txt_exist, restore_to_original_shape
+    check_all_folds_ckpt_exist, check_all_folds_val_txt_exist, restore_to_original_shape,
+    postprocess_brats_label_nnstyle, postprocess_brats_label
     )
 
 from metrics import dice_score_braTS_overall, dice_score_braTS_per_sample_avg
@@ -141,7 +142,7 @@ def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inferenc
     final_label = np.transpose(restored_label, (1, 2, 0))  # to (H, W, D)
     print("Label shape before postprocessing:", restored_label.shape)  # (H, W, D)
     # 后处理
-    # final_label = postprocess_brats_label(final_label)
+    final_label = postprocess_brats_label_nnstyle(final_label)
 
 
     case_name = os.path.basename(case_dir)
@@ -284,10 +285,8 @@ def run_inference_all_folds(
 
 
 
-def main():
+def inference_BraTS2020_val_data(experiment_id, dice_style, center_crop=True):
     # BraTS 2020 validation data inference
-    experiment_id = 76
-    dice_style = 2
     val_cases_dir = './val_cases/'  # 存放验证集case名单txt的文件夹    
     ckpt_dir = f"/hpc/ajhz839/checkpoint/experiment_{experiment_id}/"  # 模型ckpt所在目录
     case_dir = "/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData/"
@@ -314,10 +313,19 @@ def main():
         output_base_dir=output_base_dir,
         device=cfg.device,
         num_folds=5,
-        center_crop=False,  # 是否进行中心裁剪
+        center_crop=center_crop,  # 是否进行中心裁剪
         dice_style=dice_style,  # 1表示原始Dice计算，2表示新的Dice计算方式
         fold_to_run=None,  # 跑全部fold 1~5
     )
+    
+    print("5 fold validation data inference completed.")
+
+
+def main():
+    # BraTS 2020 validation data inference
+    experiment_id = 76
+    dice_style = 2
+    inference_BraTS2020_val_data(experiment_id, dice_style, center_crop=True)
 
     
     # # Clinical data inference
@@ -330,8 +338,6 @@ def main():
     # ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir)
     
     
-    print("5 fold validation data inference completed.")
-
 if __name__ == "__main__":
     main()
 

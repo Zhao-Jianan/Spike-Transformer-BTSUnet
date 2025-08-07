@@ -192,6 +192,33 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, meta
         nib.save(pred_nii, save_path)
 
 
+
+def inference_BraTS2020_test_data(experiment_id, dice_style, center_crop=True):
+    # BraTS2020 test data inference
+    print(f"Starting inference for BraTS2020 test data with experiment ID {experiment_id} and dice style {dice_style}...")
+    if dice_style == 1:
+        prob_base_dir = f"/hpc/ajhz839/inference/BraTS2020/test_prob_folds_exp{experiment_id}/"
+        ensemble_output_dir = f"/hpc/ajhz839/inference/BraTS2020/test_pred_soft_ensemble_exp{experiment_id}/"
+    elif dice_style == 2:
+        prob_base_dir = f"/hpc/ajhz839/inference/BraTS2020/test_prob_folds_exp{experiment_id}_dice_style2/"
+        ensemble_output_dir = f"/hpc/ajhz839/inference/BraTS2020/test_pred_soft_ensemble_exp{experiment_id}_dice_style2/"
+        
+    case_dir = "/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData/"
+    test_cases_txt =  './val_cases/test_cases.txt'
+    ckpt_dir = f"/hpc/ajhz839/checkpoint/experiment_{experiment_id}/"
+
+    check_all_folds_ckpt_exist(ckpt_dir)
+    check_test_txt_exist(test_cases_txt)
+
+    test_case_list = read_case_list(test_cases_txt)
+    metadata_json_path=soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list, dice_style=dice_style, center_crop=center_crop)
+
+    ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir, center_crop=center_crop, metadata_json_path=metadata_json_path)
+
+    print("Inference completed.")
+
+
+
 def main():
     # # BraTS2018 inference
     # prob_base_dir = "/hpc/ajhz839/validation/test_prob_folds/"
@@ -206,28 +233,9 @@ def main():
     # BraTS2020 test data inference
     experiment_id = 76
     dice_style = 2
-    if dice_style == 1:
-        prob_base_dir = f"/hpc/ajhz839/inference/BraTS2020/test_prob_folds_exp{experiment_id}/"
-        ensemble_output_dir = f"/hpc/ajhz839/inference/BraTS2020/test_pred_soft_ensemble_exp{experiment_id}/"
-    elif dice_style == 2:
-        prob_base_dir = f"/hpc/ajhz839/inference/BraTS2020/test_prob_folds_exp{experiment_id}_dice_style2/"
-        ensemble_output_dir = f"/hpc/ajhz839/inference/BraTS2020/test_pred_soft_ensemble_exp{experiment_id}_dice_style2/"
-        
-    case_dir = "/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData/"
-    test_cases_txt =  './val_cases/test_cases.txt'
-    ckpt_dir = f"/hpc/ajhz839/checkpoint/experiment_{experiment_id}/"
-
-    center_crop=True
-
-    check_all_folds_ckpt_exist(ckpt_dir)
-    check_test_txt_exist(test_cases_txt)
-
-    test_case_list = read_case_list(test_cases_txt)
-    metadata_json_path=soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list, dice_style=dice_style, center_crop=center_crop)
-
-    ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir, center_crop=center_crop, metadata_json_path=metadata_json_path)
-
+    inference_BraTS2020_test_data(experiment_id, dice_style, center_crop=True)
     
+   
     # # Clinical data inference
     # prob_base_dir = "/hpc/ajhz839/inference/pred/test_prob_folds/"
     # ensemble_output_dir = "/hpc/ajhz839/inference/pred/test_pred_soft_ensemble/"
@@ -238,7 +246,6 @@ def main():
     # ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir)
     
     
-    print("Inference completed.")
 
 if __name__ == "__main__":
     main()

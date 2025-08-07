@@ -180,7 +180,7 @@ nohup python spikeformerunet76/inference_val_data.py > inference_log_exp76_val_d
 
 nohup python spikeformerunet76/inference_resemble.py > inference_log_exp76_test_data_crop64.out 2>&1 &
 
-nohup python spikeformerunet76/inference_val_data_style2.py > inference_log_exp76_val_data_dice_style_2.out 2>&1 &
+nohup python spikeformerunet76/inference_val_data_style2.py > inference_log_exp76_val_data_dice_style_2_post.out 2>&1 &
 
 nohup python spikeformerunet76/inference_resemble_style2.py > inference_log_exp76_test_data_dice_style_2_crop64.out 2>&1 &
 
