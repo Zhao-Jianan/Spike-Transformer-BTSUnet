@@ -5,7 +5,6 @@ import nibabel as nib
 import numpy as np
 from surface_distance import compute_surface_distances, compute_robust_hausdorff
 from inference_utils import convert_label_to_onehot
-from inference_metrics import dice_score_braTS_style
 
         
 def dice_score_braTS_style(pred, target, eps=1e-5):

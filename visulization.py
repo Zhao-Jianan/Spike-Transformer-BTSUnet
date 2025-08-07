@@ -96,96 +96,9 @@ def plot_modalities_with_masks(t1, t1ce, t2, flair, gt_mask, pred_mask, case_nam
 
     plt.savefig(save_path, dpi=300, bbox_inches='tight', pad_inches=0.1)
     plt.close()
-
-
-def main():
-    # 设置数据目录和文件路径
-    
-    # # BraTS 2018 Training set
-    # data_dir = './data/BraTS2018/MICCAI_BraTS_2018_Data_Training/LGG/Brats18_TCIA13_621_1'
-    # pred_dir = './Pred/val_fold2_pred_experiment56'
-    # case_name = os.path.basename(data_dir)
-    
-    # t1_path = os.path.join(data_dir, f'{case_name}_t1.nii')
-    # t1ce_path = os.path.join(data_dir, f'{case_name}_t1ce.nii')
-    # t2_path = os.path.join(data_dir, f'{case_name}_t2.nii')
-    # flair_path = os.path.join(data_dir, f'{case_name}_flair.nii')
-    # gt_mask_path = os.path.join(data_dir, f'{case_name}_seg.nii')     # ground truth
-    # pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction
-    
-    
-    # # BraTS 2018 val dataset
-    # data_dir = './Data/BraTS2020/MICCAI_BraTS2020_TrainingData/Brats18_WashU_W033_1'
-    # gt_dir = './Pred/nnUNetTrainer'
-    # pred_dir = './Pred/test_pred_experiment56'
-    # case_name = os.path.basename(data_dir)
-
-    # t1_path = os.path.join(data_dir,f't1.nii.gz')
-    # t1ce_path = os.path.join(data_dir, f't1ce.nii.gz')
-    # t2_path = os.path.join(data_dir, f't2.nii.gz')
-    # flair_path = os.path.join(data_dir, f'flair.nii.gz')
-    # gt_mask_path = os.path.join(gt_dir, f'{case_name}.nii.gz')     # ground truth
-    # pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction  
-
-    
-    # BraTS 2020 val
-    data_dir = './data/BraTS2020/MICCAI_BraTS2020_TrainingData/BraTS20_Training_360'
-    pred_dir = './Pred/BraTS2020_val_pred_exp65/val_fold5_pred'
-    case_name = os.path.basename(data_dir)
-    
-    t1_path = os.path.join(data_dir, f'{case_name}_t1.nii')
-    t1ce_path = os.path.join(data_dir, f'{case_name}_t1ce.nii')
-    t2_path = os.path.join(data_dir, f'{case_name}_t2.nii')
-    flair_path = os.path.join(data_dir, f'{case_name}_flair.nii')
-    gt_mask_path = os.path.join(data_dir, f'{case_name}_seg.nii')     # ground truth
-    pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction   
-    
-    save_dir = './visualise/BraTS_2020/val'
-    flag = 'exp65'
-    
-    # BraTS 2020 test
-    data_dir = './data/BraTS2020/MICCAI_BraTS2020_TrainingData/BraTS20_Training_279'
-    pred_dir = './Pred/BraTS2020/test_dataset/test_pred_soft_ensemble_exp69'
-    case_name = os.path.basename(data_dir)
-    
-    t1_path = os.path.join(data_dir, f'{case_name}_t1.nii')
-    t1ce_path = os.path.join(data_dir, f'{case_name}_t1ce.nii')
-    t2_path = os.path.join(data_dir, f'{case_name}_t2.nii')
-    flair_path = os.path.join(data_dir, f'{case_name}_flair.nii')
-    gt_mask_path = os.path.join(data_dir, f'{case_name}_seg.nii')     # ground truth
-    pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction   
-    
-    save_dir = './visualise/BraTS_2020/test'
-    flag = 'test_exp69'
-
-
-    # # BraTS 2023 Training set
-    # data_dir = './Data/BraTS2023/BraTS-GLI-00006-000'
-    # pred_dir = './Pred/BraTS23_val_fold2_pred'
-    # case_name = os.path.basename(data_dir)
-    
-    # t1_path = os.path.join(data_dir, f'{case_name}-t1n.nii.gz')
-    # t1ce_path = os.path.join(data_dir, f'{case_name}-t1c.nii.gz')
-    # t2_path = os.path.join(data_dir, f'{case_name}-t2w.nii.gz')
-    # flair_path = os.path.join(data_dir, f'{case_name}-t2f.nii.gz')
-    # gt_mask_path = os.path.join(data_dir, f'{case_name}-seg.nii.gz')     # ground truth
-    # pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction
-    
-    
-    # # Clinical Data
-    # data_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/clinical_data/clinical_data/20220111_pre_OP'
-    # pred_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/clinical_data/test_pred_soft_ensemble'
-    # prefix = '20220114_35320313_BSR'
-    # case_name = os.path.basename(data_dir)
-
-    # t1_path = os.path.join(data_dir, f't1.nii.gz')
-    # t1ce_path = os.path.join(data_dir, f't1ce.nii.gz')
-    # t2_path = os.path.join(data_dir, f't2.nii.gz')
-    # flair_path = os.path.join(data_dir, f'flair.nii.gz')
-    # gt_mask_path = os.path.join(pred_dir, f'20220111_pre_OP_pred_mask.nii.gz')     # ground truth
-    # pred_mask_path = os.path.join(pred_dir, f'20220111_pre_OP_pred_mask.nii.gz') # model prediction
     
 
+def visulize(case_name, t1_path, t1ce_path, t2_path, flair_path, gt_mask_path, pred_mask_path, save_dir, experiment_index): 
     # 加载图像数据
     t1 = load_nifti_image(t1_path)
     t1ce = load_nifti_image(t1ce_path)
@@ -193,13 +106,148 @@ def main():
     flair = load_nifti_image(flair_path)
     gt_mask = load_nifti_image(gt_mask_path).astype(np.uint8)
     pred_mask = load_nifti_image(pred_mask_path).astype(np.uint8)
-    save_path = os.path.join(save_dir, f'{case_name}_{flag}.png')
-
-
+    save_path = os.path.join(save_dir, f'{case_name}_exp{experiment_index}.png')
+    
     # 可视化中间层 (中间 slice 通常是肿瘤区域)
     best_slice = select_best_slice(gt_mask)
     plot_modalities_with_masks(t1, t1ce, t2, flair, gt_mask, pred_mask, case_name, slice_idx=best_slice, save_path=save_path)
     print(f"Visualization completed and saved to {save_path}")
+    
+        
+
+
+
+
+def visulize_for_brats18(experiment_index, case_name, mode='val', fold=1):
+    # BraTS 2018 Training set
+    def find_case_dir(base_dir, case_name):
+        for grade in ['LGG', 'HGG']:
+            case_dir = os.path.join(base_dir, grade, case_name)
+            if os.path.exists(case_dir):
+                return case_dir
+        raise FileNotFoundError(f"Case {case_name} not found in LGG or HGG directories.")
+    
+    base_dir = './data/BraTS2018/MICCAI_BraTS_2018_Data_Training'
+    data_dir = find_case_dir(base_dir, case_name)
+    if mode == 'val':
+        pred_dir = f'./Pred/val_fold{fold}_pred_experiment{experiment_index}'
+        save_dir = './visualise/BraTS_2018/val'
+    
+        t1_path = os.path.join(data_dir, f'{case_name}_t1.nii')
+        t1ce_path = os.path.join(data_dir, f'{case_name}_t1ce.nii')
+        t2_path = os.path.join(data_dir, f'{case_name}_t2.nii')
+        flair_path = os.path.join(data_dir, f'{case_name}_flair.nii')
+        gt_mask_path = os.path.join(data_dir, f'{case_name}_seg.nii')     # ground truth
+        pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction
+                
+    elif mode == 'test':
+        pred_dir = f'./Pred/test_pred_experiment{experiment_index}'
+        gt_dir = './Pred/nnUNetTrainer'
+        save_dir = './visualise/BraTS_2018/test'
+        
+        t1_path = os.path.join(data_dir,f't1.nii.gz')
+        t1ce_path = os.path.join(data_dir, f't1ce.nii.gz')
+        t2_path = os.path.join(data_dir, f't2.nii.gz')
+        flair_path = os.path.join(data_dir, f'flair.nii.gz')
+        gt_mask_path = os.path.join(gt_dir, f'{case_name}.nii.gz')     # ground truth
+        pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction  
+    visulize(case_name, t1_path, t1ce_path, t2_path, flair_path, gt_mask_path, pred_mask_path, save_dir, experiment_index)
+
+
+    
+def visulize_for_brats20(experiment_index, case_name, mode='val'):
+    data_dir = f'./data/BraTS2020/MICCAI_BraTS2020_TrainingData/{case_name}'
+    if mode == 'val':
+        # 自动查找包含该 case_name 的 fold 目录
+        pred_base_dir = f'./Pred/BraTS2020/validation_dataset/BraTS2020_val_pred_exp{experiment_index}'
+        found = False
+        for fold_dir in os.listdir(pred_base_dir):
+            fold_path = os.path.join(pred_base_dir, fold_dir)
+            if os.path.isdir(fold_path):
+                pred_mask_path = os.path.join(fold_path, f'{case_name}_pred_mask.nii.gz')
+                if os.path.exists(pred_mask_path):
+                    pred_dir = fold_path
+                    found = True
+                    break
+        if not found:
+            raise FileNotFoundError(f"Prediction for case {case_name} not found in any val_foldX_pred directory.")
+        save_dir = './visualise/BraTS_2020/val'
+    elif mode == 'test':
+        pred_dir = f'./Pred/BraTS2020/test_dataset/test_pred_soft_ensemble_exp{experiment_index}'
+        save_dir = './visualise/BraTS_2020/test'
+        
+    t1_path = os.path.join(data_dir, f'{case_name}_t1.nii')
+    t1ce_path = os.path.join(data_dir, f'{case_name}_t1ce.nii')
+    t2_path = os.path.join(data_dir, f'{case_name}_t2.nii')
+    flair_path = os.path.join(data_dir, f'{case_name}_flair.nii')
+    gt_mask_path = os.path.join(data_dir, f'{case_name}_seg.nii')     # ground truth
+    pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction   
+        
+    visulize(case_name, t1_path, t1ce_path, t2_path, flair_path, gt_mask_path, pred_mask_path, save_dir, experiment_index)
+    
+    
+def visulize_for_brats23(experiment_index, case_name, mode='val', fold=1):
+    # BraTS 2023 val
+    data_dir = f'./Data/BraTS2023/{case_name}'
+    pred_dir = f'./Pred/BraTS23_val_fold{fold}_pred'
+    save_dir = './visualise/BraTS_2023/val'
+    
+    t1_path = os.path.join(data_dir, f'{case_name}-t1n.nii.gz')
+    t1ce_path = os.path.join(data_dir, f'{case_name}-t1c.nii.gz')
+    t2_path = os.path.join(data_dir, f'{case_name}-t2w.nii.gz')
+    flair_path = os.path.join(data_dir, f'{case_name}-t2f.nii.gz')
+    gt_mask_path = os.path.join(data_dir, f'{case_name}-seg.nii.gz')     # ground truth
+    pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction
+        
+    visulize(case_name, t1_path, t1ce_path, t2_path, flair_path, gt_mask_path, pred_mask_path, save_dir, experiment_index)
+
+
+def visulize_for_clinical_data(experiment_index, time_point, patient_name):
+    data_dir = f'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/clinical_data/clinical_data/{time_point}'
+    pred_dir = f'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Pred/clinical_data/test_pred_soft_ensemble'
+    save_dir = f'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/visualise/clinical_data'
+    case_name = f'{patient_name}_{time_point}'
+
+    t1_path = os.path.join(data_dir, f't1.nii.gz')
+    t1ce_path = os.path.join(data_dir, f't1ce.nii.gz')
+    t2_path = os.path.join(data_dir, f't2.nii.gz')
+    flair_path = os.path.join(data_dir, f'flair.nii.gz')
+    gt_mask_path = os.path.join(pred_dir, f'{time_point}_mask.nii.gz')     # ground truth
+    pred_mask_path = os.path.join(pred_dir, f'{time_point}_pred_mask.nii.gz') # model prediction
+        
+    visulize(case_name, t1_path, t1ce_path, t2_path, flair_path, gt_mask_path, pred_mask_path, save_dir, experiment_index)
+
+
+def main():
+    # # BraTS 2018 Training set & val set
+    # mode = 'val'  # 'val' or 'test'
+    # experiment_index = '56'
+    # case_name = 'Brats18_TCIA13_621_1'
+    # fold = 1
+    # visulize_for_brats18(experiment_index, case_name,  mode=mode, fold=fold)
+
+    
+    # BraTS 2020 val and test
+    mode = 'test'  # 'val' or 'test'
+    experiment_index = 76
+    case_name = 'BraTS20_Training_306'
+    visulize_for_brats20(experiment_index, case_name,  mode=mode)
+
+
+
+    # # BraTS 2023 Training set
+    # case_name = 'BraTS-GLI-00006-000'
+    # fold = 1
+    # experiment_index = 'exp65'
+    # visulize_for_brats23(experiment_index, case_name, mode='val', fold=1)
+
+    
+    # # Clinical Data
+    # time_point = '20220111_pre_OP'
+    # patient_name = '20220114_35320313_BSR'
+    # experiment_index = 'exp65'
+    # visulize_for_clinical_data(experiment_index, time_point, patient_name)
+
     
 if __name__ == '__main__':
     main()
