@@ -3,197 +3,7 @@ os.chdir(os.path.dirname(__file__))
 import torch
 import nibabel as nib
 import numpy as np
-import torch.nn.functional as F
-from config import config as cfg
-from monai.transforms import (
-    Compose, LoadImaged, EnsureChannelFirstd, NormalizeIntensityd,
-    Orientationd, Spacingd, ToTensord, ConvertToMultiChannelBasedOnBratsClassesd
-    )
 
-from scipy.ndimage import binary_dilation, binary_opening, label, generate_binary_structure
-
-
-def preprocess_for_inference_valid(image_paths, label_path, center_crop=True, crop_size=(144, 144, 144)):
-    """
-    同时加载和预处理 BraTS 图像和标签（支持中心裁剪 + 重采样）
-
-    Args:
-        image_paths (list[str]): [t1, t1ce, t2, flair] 路径
-        label_path (str): seg 路径
-        center_crop (bool): 是否进行中心裁剪
-        crop_size (tuple): (D, H, W)，裁剪大小
-
-    Returns:
-        image_tensor: (1, 4, D, H, W)
-        label_tensor: (1, 3, D, H, W)
-        meta: {
-            "original_shape": (D, H, W),
-            "crop_start": (sd, sh, sw)
-        }
-    """
-    
-    data_dict = {
-        "image": image_paths,
-        "label": label_path,
-    }
-    
-    # Step 1: Load & Channel First
-    load_transform = Compose([
-        LoadImaged(keys=["image", "label"]),
-        EnsureChannelFirstd(keys=["image", "label"]),
-        ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
-    ])
-    data = load_transform(data_dict)
-    
-    # Permute image: (4, D, H, W)
-    data["image"] = data["image"].permute(0, 3, 1, 2).contiguous()
-    data["label"] = data["label"].permute(0, 3, 1, 2).contiguous()
-    print("Loaded image shape:", data["image"].shape)
-    print("Loaded label shape:", data["label"].shape)
-    
-    img_meta = data["image"].meta
-    img_spacing = img_meta.get("pixdim", None)
-
-    # Step 2: Spatial Normalization (Orientation + Spacing)
-    need_orientation_or_spacing = False
-    if img_meta.get("spatial_shape") is None:
-        need_orientation_or_spacing = True
-    else:
-        if not torch.allclose(torch.tensor(img_spacing[:3]), torch.tensor([1.0, 1.0, 1.0])):
-            need_orientation_or_spacing = True
-        if not (img_meta.get("original_channel_dim", None) == 0 and img_meta.get("original_affine", None) is not None):
-            need_orientation_or_spacing = True
-    
-    if need_orientation_or_spacing:
-        print("DO PREPROCESS!!!")
-        preprocess = Compose([
-            Orientationd(keys=["image", "label"], axcodes="RAS"),
-            Spacingd(keys=["image", "label"], pixdim=(1.0, 1.0, 1.0), mode={"image": "bilinear", "label": "nearest"}),
-        ])
-        data = preprocess(data)
-    
-    # Step 3: Center Crop
-    def _center_crop_fn(img: torch.Tensor, crop_size=(144, 144, 144)):
-        _, D, H, W = img.shape
-        cd, ch, cw = crop_size
-        sd = (D - cd) // 2
-        sh = (H - ch) // 2
-        sw = (W - cw) // 2
-        cropped = img[:, sd:sd+cd, sh:sh+ch, sw:sw+cw]
-        crop_start = (sd, sh, sw)
-        return cropped, (D, H, W), crop_start
-    
-    if center_crop:
-        print("Applying center crop...")
-        data["image"], original_shape, crop_start = _center_crop_fn(data["image"])
-        data["label"], _, _ = _center_crop_fn(data["label"], crop_size)
-    else:
-        print("No center crop applied.")
-        original_shape = data["image"].shape[1:]  # (D, H, W)
-        crop_start = (0, 0, 0)
-    
-    
-    # Step 4: Intensity Normalization
-    normalize = NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True)
-    data = normalize(data)
-    
-    # Step 5: ToTensor
-    to_tensor = ToTensord(keys=["image", "label"])
-    data = to_tensor(data)
-    
-    # Step 6: Add batch dimension
-    image_tensor = data["image"].unsqueeze(0)  # (1, 4, D, H, W)
-    label_tensor = data["label"].unsqueeze(0)  # (1, 3, D, H, W)
-    
-    print("Final image shape:", image_tensor.shape)
-    print("Final label shape:", label_tensor.shape)
-    
-    return image_tensor, label_tensor, {
-        "original_shape": original_shape,
-        "crop_start": crop_start,
-    }
-    
-    
-def preprocess_for_inference_test(image_paths, center_crop=True):
-    """
-    image_paths: list of 4 modality paths [t1, t1ce, t2, flair]
-    
-    Returns:
-        x_seq: torch.Tensor, shape (B=1, C, D, H, W)
-    """
-    data_dict = {"image": image_paths}
-    
-    # Step 1: Load + Channel First
-    load_transform = Compose([
-        LoadImaged(keys=["image"]),
-        EnsureChannelFirstd(keys=["image"]),
-    ])
-    data = load_transform(data_dict)
-    data["image"] = data["image"].permute(0, 3, 1, 2).contiguous()
-    print("Loaded image shape:", data["image"].shape)  # (C, D, H, W)
-    
-    img_meta = data["image"].meta
-    img_spacing = img_meta.get("pixdim", None)
-
-    # Step 2: Spatial Normalization (Orientation + Spacing)
-    need_orientation_or_spacing = False
-    if img_meta.get("spatial_shape") is None:
-        need_orientation_or_spacing = True
-    else:
-        if not torch.allclose(torch.tensor(img_spacing[:3]), torch.tensor([1.0, 1.0, 1.0])):
-            need_orientation_or_spacing = True
-        if not (img_meta.get("original_channel_dim", None) == 0 and img_meta.get("original_affine", None) is not None):
-            need_orientation_or_spacing = True
-    
-    if need_orientation_or_spacing:
-        print("DO PREPROCESS!!!")
-        preprocess = Compose([
-            Orientationd(keys=["image"], axcodes="RAS"),
-            Spacingd(keys=["image"], pixdim=(1.0, 1.0, 1.0), mode="bilinear"),
-        ])
-        data = preprocess(data)
-    
-    # Step 3: Center Crop
-    def _center_crop_fn(img: torch.Tensor, crop_size=(144,144,144)):
-        _, D, H, W = img.shape
-        cd, ch, cw = crop_size
-        sd = (D - cd) // 2
-        sh = (H - ch) // 2
-        sw = (W - cw) // 2
-        cropped = img[:, sd:sd+cd, sh:sh+ch, sw:sw+cw]
-        crop_start = (sd, sh, sw)
-        return cropped, (D, H, W), crop_start
-    
-    if center_crop:
-        print("Applying center crop...")
-        data["image"], original_shape, crop_start = _center_crop_fn(data["image"])
-    else:
-        print("No center crop applied.")
-        original_shape = data["image"].shape[1:]  # (D, H, W)
-        crop_start = (0, 0, 0)
-    
-    
-    # Step 4: Intensity Normalization
-    normalize = NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True)
-    data = normalize(data)
-    
-    # Step 5: ToTensor
-    to_tensor = ToTensord(keys=["image"])
-    data = to_tensor(data)
-    
-    # Step 6: Add batch dimension
-    img = data["image"]  # shape: (C, D, H, W)
-    img = img.unsqueeze(0) # (B=1, C, D, H, W)
-    
-    print("Preprocessed image shape:", img.shape)  # (B=1, C, D, H, W)
-    
-    return img, {
-        "original_shape": original_shape,  # (D, H, W)
-        "crop_start": crop_start           # (sd, sh, sw)
-    }
-    
-    
-    
         
 def convert_prediction_to_label_backup(mean_prob: np.ndarray, threshold: float = 0.5) -> np.ndarray:
     """
@@ -247,15 +57,15 @@ def convert_prediction_to_label_suppress_fp(mean_prob: np.ndarray, threshold: fl
     assert mean_prob.shape[0] == 3, "Expected 3 channels: TC, WT, ET"
     tc_prob, wt_prob, et_prob = mean_prob[0], mean_prob[1], mean_prob[2]
 
-    # 阈值生成掩码
-    tc_mask = (tc_prob >= threshold)
-    wt_mask = (wt_prob >= threshold)
+    # 阈值生成掩码   
     et_mask = (et_prob >= threshold)
+    tc_mask = (tc_prob >= threshold) & (~et_mask)
+    wt_mask = (wt_prob >= threshold) & (~et_mask) & (~tc_mask)
 
     # 背景保护：如果所有类别的最大值都很小，就强制为背景
     overall_max_prob = np.max(mean_prob, axis=0)
     suppress_mask = overall_max_prob < (threshold + bg_margin)
-
+    
     # 独立三通道标签图
     label = np.zeros_like(tc_prob, dtype=np.uint8)
 
@@ -267,98 +77,6 @@ def convert_prediction_to_label_suppress_fp(mean_prob: np.ndarray, threshold: fl
     label[suppress_mask] = 0   # 背景保护
 
     return label
-
-
-
-def postprocess_brats_label(pred_mask: np.ndarray) -> np.ndarray:
-    """
-    BraTS预测标签后处理：
-    - ET (4): 向外扩张一圈，只吸收外部的NCR和ED，不吞噬ET内部的NCR
-    - NCR/NET (1): 外部NCR做开运算，ET内部NCR保持原样
-    - ED (2): 保持原状
-    """
-
-    structure = generate_binary_structure(3, 1)
-
-    # 原始标签
-    et_mask = (pred_mask == 4)
-    ncr_mask = (pred_mask == 1)
-    edema_mask = (pred_mask == 2)
-
-    print("Before Postprocessing:")
-    print("Sum ET:", np.sum(et_mask))
-    print("Sum ED:", np.sum(edema_mask))
-    print("Sum NCR:", np.sum(ncr_mask))
-
-    # Step 1: 分离ET内部的NCR（要保护的）与ET外部的NCR（可处理的）
-    ncr_inside_et = ncr_mask & et_mask
-    ncr_outside_et = ncr_mask & (~et_mask)
-
-    # Step 2: 对外部NCR做开运算
-    ncr_outside_processed = binary_opening(ncr_outside_et, structure=structure, iterations=1)
-    ncr_processed = ncr_outside_processed | ncr_inside_et
-
-    # 被剥掉的外部NCR边缘
-    ncr_removed = ncr_outside_et & (~ncr_outside_processed)
-
-    # Step 3: 构造ET的“外壳”：从ET外面包一圈，不含ET原始区域
-    et_outer_shell = binary_dilation(et_mask, structure=structure, iterations=1) & (~et_mask)
-
-    # Step 4: 只允许ET扩张到其“外壳”中满足条件的区域（NCR外部边缘 or ED）
-    et_expand_target = et_outer_shell & (ncr_removed | edema_mask)
-
-    # Step 5: 最终ET = 原始ET + 允许扩张区域（外壳目标）
-    et_final = et_mask | et_expand_target
-
-    # Step 6: 构建最终mask
-    new_mask = np.zeros_like(pred_mask, dtype=np.uint8)
-    new_mask[et_final] = 4
-    new_mask[(edema_mask) & (new_mask == 0)] = 2
-    new_mask[(ncr_processed) & (new_mask == 0)] = 1
-
-    # Step 7: 剩余被删掉的NCR边缘如果未被覆盖，强制转ET（避免留背景）
-    ncr_remaining = ncr_removed & (new_mask == 0)
-    new_mask[ncr_remaining] = 4
-
-    print("Postprocessing results:")
-    print("Sum ET:", np.sum(new_mask == 4))
-    print("Sum ED:", np.sum(new_mask == 2))
-    print("Sum NCR:", np.sum(new_mask == 1))
-
-    return new_mask
-
-
-def postprocess_brats_label_nnstyle(pred_mask: np.ndarray) -> np.ndarray:
-    """
-    nnU-Net风格的BraTS预测标签后处理：
-    对每一类标签（ET=4, NCR=1, ED=2）分别：
-    - 保留最大连通区域
-    - 其余区域设为背景（label=0）
-    """
-
-    def keep_largest_connected_component(mask: np.ndarray) -> np.ndarray:
-        """
-        仅保留mask中最大的连通区域，其余设为False
-        """
-        structure = generate_binary_structure(3, 1)
-        labeled, num_features = label(mask, structure)
-        if num_features == 0:
-            return np.zeros_like(mask, dtype=bool)
-        largest_component = np.argmax(np.bincount(labeled.flat)[1:]) + 1  # +1 因为0是背景
-        return labeled == largest_component
-
-    # 输出初始化为背景
-    print("Postprocessing BraTS label...")
-    new_mask = np.zeros_like(pred_mask, dtype=np.uint8)
-
-    for label_id in [4, 2, 1]:  # ET, ED, NCR 按优先级顺序处理
-        binary_mask = (pred_mask == label_id)
-        largest_component_mask = keep_largest_connected_component(binary_mask)
-        new_mask[largest_component_mask] = label_id
-
-    print("Postprocessing done.")
-
-    return new_mask
 
 
 
@@ -423,23 +141,13 @@ def read_case_list(txt_path):
         return sorted([line.strip() for line in f.readlines() if line.strip()]) 
     
     
-def convert_gt_to_structural_onehot(gt_tensor: torch.Tensor) -> torch.Tensor:
+def convert_label_to_onehot(label):
     """
-    将 Ground Truth 标签 (值为 0, 1, 2, 4) 转换为结构级 one-hot tensor：
-    通道顺序为 [TC, WT, ET]，shape = (3, D, H, W)
-
-    TC: label 1 or 2
-    WT: label 1, 2, or 4
-    ET: label 1 only
+    label: Tensor [D, H, W], value in {0, 1, 2, 4}
+    return: one-hot [3, D, H, W], corresponding to TC, WT, ET
     """
-    if not isinstance(gt_tensor, torch.Tensor):
-        gt_tensor = torch.from_numpy(gt_tensor)
+    tc = ((label == 1) | (label == 4)).float()  # TC = label 1 or 4
+    wt = ((label == 1) | (label == 2) | (label == 4)).float()  # WT = label 1 or 2 or 4
+    et = (label == 4).float()  # ET = label 4
 
-    gt_np = gt_tensor.cpu().numpy()  # (D, H, W)
-    gt_tc = np.isin(gt_np, [1, 2])
-    gt_wt = np.isin(gt_np, [1, 2, 4])
-    gt_et = (gt_np == 1)
-
-    gt_structural = np.stack([gt_tc, gt_wt, gt_et], axis=0).astype(np.float32)  # (3, D, H, W)
-    return torch.from_numpy(gt_structural)  # float tensor
-    
+    return torch.stack([tc, wt, et], dim=0)  # [3, D, H, W]

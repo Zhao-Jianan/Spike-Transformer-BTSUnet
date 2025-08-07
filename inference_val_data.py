@@ -12,14 +12,15 @@ import time
 from inference_helper import TemporalSlidingWindowInference, TemporalSlidingWindowInferenceWithROI
 from tqdm import tqdm
 import json
+
+from inference_preprocess import preprocess_for_inference_valid
+from inference_postprocess import postprocess_brats_label_nnstyle, postprocess_brats_label
 from inference_utils import (
-    preprocess_for_inference_valid, convert_prediction_to_label_suppress_fp,
-    check_all_folds_ckpt_exist, check_all_folds_val_txt_exist, restore_to_original_shape,
-    postprocess_brats_label_nnstyle, postprocess_brats_label
+    convert_prediction_to_label_suppress_fp, check_all_folds_ckpt_exist,
+    check_all_folds_val_txt_exist, restore_to_original_shape, dice_score_braTS_style
     )
 
 from metrics import dice_score_braTS_overall, dice_score_braTS_per_sample_avg
-from inference_dice_compute import dice_score_braTS_style
 
 def pred_single_case(case_dir, model, inference_engine, device, center_crop=True):
     case_name = os.path.basename(case_dir)

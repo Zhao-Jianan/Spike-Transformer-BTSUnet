@@ -12,9 +12,12 @@ import time
 from inference_helper import TemporalSlidingWindowInference, TemporalSlidingWindowInferenceWithROI
 from tqdm import tqdm
 import json
+
+from inference_preprocess import preprocess_for_inference_test
+from inference_postprocess import postprocess_brats_label_nnstyle, postprocess_brats_label
 from inference_utils import (
-    preprocess_for_inference_test, convert_prediction_to_label_suppress_fp, postprocess_brats_label,
-    check_all_folds_ckpt_exist, check_test_txt_exist, restore_to_original_shape, read_case_list
+    convert_prediction_to_label_suppress_fp, check_all_folds_ckpt_exist, check_test_txt_exist, 
+    restore_to_original_shape, read_case_list
     )
 
 
@@ -28,7 +31,6 @@ def pred_single_case_soft(case_dir, prob_save_dir, model, inference_engine, devi
     if not center_crop:
         metadata = None
         
-    # 将数据移动到指定设备
     x_batch = x_batch.to(device)
     
     B, C, D, H, W = x_batch.shape
@@ -181,7 +183,7 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, meta
         final_label = np.transpose(restored_label, (1, 2, 0))
         print("Label shape before postprocessing:", final_label.shape)  # (H, W, D)
         # 后处理
-        # final_label = postprocess_brats_label(final_label)
+        final_label = postprocess_brats_label_nnstyle(final_label)
         print(f"Processed case {case}, label shape: {final_label.shape}")
 
         ref_nii_path = os.path.join(case_dir, case, f"{case}_{cfg.modalities[cfg.modalities.index('t1ce')]}.nii")

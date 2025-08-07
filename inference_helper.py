@@ -1,8 +1,6 @@
 import torch
 import numpy as np
-from monai.transforms import NormalizeIntensity
 from spikingjelly.clock_driven.encoding import PoissonEncoder, LatencyEncoder, WeightedPhaseEncoder
-from monai.inferers import sliding_window_inference
 import torch.nn.functional as F
 
 class TemporalSlidingWindowInference:
