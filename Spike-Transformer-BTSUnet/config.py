@@ -46,7 +46,7 @@ class Config:
         
         self.encode_method = 'none'  # poisson, latency, weighted_phase, none
 
-        self.tumor_crop_ratio = 0.8 # 肿瘤区域裁剪比例
+        self.tumor_crop_ratio = 1 # 肿瘤区域裁剪比例
         self.patch_size = [64, 64, 64] # [128, 128, 128]
         self.inference_patch_size = [128, 128, 128]  # 推理时的patch大小
 
@@ -62,6 +62,7 @@ class Config:
         
         self.loss_function = 'dice' # dice, focal, dice_with_fp_penalty, tversky, adaptive_regional
         self.loss_weights = [1.0, 1.0, 1.0] # [2.0, 1.0, 4.0] [1.0, 1.0, 1.0]
+        self.double_crop = True  # 是否使用双重裁剪（肿瘤区域和全脑区域）
         self.train_crop_mode = "tumor_aware_random"  # tumor_aware_random, warmup_weighted_random, random, tumor_center
         self.val_crop_mode = 'tumor_aware_random' # tumor_aware_random, sliding_window, random, tumor_center
         self.sliding_window_val = False # 是否在best_patch_dice_score的epoch使用滑动窗口验证

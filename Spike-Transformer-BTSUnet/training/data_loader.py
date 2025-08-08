@@ -1,6 +1,6 @@
 import os
 from monai.data import DataLoader
-from dataset import BraTSDataset
+from .dataset import BraTSDataset
 from sklearn.model_selection import KFold
 from config import config as cfg
 

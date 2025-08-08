@@ -1,16 +1,16 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 import torch
 import torch.optim as optim
 from sklearn.model_selection import KFold, train_test_split
 from model.spike_former_unet_model import spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
 # from model.simple_unet_model import spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
-from losses import BratsDiceLoss, BratsFocalLoss, BratsDiceLosswithFPPenalty, BratsTverskyLoss, AdaptiveRegionalLoss
-from utils import init_weights, save_metrics_to_file,save_case_list
-from train import train_fold, get_scheduler, EarlyStopping
-from plot import plot_metrics
-from data_loader import get_data_loaders
+from training.losses import BratsDiceLoss, BratsFocalLoss, BratsDiceLosswithFPPenalty, BratsTverskyLoss, AdaptiveRegionalLoss
+from training.utils import init_weights, save_metrics_to_file,save_case_list
+from training.train import train_fold, get_scheduler, EarlyStopping
+from training.plot import plot_metrics
+from training.data_loader import get_data_loaders
 from config import config as cfg        
 from glob import glob
 import random

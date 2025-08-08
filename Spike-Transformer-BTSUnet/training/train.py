@@ -1,8 +1,8 @@
 import torch
 import numpy as np
-from metrics import dice_score_braTS_overall, compute_hd95, dice_score_braTS_per_sample_avg
+from .metrics import dice_score_braTS_overall, compute_hd95, dice_score_braTS_per_sample_avg
 import time
-from inference_helper import TemporalSlidingWindowInference
+from inference.inference_helper import TemporalSlidingWindowInference
 from config import config as cfg
 from collections import defaultdict
 from torch.amp import autocast, GradScaler
