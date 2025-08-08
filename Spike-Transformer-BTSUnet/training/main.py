@@ -4,8 +4,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import torch
 import torch.optim as optim
 from sklearn.model_selection import KFold, train_test_split
-from spike_former_unet_model import spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
-# from simple_unet_model import spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
+from model.spike_former_unet_model import spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
+# from model.simple_unet_model import spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
 from losses import BratsDiceLoss, BratsFocalLoss, BratsDiceLosswithFPPenalty, BratsTverskyLoss, AdaptiveRegionalLoss
 from utils import init_weights, save_metrics_to_file,save_case_list
 from train import train_fold, get_scheduler, EarlyStopping
