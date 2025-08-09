@@ -1,10 +1,12 @@
 import nibabel as nib
 import numpy as np
 import torch
+import sys
 import os
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import json
-from inference_utils import restore_to_original_shape, convert_label_to_onehot
-from inference_metrics import (
+from inference.inference_utils import restore_to_original_shape, convert_label_to_onehot
+from inference.inference_metrics import (
     dice_score_braTS_style, compute_dice_from_nifti, compute_dice_from_nifti_braTS_style,
     compute_soft_dice, compute_hd95_from_nifti, compute_sensitivity_specificity_from_nifti,
     load_nifti_as_tensor
@@ -209,15 +211,15 @@ def inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_sty
     all_fold_dice_scores_style2 = []
     all_fold_soft_dice_scores = []
 
-    gt_root = './data/BraTS2020/MICCAI_BraTS2020_TrainingData'
+    gt_root = '../../data/BraTS2020/MICCAI_BraTS2020_TrainingData'
     for fold_index in range(1, 6):
         print(f"Processing fold {fold_index} for experiment {experiment_index} with style {dice_score_style}")
         if dice_score_style == 1:
-            pred_dir = f'./Pred/BraTS2020/validation_dataset/BraTS2020_val_pred_exp{experiment_index}/val_fold{fold_index}_pred'
-            prob_dir = f'./Pred/BraTS2020/validation_dataset/BraTS2020_val_prob_folds_exp{experiment_index}/fold{fold_index}'
+            pred_dir = f'../../Project/Pred/BraTS2020/validation_dataset/BraTS2020_val_pred_exp{experiment_index}/val_fold{fold_index}_pred'
+            prob_dir = f'../../Project/Pred/BraTS2020/validation_dataset/BraTS2020_val_prob_folds_exp{experiment_index}/fold{fold_index}'
         elif dice_score_style == 2:
-            pred_dir = f'./Pred/BraTS2020/validation_dataset/BraTS2020_val_pred_exp{experiment_index}_dice_style2/val_fold{fold_index}_pred'
-            prob_dir = f'./Pred/BraTS2020/validation_dataset/BraTS2020_val_prob_folds_exp{experiment_index}_dice_style2/fold{fold_index}'
+            pred_dir = f'../../Project/Pred/BraTS2020/validation_dataset/BraTS2020_val_pred_exp{experiment_index}_dice_style2/val_fold{fold_index}_pred'
+            prob_dir = f'../../Project/Pred/BraTS2020/validation_dataset/BraTS2020_val_prob_folds_exp{experiment_index}_dice_style2/fold{fold_index}'
 
         all_dice_scores, all_dice_scores_style2, all_soft_dice_scores, _, _ = batch_compute_metrics(
             pred_dir=pred_dir,
@@ -249,11 +251,11 @@ def inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_sty
 
 
 def inference_dice_compute_for_brats20_test_data(experiment_index, dice_score_style, metric_obj=None, metadata_json_path = None):   
-        gt_root = './data/BraTS2020/MICCAI_BraTS2020_TrainingData'
+        gt_root = '../../data/BraTS2020/MICCAI_BraTS2020_TrainingData'
         if dice_score_style == 1:
-            pred_dir = f'./Pred/BraTS2020/test_dataset/test_pred_soft_ensemble_exp{experiment_index}'
+            pred_dir = f'../../Project/Pred/BraTS2020/test_dataset/test_pred_soft_ensemble_exp{experiment_index}'
         elif dice_score_style == 2:
-            pred_dir = f'./Pred/BraTS2020/test_dataset/test_pred_soft_ensemble_exp{experiment_index}_dice_style2'
+            pred_dir = f'../../Project/Pred/BraTS2020/test_dataset/test_pred_soft_ensemble_exp{experiment_index}_dice_style2'
         prob_dir = None # f'./Pred/BraTS2020/test_dataset/test_prob_soft_ensemble_exp{experiment_index}'
         metric_obj = None # BratsDiceMetric()
 
@@ -287,7 +289,7 @@ def main():
 
        # BraTS 2020 Validation or Test
         mode = 'test'  # 'val' or 'test'
-        experiment_index = 76
+        experiment_index = 77
         dice_score_style = 2
         if mode == 'val':
             inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_style, metric_obj=None, metadata_json_path = None)
