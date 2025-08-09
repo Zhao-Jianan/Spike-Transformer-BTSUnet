@@ -201,8 +201,8 @@ def batch_compute_metrics(
     
     return all_dice_scores, all_dice_scores_style2, all_soft_dice_scores, all_hd95_scores, all_sensitivity_specificity_scores
 
-    
-def inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_style, metric_obj=None, metadata_json_path = None):
+
+def inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_style, prefix=None, metric_obj=None, metadata_json_path = None):
     """
     计算验证集数据的 Dice 分数
     """
@@ -212,15 +212,14 @@ def inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_sty
     all_fold_soft_dice_scores = []
 
     gt_root = '../../data/BraTS2020/MICCAI_BraTS2020_TrainingData'
+    dice_score_style_str = "" if dice_score_style == 1 else f"_dice_style{dice_score_style}"
+    prefix_str = f"_{prefix}" if prefix else ""
     for fold_index in range(1, 6):
         print(f"Processing fold {fold_index} for experiment {experiment_index} with style {dice_score_style}")
-        if dice_score_style == 1:
-            pred_dir = f'../../Project/Pred/BraTS2020/validation_dataset/BraTS2020_val_pred_exp{experiment_index}/val_fold{fold_index}_pred'
-            prob_dir = f'../../Project/Pred/BraTS2020/validation_dataset/BraTS2020_val_prob_folds_exp{experiment_index}/fold{fold_index}'
-        elif dice_score_style == 2:
-            pred_dir = f'../../Project/Pred/BraTS2020/validation_dataset/BraTS2020_val_pred_exp{experiment_index}_dice_style2/val_fold{fold_index}_pred'
-            prob_dir = f'../../Project/Pred/BraTS2020/validation_dataset/BraTS2020_val_prob_folds_exp{experiment_index}_dice_style2/fold{fold_index}'
+        pred_dir = f'../../Project/Pred/BraTS2020/validation_dataset/BraTS2020_val_pred_exp{experiment_index}{dice_score_style_str}{prefix_str}/val_fold{fold_index}_pred'
+        prob_dir = f'../../Project/Pred/BraTS2020/validation_dataset/BraTS2020_val_prob_folds_exp{experiment_index}{dice_score_style_str}{prefix_str}/fold{fold_index}'
 
+        print(f"Pred dir: {pred_dir}")
         all_dice_scores, all_dice_scores_style2, all_soft_dice_scores, _, _ = batch_compute_metrics(
             pred_dir=pred_dir,
             gt_root=gt_root,
@@ -250,14 +249,15 @@ def inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_sty
             print_avg_metrics(all_fold_soft_dice_scores[i], prefix="Soft Dice")
 
 
-def inference_dice_compute_for_brats20_test_data(experiment_index, dice_score_style, metric_obj=None, metadata_json_path = None):   
+def inference_dice_compute_for_brats20_test_data(experiment_index, dice_score_style, prefix=None, metric_obj=None, metadata_json_path = None):   
         gt_root = '../../data/BraTS2020/MICCAI_BraTS2020_TrainingData'
-        if dice_score_style == 1:
-            pred_dir = f'../../Project/Pred/BraTS2020/test_dataset/test_pred_soft_ensemble_exp{experiment_index}'
-        elif dice_score_style == 2:
-            pred_dir = f'../../Project/Pred/BraTS2020/test_dataset/test_pred_soft_ensemble_exp{experiment_index}_dice_style2'
+        dice_score_style_str = "" if dice_score_style == 1 else f"_dice_style{dice_score_style}"
+        prefix_str = f"_{prefix}" if prefix else ""
+        pred_dir = f'../../Project/Pred/BraTS2020/test_dataset/test_pred_soft_ensemble_exp{experiment_index}{dice_score_style_str}{prefix_str}'
         prob_dir = None # f'./Pred/BraTS2020/test_dataset/test_prob_soft_ensemble_exp{experiment_index}'
         metric_obj = None # BratsDiceMetric()
+        
+        print(f"Pred dir: {pred_dir}")
 
         batch_compute_metrics(
             pred_dir=pred_dir,
@@ -291,10 +291,11 @@ def main():
         mode = 'test'  # 'val' or 'test'
         experiment_index = 77
         dice_score_style = 2
+        prefix = 'slidingwindow'
         if mode == 'val':
-            inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_style, metric_obj=None, metadata_json_path = None)
+            inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_style, prefix, metric_obj=None, metadata_json_path = None)
         elif mode == 'test':
-            inference_dice_compute_for_brats20_test_data(experiment_index, dice_score_style, metric_obj=None, metadata_json_path = None)
+            inference_dice_compute_for_brats20_test_data(experiment_index, dice_score_style, prefix,metric_obj=None, metadata_json_path = None)
 
 
     else:

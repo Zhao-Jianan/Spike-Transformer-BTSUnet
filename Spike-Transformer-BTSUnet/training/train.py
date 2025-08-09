@@ -547,7 +547,7 @@ def train_one_fold(
             lr_history.append(current_lrs[0]) 
             
         if early_stopping is not None:
-            early_stopping(patch_val_mean_dice, epoch+1)
+            early_stopping(patch_val_mean_dice_style2, epoch+1)
             if early_stopping.early_stop:
                 print(f"[Fold {fold}] Early stopping at epoch {epoch+1}")
                 break
