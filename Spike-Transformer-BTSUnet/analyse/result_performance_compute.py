@@ -286,12 +286,11 @@ def main():
         # batch_compute_dice_trainingset(gt_root, pred_dir)
         
 
-
        # BraTS 2020 Validation or Test
-        mode = 'test'  # 'val' or 'test'
-        experiment_index = 77
+        mode = 'val'  # 'val' or 'test'
+        experiment_index = 80
         dice_score_style = 2
-        prefix = 'slidingwindow'
+        prefix = None
         if mode == 'val':
             inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_style, prefix, metric_obj=None, metadata_json_path = None)
         elif mode == 'test':
