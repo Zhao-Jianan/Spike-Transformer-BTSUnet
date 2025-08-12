@@ -177,6 +177,10 @@ nohup python spikeformerunet85/main.py > New-85-log_bra20_spikeformerunet_144c64
 nohup python spikeformerunet86/main.py > New-86-log_bra20_spikeformerunet_144c64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware075.out 2>&1 &
 [87]
 nohup python spikeformerunet87/main.py > New-87-log_bra20_spikeformerunet_144c64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss214_catskip_seed42_aware075.out 2>&1 &
+[88]
+nohup python spikeformerunet88/main.py > New-88-log_bra20_spikeformerunet_144c64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware08.out 2>&1 &
+[89]
+nohup python spikeformerunet89/main.py > New-89-log_bra20_spikeformerunet_144c64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed2025_aware08.out 2>&1 &
 
 ps -u $USER -f | grep python
 pgrep -u $USER -a python
@@ -194,7 +198,7 @@ nohup python spikeformerunet82/inference_val_data.py > inference_log_exp82_val_d
 
 nohup python spikeformerunet82/inference_resemble.py > inference_log_exp82_test_data_dice_style_2_post.out 2>&1 &
 
-nohup python spikeformerunet77/inference_val_data.py > inference_log_exp77_val_data_dice_style_2_nopost.out 2>&1 &
+nohup python spikeformerunet77/inference_val_data.py > inference_log_exp77_val_data_dice_style_2_nnpost.out 2>&1 &
 
 
 nohup python spikeformerunet77/inference_resemble.py > inference_log_exp77_test_data_dice_style_2_nopost.out 2>&1 &

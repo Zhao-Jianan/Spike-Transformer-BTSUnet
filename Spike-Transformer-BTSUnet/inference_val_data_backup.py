@@ -14,68 +14,13 @@ import json
 
 from inference.inference_helper import TemporalSlidingWindowInference, TemporalSlidingWindowInferenceWithROI
 from inference.inference_preprocess import preprocess_for_inference_valid
-from inference.inference_postprocess import postprocess_brats_label_nnstyle, postprocess_brats_label, determine_postprocessing_brats
+from inference.inference_postprocess import postprocess_brats_label_nnstyle, postprocess_brats_label
 from inference.inference_utils import (
     convert_prediction_to_label_suppress_fp, check_all_folds_ckpt_exist,
     check_all_folds_val_txt_exist, restore_to_original_shape, convert_label_to_onehot
     )
 from inference.inference_metrics import dice_score_braTS_style
 from training.metrics import dice_score_braTS_overall, dice_score_braTS_per_sample_avg
-
-
-def compute_avg_dice(dice_list, index_map):
-    """
-    计算平均 Dice
-    支持字典格式({'TC':..., 'WT':..., 'ET':...}) 和 tuple/tensor 格式
-    """
-    if not dice_list:
-        return None, None
-
-    # 检查第一个元素类型，决定解析方式
-    first = dice_list[0]
-    if isinstance(first, dict):
-        avg_dice = {key: sum(d[key] for d in dice_list) / len(dice_list) for key in first}
-    else:  # tuple / list / tensor
-        def get_value(d, key):
-            val = d[index_map[key]]
-            return val.item() if torch.is_tensor(val) else float(val)
-        avg_dice = {key: sum(get_value(d, key) for d in dice_list) / len(dice_list) for key in index_map}
-
-    mean_dice = sum(avg_dice.values()) / len(avg_dice)
-    return avg_dice, mean_dice
-
-
-def compute_avg_dice_style2(dice_dicts_style2_post):
-    """
-    计算 style2 格式下的平均 Dice。
-    dice_dicts_style2_post: list of tuple / list / tensor
-    tuple 或 list -> (TC, WT, ET)
-    0-dim tensor -> 单个值（一般错误存储，不推荐）
-    """
-    index_map = {'TC': 0, 'WT': 1, 'ET': 2}
-
-    # 确保统一格式
-    processed = []
-    for d in dice_dicts_style2_post:
-        if isinstance(d, tuple) or isinstance(d, list):
-            processed.append(tuple(float(x) for x in d))
-        elif torch.is_tensor(d):
-            if d.ndim == 0:
-                # 0-dim tensor 不能直接索引，转成 float
-                processed.append((float(d.item()), 0.0, 0.0))  
-            else:
-                processed.append(tuple(float(x) for x in d))
-        else:
-            raise ValueError(f"Unsupported type in dice_dicts_style2_post: {type(d)}")
-
-    # 求平均
-    avg_dice = {key: sum(p[index_map[key]] for p in processed) / len(processed) for key in index_map}
-    mean_dice = sum(avg_dice.values()) / len(avg_dice)
-
-    print(f"Average Dice - TC: {avg_dice['TC']:.4f} | WT: {avg_dice['WT']:.4f} | ET: {avg_dice['ET']:.4f} | Mean: {mean_dice:.4f}")
-    return avg_dice, mean_dice
-
-
 
 def pred_single_case(case_dir, model, inference_engine, device, center_crop=True):
     case_name = os.path.basename(case_dir)
@@ -139,9 +84,31 @@ def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inferenc
         # 保存回metadata.json
         with open(metadata_json_path, "w") as f:
             json.dump(all_metadata, f, indent=2)
+                
+    pred_prob = torch.sigmoid(pred_tensor)
+    pred_bin = (pred_prob > 0.5).float()
+
+    for i, key in enumerate(['TC', 'WT', 'ET']):
+        p = pred_bin[0, i]
+        t = gt_tensor[0, i]
+        inter = (p * t).sum().item()
+        p_sum = p.sum().item()
+        t_sum = t.sum().item()
+        dice_val = (2 * inter + 1e-5) / (p_sum + t_sum + 1e-5)
+        print(f"Class {key}: pred sum={p_sum}, target sum={t_sum}, intersection={inter}, dice={dice_val:.6f}")
+
+            
+    # 计算 Dice（原始预测）
+    dice_dict = dice_score_braTS_per_sample_avg(pred_tensor, gt_tensor)
+    print(f"Dice - Case {case_name} | TC: {dice_dict['TC']:.4f}, WT: {dice_dict['WT']:.4f}, ET: {dice_dict['ET']:.4f}")
+    
+    pred_tensor_style = pred_tensor.squeeze(0)  # 从 [1, 3, D, H, W] -> [3, D, H, W]
+    gt_tensor_style = gt_tensor.squeeze(0)
+    dice_dict_style2 = dice_score_braTS_style(pred_tensor_style, gt_tensor_style)
+    print(f"[Dice Style] Case {case_name} | TC: {dice_dict_style2[0]:.4f}, WT: {dice_dict_style2[1]:.4f}, ET: {dice_dict_style2[2]:.4f}")
 
         
-    # 将预测结果转换为标签（不做 PP）
+    # 将预测结果转换为标签
     label_np = convert_prediction_to_label_suppress_fp(prob)  # shape: (D, H, W)
     label_tensor = torch.from_numpy(label_np)
 
@@ -161,28 +128,105 @@ def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inferenc
     # 将标签从 (D, H, W) 转换为 (H, W, D)
     print("label type after restore:", restored_label.shape)
     final_label = restored_label.permute(1, 2, 0)  # to (H, W, D)
-    final_label_np = final_label.cpu().numpy()
+
+    print("Label shape before postprocessing:", final_label.shape)  # (H, W, D)
+   
+    print("GT shape before postprocessing:", raw_gt_tensor_hwd.shape)  # (H, W, D)
+    # 后处理
+    final_label = postprocess_brats_label_nnstyle(final_label)
     
-    # 存储 raw pred .nii.gz
+    # 存储 pred mask
+    case_name = os.path.basename(case_dir)
     print(f"Processed case {case_name}, label shape: {final_label.shape}")   
     
-    # 保存预测 nii
     ref_nii_path = os.path.join(case_dir, f"{case_name}_{cfg.modalities[cfg.modalities.index('t1ce')]}.nii")
     ref_nii = nib.load(ref_nii_path)
-    nib.save(nib.Nifti1Image(final_label_np, affine=ref_nii.affine, header=ref_nii.header),
-             os.path.join(save_dir, f"{case_name}_pred_mask.nii.gz"))
+    pred_nii = nib.Nifti1Image(final_label, affine=ref_nii.affine, header=ref_nii.header)
 
-    # 保存 GT（(D,H,W) → (H,W,D)）
-    raw_gt_np = raw_gt_tensor_hwd.cpu().numpy()
-
-    return final_label_np, raw_gt_np
+    save_path = os.path.join(save_dir, f"{case_name}_pred_mask.nii.gz")
+    nib.save(pred_nii, save_path)
     
+    
+    # 计算 postprocess 之后的 dice score
+    # 保证是 [D, H, W] 顺序
+    # ===== 统一形状到 (D, H, W) =====
+    if isinstance(final_label, np.ndarray):
+        final_label = torch.from_numpy(final_label)
+    final_label = final_label.permute(2, 0, 1)  # (D, H, W)
+    final_gt = raw_gt_tensor_hwd.permute(2, 0, 1)  # (D, H, W)
+
+    if final_label.shape != final_gt.shape:
+        raise ValueError(f"Shape mismatch: pred {final_label.shape}, gt {final_gt.shape}")
+
+    # 转 torch 并 one-hot
+    final_label_onehot = convert_label_to_onehot(final_label.long()).unsqueeze(0)
+    final_gt_onehot = convert_label_to_onehot(final_gt).unsqueeze(0)
+
+    dice_dict_post = dice_score_braTS_per_sample_avg(final_label_onehot, final_gt_onehot)
+    dice_dict_style2_post = dice_score_braTS_style(final_label_onehot.squeeze(0), final_gt_onehot.squeeze(0))
+
+    print(f"[Dice Post] Case {case_name} | TC: {dice_dict_post['TC']:.4f}, WT: {dice_dict_post['WT']:.4f}, ET: {dice_dict_post['ET']:.4f}")
+    print(f"[Dice Style Post] Case {case_name} | TC: {dice_dict_style2_post[0]:.4f}, WT: {dice_dict_style2_post[1]:.4f}, ET: {dice_dict_style2_post[2]:.4f}")
+
+    return dice_dict, dice_dict_style2, dice_dict_post, dice_dict_style2_post
+    
+
+
+def compute_avg_dice(dice_list, index_map):
+    """
+    计算平均 Dice
+    支持字典格式({'TC':..., 'WT':..., 'ET':...}) 和 tuple/tensor 格式
+    """
+    if not dice_list:
+        return None, None
+
+    # 检查第一个元素类型，决定解析方式
+    first = dice_list[0]
+    if isinstance(first, dict):
+        avg_dice = {key: sum(d[key] for d in dice_list) / len(dice_list) for key in first}
+    else:  # tuple / list / tensor
+        def get_value(d, key):
+            val = d[index_map[key]]
+            return val.item() if torch.is_tensor(val) else float(val)
+        avg_dice = {key: sum(get_value(d, key) for d in dice_list) / len(dice_list) for key in index_map}
+
+    mean_dice = sum(avg_dice.values()) / len(avg_dice)
+    return avg_dice, mean_dice
+
+
+def compute_avg_dice_style2(dice_dicts_style2_post):
+    """
+    计算 style2 格式下的平均 Dice。
+    dice_dicts_style2_post: list of tuple / list / tensor
+    tuple 或 list -> (TC, WT, ET)
+    0-dim tensor -> 单个值（一般错误存储，不推荐）
+    """
+    index_map = {'TC': 0, 'WT': 1, 'ET': 2}
+
+    # 确保统一格式
+    processed = []
+    for d in dice_dicts_style2_post:
+        if isinstance(d, tuple) or isinstance(d, list):
+            processed.append(tuple(float(x) for x in d))
+        elif torch.is_tensor(d):
+            if d.ndim == 0:
+                # 0-dim tensor 不能直接索引，转成 float
+                processed.append((float(d.item()), 0.0, 0.0))  
+            else:
+                processed.append(tuple(float(x) for x in d))
+        else:
+            raise ValueError(f"Unsupported type in dice_dicts_style2_post: {type(d)}")
+
+    # 求平均
+    avg_dice = {key: sum(p[index_map[key]] for p in processed) / len(processed) for key in index_map}
+    mean_dice = sum(avg_dice.values()) / len(avg_dice)
+
+    print(f"Average Dice - TC: {avg_dice['TC']:.4f} | WT: {avg_dice['WT']:.4f} | ET: {avg_dice['ET']:.4f} | Mean: {mean_dice:.4f}")
+    return avg_dice, mean_dice
+
 
 def run_inference_folder_single(case_root, save_dir, prob_save_dir, model, inference_engine, device, whitelist=None, center_crop=True):
     os.makedirs(save_dir, exist_ok=True)
-    # 存储预测和GT数组
-    pred_list = []
-    gt_list = []
     
     # For other dataset
     all_case_dirs = sorted([
@@ -210,17 +254,37 @@ def run_inference_folder_single(case_root, save_dir, prob_save_dir, model, infer
 
     print(f"Found {len(case_dirs)} cases to run.")
 
-    
+    dice_dicts = []
+    dice_dicts_style2 = []
+    dice_dicts_post = []
+    dice_dicts_style2_post = []
+    index_map = {'TC': 0, 'WT': 1, 'ET': 2}
     for case_dir in tqdm(case_dirs, desc="Single Model Inference"):
-        pred_np, gt_np = run_inference_soft_single(
-            case_dir, save_dir, prob_save_dir, model, inference_engine, device, center_crop=center_crop
-        )
-        pred_list.append(pred_np)
-        gt_list.append(gt_np)
+        dice_dict, dice_dict_style2, dice_dict_post, dice_dict_style2_post = run_inference_soft_single(
+            case_dir, save_dir, prob_save_dir, model, inference_engine, device, center_crop=center_crop)
+        dice_dicts.append(dice_dict)
+        dice_dicts_style2.append(dice_dict_style2)
+        dice_dicts_post.append(dice_dict_post)
+        dice_dicts_style2_post.append(dice_dict_style2_post)
 
-    # 全部完成后，生成后处理策略
-    pkl_path = os.path.join(save_dir, "postprocessing_strategy.pkl")
-    determine_postprocessing_brats(pred_list, gt_list, labels=[1, 2, 4], save_pkl_path=pkl_path)
+    # ===== 统一计算平均 Dice =====
+    avg_dice, mean_dice = compute_avg_dice(dice_dicts, index_map)
+    if avg_dice:
+        print(f"Average Dice - TC: {avg_dice['TC']:.4f} | WT: {avg_dice['WT']:.4f} | ET: {avg_dice['ET']:.4f} | Mean: {mean_dice:.4f}")
+
+    avg_dice_style2, mean_dice_style2 = compute_avg_dice(dice_dicts_style2, index_map)
+    if avg_dice_style2:
+        print(f"Average Dice (style) - TC: {avg_dice_style2['TC']:.4f} | WT: {avg_dice_style2['WT']:.4f} | ET: {avg_dice_style2['ET']:.4f} | Mean: {mean_dice_style2:.4f}")
+
+    avg_dice_post, mean_dice_post = compute_avg_dice(dice_dicts_post, index_map)
+    if avg_dice_post:
+        print(f"Average Dice (postprocess) - TC: {avg_dice_post['TC']:.4f} | WT: {avg_dice_post['WT']:.4f} | ET: {avg_dice_post['ET']:.4f} | Mean: {mean_dice_post:.4f}")
+
+    avg_dice_style2_post, mean_dice_style2_post = compute_avg_dice_style2(dice_dicts_style2_post)
+    if avg_dice_style2_post:
+        print(f"Average Dice (style, postprocess) - TC: {avg_dice_style2_post['TC']:.4f} | WT: {avg_dice_style2_post['WT']:.4f} | ET: {avg_dice_style2_post['ET']:.4f} | Mean: {mean_dice_style2_post:.4f}")
+
+    return avg_dice, avg_dice_style2, avg_dice_post, avg_dice_style2_post
 
 
 def build_model(ckpt_path):
@@ -302,33 +366,37 @@ def run_inference_all_folds(
         else:
             prob_save_dir = None
 
-        run_inference_func(
+        avg_dice, avg_dice_style2, avg_dice_post, avg_dice_style2_post = run_inference_func(
             case_dir, output_dir, prob_save_dir, model, inference_engine, device, whitelist, center_crop=center_crop)
+        avg_dice_list.append(avg_dice)
+        avg_dice_style2_list.append(avg_dice_style2)
+        avg_dice_post_list.append(avg_dice_post)
+        avg_dice_style2_post_list.append(avg_dice_style2_post)
 
         print(f"Fold {fold} inference done. Results saved in {output_dir}")
         print(f"Probabilities saved in {prob_save_dir}")
         
-    # for i, fold in enumerate(folds):
-    #     if avg_dice_list[i] is not None:
-    #         mean_dice = sum(avg_dice_list[i].values()) / len(avg_dice_list[i])
-    #         print(f"Fold {fold} - Average Dice: TC: {avg_dice_list[i]['TC']:.4f}, WT: {avg_dice_list[i]['WT']:.4f}, ET: {avg_dice_list[i]['ET']:.4f} | Mean: {mean_dice:.4f}")            
-    #     else:
-    #         print(f"Fold {fold} - No valid cases processed.")
+    for i, fold in enumerate(folds):
+        if avg_dice_list[i] is not None:
+            mean_dice = sum(avg_dice_list[i].values()) / len(avg_dice_list[i])
+            print(f"Fold {fold} - Average Dice: TC: {avg_dice_list[i]['TC']:.4f}, WT: {avg_dice_list[i]['WT']:.4f}, ET: {avg_dice_list[i]['ET']:.4f} | Mean: {mean_dice:.4f}")            
+        else:
+            print(f"Fold {fold} - No valid cases processed.")
             
-    # for i, fold in enumerate(folds):
-    #     if avg_dice_style2_list[i] is not None:
-    #         mean_dice = sum(avg_dice_style2_list[i].values()) / len(avg_dice_style2_list[i])
-    #         print(f"Style 2 Fold {fold} - Average Dice: TC: {avg_dice_style2_list[i]['TC']:.4f}, WT: {avg_dice_style2_list[i]['WT']:.4f}, ET: {avg_dice_style2_list[i]['ET']:.4f} | Mean: {mean_dice:.4f}")
+    for i, fold in enumerate(folds):
+        if avg_dice_style2_list[i] is not None:
+            mean_dice = sum(avg_dice_style2_list[i].values()) / len(avg_dice_style2_list[i])
+            print(f"Style 2 Fold {fold} - Average Dice: TC: {avg_dice_style2_list[i]['TC']:.4f}, WT: {avg_dice_style2_list[i]['WT']:.4f}, ET: {avg_dice_style2_list[i]['ET']:.4f} | Mean: {mean_dice:.4f}")
 
-    # for i, fold in enumerate(folds):
-    #     if avg_dice_post_list[i] is not None:
-    #         mean_dice = sum(avg_dice_post_list[i].values()) / len(avg_dice_post_list[i])
-    #         print(f"Style 1 with post-processing Fold {fold} - Average Dice: TC: {avg_dice_post_list[i]['TC']:.4f}, WT: {avg_dice_post_list[i]['WT']:.4f}, ET: {avg_dice_post_list[i]['ET']:.4f} | Mean: {mean_dice:.4f}")
+    for i, fold in enumerate(folds):
+        if avg_dice_post_list[i] is not None:
+            mean_dice = sum(avg_dice_post_list[i].values()) / len(avg_dice_post_list[i])
+            print(f"Style 1 with post-processing Fold {fold} - Average Dice: TC: {avg_dice_post_list[i]['TC']:.4f}, WT: {avg_dice_post_list[i]['WT']:.4f}, ET: {avg_dice_post_list[i]['ET']:.4f} | Mean: {mean_dice:.4f}")
             
-    # for i, fold in enumerate(folds):
-    #     if avg_dice_style2_post_list[i] is not None:
-    #         mean_dice = sum(avg_dice_style2_post_list[i].values()) / len(avg_dice_style2_post_list[i])
-    #         print(f"Style 2 with post-processing Fold {fold} - Average Dice: TC: {avg_dice_style2_post_list[i]['TC']:.4f}, WT: {avg_dice_style2_post_list[i]['WT']:.4f}, ET: {avg_dice_style2_post_list[i]['ET']:.4f} | Mean: {mean_dice:.4f}")
+    for i, fold in enumerate(folds):
+        if avg_dice_style2_post_list[i] is not None:
+            mean_dice = sum(avg_dice_style2_post_list[i].values()) / len(avg_dice_style2_post_list[i])
+            print(f"Style 2 with post-processing Fold {fold} - Average Dice: TC: {avg_dice_style2_post_list[i]['TC']:.4f}, WT: {avg_dice_style2_post_list[i]['WT']:.4f}, ET: {avg_dice_style2_post_list[i]['ET']:.4f} | Mean: {mean_dice:.4f}")
 
 
 def inference_BraTS2020_val_data(experiment_id, dice_style, center_crop=True, prefix=None):
@@ -374,7 +442,7 @@ def main():
     # BraTS 2020 validation data inference
     experiment_id = 77
     dice_style = 2
-    prefix = 'nnpost'
+    prefix = 'nopost'
     inference_BraTS2020_val_data(experiment_id, dice_style, center_crop=True, prefix=prefix)
 
     

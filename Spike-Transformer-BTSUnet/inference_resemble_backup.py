@@ -1,5 +1,4 @@
 import os
-import pickle
 os.chdir(os.path.dirname(__file__))
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import torch
@@ -15,10 +14,7 @@ import json
 
 from inference.inference_helper import TemporalSlidingWindowInference, TemporalSlidingWindowInferenceWithROI
 from inference.inference_preprocess import preprocess_for_inference_test
-from inference.inference_postprocess import (
-    postprocess_brats_label_nnstyle, postprocess_brats_label, 
-    postprocess_brats_label_etminsize, apply_postprocessing_brats
-    )
+from inference.inference_postprocess import postprocess_brats_label_nnstyle, postprocess_brats_label, postprocess_brats_label_etminsize
 from inference.inference_utils import (
     convert_prediction_to_label_suppress_fp, check_all_folds_ckpt_exist, check_test_txt_exist, 
     restore_to_original_shape, read_case_list
@@ -164,18 +160,6 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, meta
         for fold in range(1, 6):
             prob_path = os.path.join(prob_root, f"fold{fold}", f"{case}_prob.npy")
             prob = np.load(prob_path)
-            # 读取该 fold 的后处理策略
-            pkl_path = os.path.join(prob_root, f"fold{fold}", "postprocessing_strategy.pkl")
-            if os.path.exists(pkl_path):
-                with open(pkl_path, "rb") as f:
-                    strategy = pickle.load(f)
-                label_fold = convert_prediction_to_label_suppress_fp(prob)
-                label_fold = apply_postprocessing_brats(label_fold, strategy)  # 应用独立策略
-                prob = np.eye(cfg.num_classes)[label_fold]  # 重新转为 one-hot 概率图
-                prob = np.transpose(prob, (3, 0, 1, 2))  # (C, D, H, W)
-            else:
-                print(f"[Warning] No postprocessing_strategy.pkl found for fold {fold}. Skipping postprocessing.")
-
             prob_list.append(prob)
 
         mean_prob = np.mean(np.stack(prob_list, axis=0), axis=0)  # [C, D, H, W]
@@ -197,6 +181,10 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, meta
 
         print("Label shape before transposing:", restored_label.shape)  # (D, H, W)
         final_label = np.transpose(restored_label, (1, 2, 0))
+        print("Label shape before postprocessing:", final_label.shape)  # (H, W, D)
+        # 后处理
+        # final_label = postprocess_brats_label_nnstyle(final_label)
+        print(f"Processed case {case}, label shape: {final_label.shape}")
 
         ref_nii_path = os.path.join(case_dir, case, f"{case}_{cfg.modalities[cfg.modalities.index('t1ce')]}.nii")
         ref_nii = nib.load(ref_nii_path)
