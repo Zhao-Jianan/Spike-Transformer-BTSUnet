@@ -7,7 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import json
 from inference.inference_utils import restore_to_original_shape, convert_label_to_onehot
 from inference.inference_metrics import (
-    dice_score_braTS_style, compute_dice_from_nifti, compute_dice_from_nifti_braTS_style,
+    dice_score_braTS_style, compute_dice_from_nifti, compute_dice_from_nifti_nnunet, compute_dice_from_nifti_braTS_style,
     compute_soft_dice, compute_hd95_from_nifti, compute_sensitivity_specificity_from_nifti,
     load_nifti_as_tensor
     )
@@ -74,6 +74,7 @@ def batch_compute_metrics(
     metadata_json_path=None
 ):
     pred_files = sorted([f for f in os.listdir(pred_dir) if f.endswith(".nii.gz")])
+    # pred_files = sorted([f for f in os.listdir(pred_dir) if f.endswith(".nii")])    
     all_dice_scores = []
     all_dice_scores_style2 = []  # BraTS style Dice
     compare_mode = "crop"  # 默认比较模式为裁剪
@@ -89,6 +90,7 @@ def batch_compute_metrics(
 
     for pred_file in pred_files:
         case_name = pred_file.replace("_pred_mask.nii.gz", "")
+        # case_name = pred_file.replace(".nii", "")
         print(f"Processing case: {case_name}")
         pred_path = os.path.join(pred_dir, pred_file)
         gt_path = find_gt_path(gt_root, case_name)
@@ -268,6 +270,45 @@ def inference_dice_compute_for_brats20_test_data(experiment_index, dice_score_st
             compute_hd95=True,
             compute_sensitivity_specificity=True
             )
+        
+def inference_dice_compute_nnunet_val_data():
+    """
+    计算验证集数据的 Dice 分数
+    """
+
+    all_fold_dice_scores = []
+    all_fold_dice_scores_style2 = []
+    
+    gt_root = '../../data/BraTS2020/MICCAI_BraTS2020_TrainingData'
+    for fold_index in range(0, 5):
+        print(f"Processing fold {fold_index}")
+        pred_dir = f'../../Compared_exp/Result/nnUnet/BraTS_2020/fold_{fold_index}/validation'
+
+        print(f"Pred dir: {pred_dir}")
+        all_dice_scores, all_dice_scores_style2, _, _, _ = batch_compute_metrics(
+            pred_dir=pred_dir,
+            gt_root=gt_root,
+            prob_dir=None, # 概率图
+            is_resemble=False, # 是否是5折重叠的概率图
+            metric_obj=None, # BratsDiceMetric 实例
+            compute_hd95=False,
+            compute_sensitivity_specificity=False,
+            metadata_json_path=None
+            )
+        
+        all_fold_dice_scores.append(all_dice_scores)
+        all_fold_dice_scores_style2.append(all_dice_scores_style2)
+
+    # 打印所有折的平均值
+    print("\n============================================")
+    print("\n============================================")
+    print("\n=== Average Dice Scores across all folds ===")
+    print("\n============================================")
+    print("\n============================================")
+    for i in range(5):
+        print(f"\nFold {i+1}:")
+        print_avg_metrics(all_fold_dice_scores[i], prefix="Hard Dice")
+        print_avg_metrics(all_fold_dice_scores_style2[i], prefix="BraTS Style Dice", keys=["Dice_TC", "Dice_WT", "Dice_ET", "Mean_Dice"])
     
 
 def main():
@@ -286,16 +327,17 @@ def main():
         # batch_compute_dice_trainingset(gt_root, pred_dir)
         
 
-       # BraTS 2020 Validation or Test
-        mode = 'val'  # 'val' or 'test'
-        experiment_index = 80
+        # BraTS 2020 Validation or Test
+        mode = 'test'  # 'val' or 'test'
+        experiment_index = 77
         dice_score_style = 2
-        prefix = None
+        prefix = 'nopost'
         if mode == 'val':
             inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_style, prefix, metric_obj=None, metadata_json_path = None)
         elif mode == 'test':
             inference_dice_compute_for_brats20_test_data(experiment_index, dice_score_style, prefix,metric_obj=None, metadata_json_path = None)
-
+        
+        # inference_dice_compute_nnunet_val_data()
 
     else:
         # compute single case Dice

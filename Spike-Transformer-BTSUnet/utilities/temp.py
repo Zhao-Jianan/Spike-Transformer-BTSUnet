@@ -1,57 +1,80 @@
-def batch_compute_metrics(
-    pred_dir, 
-    gt_root,
-    prob_dir=None,
-    metric_obj=None,
-    compute_hd95=False,
-    compute_sensitivity_specificity=False,
-    folded_prob_dir=False,
-):
-    pred_files = sorted([f for f in os.listdir(pred_dir) if f.endswith(".nii.gz")])
-    all_dice_scores = []
-    all_soft_dice_scores = []
-    all_hd95_scores = []
-    all_sensitivity_specificity_scores = []
+def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inference_engine, device, center_crop=True, verbose=False):
+    os.makedirs(save_dir, exist_ok=True)
+    if prob_save_dir:
+        os.makedirs(prob_save_dir, exist_ok=True)
+    
+    # ==== Step 1: 推理并获取概率图与标签 ====
+    prob, pred_tensor, gt_tensor, raw_gt_tensor_hwd, metadata = pred_single_case(
+        case_dir, model, inference_engine, device, center_crop=center_crop
+    )
+    case_name = os.path.basename(case_dir)
 
-    for pred_file in pred_files:
-        case_name = pred_file.replace("_pred_mask.nii.gz", "")
-        print(f"\nProcessing case: {case_name}")
-        pred_path = os.path.join(pred_dir, pred_file)
-        gt_path = find_gt_path(gt_root, case_name)
+    # ==== Step 2: 保存概率图 & metadata ====
+    if prob_save_dir:
+        prob_save_path = os.path.join(prob_save_dir, f"{case_name}_prob.npy")
+        np.save(prob_save_path, prob)
+        if verbose:
+            print(f"[INFO] Saved probability map: {prob_save_path}")
 
-        if gt_path is None:
-            print(f"[Warning] GT not found for {case_name}")
-            continue
+        prob_base_dir = os.path.dirname(prob_save_dir.rstrip("/"))
+        metadata_json_path = os.path.join(prob_base_dir, "metadata.json")
 
-        # ---- Hard Dice ----
-        dice = compute_dice_from_nifti(pred_path, gt_path)
-        all_dice_scores.append(dice)
+        # 读取并更新 metadata
+        all_metadata = {}
+        if os.path.exists(metadata_json_path):
+            with open(metadata_json_path, "r") as f:
+                all_metadata = json.load(f)
+        all_metadata[case_name] = {
+            "original_shape": metadata["original_shape"],
+            "crop_start": metadata["crop_start"]
+        }
+        with open(metadata_json_path, "w") as f:
+            json.dump(all_metadata, f, indent=2)
 
-        # ---- Soft Dice ----
-        if prob_dir is not None and metric_obj is not None:
-            if folded_prob_dir:
-                prob_path = None
-                # 搜索5折中的匹配文件
-                for fold in range(5):
-                    candidate = os.path.join(prob_dir, f"fold{fold}", case_name + "_prob.npy")
-                    if os.path.exists(candidate):
-                        prob_path = candidate
-                        break
-                if prob_path is None:
-                    print(f"[Warning] Probability file not found for {case_name} in any fold.")
-                    continue
-            else:
-                prob_path = os.path.join(prob_dir, case_name + "_prob.npy")
-                if not os.path.exists(prob_path):
-                    print(f"[Warning] Probability file not found for {case_name}.")
-                    continue
+    # ==== Step 3: 计算 Dice（原始预测） ====
+    dice_dict = dice_score_braTS_per_sample_avg(pred_tensor, gt_tensor)
+    pred_tensor_style = pred_tensor.squeeze(0)  # [3, D, H, W]
+    gt_tensor_style = gt_tensor.squeeze(0)
+    dice_dict_style2 = dice_score_braTS_style(pred_tensor_style, gt_tensor_style)
 
-            prob_np = np.load(prob_path)  # shape (C, D, H, W)
-            gt_tensor = load_nifti_as_tensor(gt_path).long()
-            C = prob_np.shape[0]
-            gt_onehot = torch.nn.functional.one_hot(gt_tensor, num_classes=C).permute(3, 0, 1, 2).float()
-            prob_tensor = torch.from_numpy(prob_np).float()
-            soft_dice = compute_soft_dice(prob_tensor, gt_onehot, metric_obj)
-            all_soft_dice_scores.append(soft_dice)
+    if verbose:
+        print(f"[Dice] Case {case_name} | TC: {dice_dict['TC']:.4f}, WT: {dice_dict['WT']:.4f}, ET: {dice_dict['ET']:.4f}")
+        print(f"[Dice Style] Case {case_name} | TC: {dice_dict_style2[0]:.4f}, WT: {dice_dict_style2[1]:.4f}, ET: {dice_dict_style2[2]:.4f}")
 
-        # ----
+    # ==== Step 4: 转换预测结果为标签并还原到原始形状 ====
+    label_np = convert_prediction_to_label_suppress_fp(prob)  # (D, H, W)
+    label_tensor = torch.from_numpy(label_np)
+
+    if center_crop:
+        restored_label = restore_to_original_shape(
+            label_tensor, metadata["original_shape"], metadata["crop_start"]
+        )
+    else:
+        restored_label = label_tensor
+
+    # ==== Step 5: 后处理 & 保存 ====
+    # 转为 (H, W, D)
+    final_label = restored_label.permute(1, 2, 0)
+    final_label = postprocess_brats_label_nnstyle(final_label)
+
+    ref_nii_path = os.path.join(case_dir, f"{case_name}_{cfg.modalities[cfg.modalities.index('t1ce')]}.nii")
+    ref_nii = nib.load(ref_nii_path)
+    pred_nii = nib.Nifti1Image(final_label, affine=ref_nii.affine, header=ref_nii.header)
+    nib.save(pred_nii, os.path.join(save_dir, f"{case_name}_pred_mask.nii.gz"))
+
+    # ==== Step 6: 后处理后 Dice ====
+    # 确保是 (D, H, W)
+    if final_label.shape[0] != raw_gt_tensor_hwd.shape[2]:
+        final_label = np.transpose(final_label, (2, 0, 1))
+
+    final_label_onehot = convert_label_to_onehot(torch.from_numpy(final_label).long()).unsqueeze(0)
+    final_gt_onehot = convert_label_to_onehot(raw_gt_tensor_hwd.permute(2, 0, 1)).unsqueeze(0)
+
+    dice_dict_post = dice_score_braTS_per_sample_avg(final_label_onehot, final_gt_onehot)
+    dice_dict_style2_post = dice_score_braTS_style(final_label_onehot.squeeze(0), final_gt_onehot.squeeze(0))
+
+    if verbose:
+        print(f"[Dice Post] Case {case_name} | TC: {dice_dict_post['TC']:.4f}, WT: {dice_dict_post['WT']:.4f}, ET: {dice_dict_post['ET']:.4f}")
+        print(f"[Dice Style Post] Case {case_name} | TC: {dice_dict_style2_post[0]:.4f}, WT: {dice_dict_style2_post[1]:.4f}, ET: {dice_dict_style2_post[2]:.4f}")
+
+    return dice_dict, dice_dict_style2, dice_dict_post, dice_dict_style2_post
