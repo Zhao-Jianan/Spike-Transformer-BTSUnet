@@ -246,9 +246,9 @@ def main():
     
     
     # BraTS2020 test data inference
-    experiment_id = 77
+    experiment_id = 83
     dice_style = 2
-    prefix = 'nopost'  # "slidingwindow"
+    prefix = None  # "slidingwindow"
     inference_BraTS2020_test_data(experiment_id, dice_style, center_crop=True, prefix=prefix)
     
    

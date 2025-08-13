@@ -159,13 +159,10 @@ def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inferenc
         restored_label = label_tensor
 
     # 将标签从 (D, H, W) 转换为 (H, W, D)
-    print("label type after restore:", restored_label.shape)
     final_label = restored_label.permute(1, 2, 0)  # to (H, W, D)
     final_label_np = final_label.cpu().numpy()
     
-    # 存储 raw pred .nii.gz
-    print(f"Processed case {case_name}, label shape: {final_label.shape}")   
-    
+   
     # 保存预测 nii
     ref_nii_path = os.path.join(case_dir, f"{case_name}_{cfg.modalities[cfg.modalities.index('t1ce')]}.nii")
     ref_nii = nib.load(ref_nii_path)
@@ -372,9 +369,9 @@ def inference_BraTS2020_val_data(experiment_id, dice_style, center_crop=True, pr
 
 def main():
     # BraTS 2020 validation data inference
-    experiment_id = 77
+    experiment_id = 83
     dice_style = 2
-    prefix = 'nnpost'
+    prefix = None
     inference_BraTS2020_val_data(experiment_id, dice_style, center_crop=True, prefix=prefix)
 
     

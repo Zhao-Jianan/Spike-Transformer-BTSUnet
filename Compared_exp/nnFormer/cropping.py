@@ -48,22 +48,9 @@ def crop_to_bbox(image, bbox):
     return image[resizer]
 
 
-# def get_case_identifier(case):
-#     case_identifier = case[0].split("/")[-1].split(".nii.gz")[0][:-5]
-#     return case_identifier
-
 def get_case_identifier(case):
-    # 支持 nii 和 nii.gz
-    filename = case[0].split("/")[-1]
-    if filename.endswith(".nii.gz"):
-        filename = filename[:-7]  # 去掉 .nii.gz
-    elif filename.endswith(".nii"):
-        filename = filename[:-4]  # 去掉 .nii
-    # 去掉最后的模态编号（如果有的话）
-    parts = filename.split("_")
-    if parts[-1].isdigit() and len(parts[-1]) == 4:  # 检测 _0000
-        parts = parts[:-1]
-    return "_".join(parts)
+    case_identifier = case[0].split("/")[-1].split(".nii.gz")[0][:-5]
+    return case_identifier
 
 
 def get_case_identifier_from_npz(case):
@@ -191,36 +178,15 @@ class ImageCropper(object):
     def get_patient_identifiers_from_cropped_files(self):
         return [i.split("/")[-1][:-4] for i in self.get_list_of_cropped_files()]
 
-    # def run_cropping(self, list_of_files, overwrite_existing=False, output_folder=None):
-    #     """
-    #     also copied ground truth nifti segmentation into the preprocessed folder so that we can use them for evaluation
-    #     on the cluster
-    #     :param list_of_files: list of list of files [[PATIENTID_TIMESTEP_0000.nii.gz], [PATIENTID_TIMESTEP_0000.nii.gz]]
-    #     :param overwrite_existing:
-    #     :param output_folder:
-    #     :return:
-    #     """
-    #     if output_folder is not None:
-    #         self.output_folder = output_folder
-
-    #     output_folder_gt = os.path.join(self.output_folder, "gt_segmentations")
-    #     maybe_mkdir_p(output_folder_gt)
-    #     for j, case in enumerate(list_of_files):
-    #         if case[-1] is not None:
-    #             shutil.copy(case[-1], output_folder_gt)
-
-    #     list_of_args = []
-    #     for j, case in enumerate(list_of_files):
-    #         case_identifier = get_case_identifier(case)
-    #         list_of_args.append((case, case_identifier, overwrite_existing))
-
-    #     p = Pool(self.num_threads)
-    #     p.starmap(self.load_crop_save, list_of_args)
-    #     p.close()
-    #     p.join()
-        
-        
     def run_cropping(self, list_of_files, overwrite_existing=False, output_folder=None):
+        """
+        also copied ground truth nifti segmentation into the preprocessed folder so that we can use them for evaluation
+        on the cluster
+        :param list_of_files: list of list of files [[PATIENTID_TIMESTEP_0000.nii.gz], [PATIENTID_TIMESTEP_0000.nii.gz]]
+        :param overwrite_existing:
+        :param output_folder:
+        :return:
+        """
         if output_folder is not None:
             self.output_folder = output_folder
 
