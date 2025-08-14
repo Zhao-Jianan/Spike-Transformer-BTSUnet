@@ -328,8 +328,8 @@ def main():
         
 
         # BraTS 2020 Validation or Test
-        mode = 'test'  # 'val' or 'test'
-        experiment_index = 81
+        mode = 'val'  # 'val' or 'test'
+        experiment_index = 83
         dice_score_style = 2
         prefix = None
         if mode == 'val':

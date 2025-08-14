@@ -3,7 +3,6 @@ import torch.nn as nn
 import numpy as np
 from medpy.metric import binary
 from surface_distance import compute_surface_distances, compute_robust_hausdorff
-from monai.metrics import DiceMetric
 
 
 # 评估函数
@@ -44,34 +43,6 @@ def dice_score_per_class(pred, target, num_classes=4, eps=1e-5):
 
 
 
-def dice_score_braTS_overall(pred, target, eps=1e-5):
-    """
-    Compute Dice scores for TC, WT, ET masks.
-
-    Args:
-        pred (Tensor): [B, 3, D, H, W], predicted probabilities or binary masks
-        target (Tensor): [B, 3, D, H, W], one-hot ground truth masks
-        eps (float): smoothing term
-
-    Returns:
-        dice_dict (dict): Dice scores for TC, WT, ET
-    """
-    def compute_dice(p, t):
-        inter = (p * t).sum()
-        union = p.sum() + t.sum()
-        return (2. * inter + eps) / (union + eps)
-
-    pred_prob = torch.sigmoid(pred)
-    pred_bin = (pred_prob > 0.5).float()
-    target_bin = target.float()
-
-    dice_dict = {
-        'TC': compute_dice(pred_bin[:, 0], target_bin[:, 0]).item(),
-        'WT': compute_dice(pred_bin[:, 1], target_bin[:, 1]).item(),
-        'ET': compute_dice(pred_bin[:, 2], target_bin[:, 2]).item()
-    }
-
-    return dice_dict
 
 
 def dice_score_braTS_per_sample_avg(pred, target, eps=1e-5):

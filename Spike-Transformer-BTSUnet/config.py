@@ -47,9 +47,10 @@ class Config:
         self.encode_method = 'none'  # poisson, latency, weighted_phase, none
 
         self.tumor_crop_ratio = 0.8 # 肿瘤区域裁剪比例
-        self.patch_size = [64, 64, 64] # [128, 128, 128]
+        self.patch_size = [128, 128, 128] # [64, 64, 64] [96, 96, 96] [128, 128, 128]
         self.inference_patch_size = [128, 128, 128]  # 推理时的patch大小
-
+        self.use_grad_accum = True  # 是否使用梯度累积
+        self.accumulation_steps = 4
 
         self.num_classes = 3
         self.model_type = 'spike_former_unet3D_8_384'  # spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
@@ -57,7 +58,7 @@ class Config:
         self.norm_type = 'group'  # group, batch
         # self.num_norm_groups = [8, 12, 24, 32]
         self.num_epochs = 600
-        self.batch_size = 4
+        self.batch_size = 1
         self.k_folds = 5
         
         self.loss_function = 'dice' # dice, focal, dice_with_fp_penalty, tversky, adaptive_regional

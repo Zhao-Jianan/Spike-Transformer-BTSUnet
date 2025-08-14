@@ -2,30 +2,33 @@ import os
 from monai.data import DataLoader
 from .dataset import BraTSDataset
 from sklearn.model_selection import KFold
-from config import config as cfg
 
 
 def worker_init_fn(worker_id):
     print(f"[Worker {worker_id}] initialized in PID {os.getpid()}")
 
-def build_data_dicts(case_dirs):
+def build_data_dicts(case_dirs, modalities, sep, suffix):
     """
     根据 case_dirs 构造 MONAI 所需的 dict 格式
     """
     data_dicts = []
-    modalities = cfg.modalities
-    sep = cfg.modality_separator
-    suffix = cfg.image_suffix
     for case_dir in case_dirs:
-        case_name = os.path.basename(case_dir.rstrip('/'))
+        case_name = os.path.basename(os.path.normpath(case_dir))
         image_paths = [os.path.join(case_dir, f"{case_name}{sep}{m}{suffix}") for m in modalities]
         label_path = os.path.join(case_dir, f"{case_name}{sep}seg{suffix}")
+        
+        # 增加文件存在性检查
+        for p in image_paths + [label_path]:
+            if not os.path.exists(p):
+                raise FileNotFoundError(f"Missing file: {p}")
+            
         data_dicts.append({"image": image_paths, "label": label_path})
     return data_dicts
 
-def get_data_loaders(train_dirs, val_dirs, patch_size, batch_size, T, encode_method, num_workers):
-    train_data_dicts = build_data_dicts(train_dirs)
-    val_data_dicts = build_data_dicts(val_dirs)
+def get_data_loaders(train_dirs, val_dirs, patch_size, batch_size, T, encode_method, num_workers,
+                     modalities, sep, suffix, sliding_window_val=False):
+    train_data_dicts = build_data_dicts(train_dirs, modalities, sep, suffix)
+    val_data_dicts = build_data_dicts(val_dirs, modalities, sep, suffix)
 
     train_dataset = BraTSDataset(train_data_dicts, patch_size=patch_size, T=T, mode="train",encode_method=encode_method)
     val_dataset = BraTSDataset(val_data_dicts, patch_size=patch_size, T=T, mode="val",encode_method=encode_method)
@@ -34,9 +37,11 @@ def get_data_loaders(train_dirs, val_dirs, patch_size, batch_size, T, encode_met
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=False)
     
     # 如果需要滑动窗口验证
-    if cfg.sliding_window_val:
-        sliding_window_val__dataset = BraTSDataset(val_data_dicts, patch_size=patch_size, T=T, mode="val",encode_method=encode_method, sliding_window_data=True)
-        sliding_window_val_loader = DataLoader(sliding_window_val__dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=False)
+    if sliding_window_val:
+        sliding_window_val__dataset = BraTSDataset(
+            val_data_dicts, patch_size=patch_size, T=T, mode="val",encode_method=encode_method, sliding_window_data=True)
+        sliding_window_val_loader = DataLoader(
+            sliding_window_val__dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=False)
     else:
         sliding_window_val_loader = None
 

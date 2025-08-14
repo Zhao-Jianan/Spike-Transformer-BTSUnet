@@ -75,20 +75,22 @@ class BratsDiceLoss(nn.Module):
         if self.sigmoid:
             pred = torch.sigmoid(pred)          
         n_pred_ch = pred.shape[1]
+        n_target_ch = target.shape[1]
         
         # 如果pred带背景通道，忽略背景通道，取通道1开始
         if not self.include_background:
             if n_pred_ch == 1:
-                print("Warning: single channel prediction, `include_background=False` ignored.")
+                print("[Warning] single channel prediction, `include_background=False` ignored.")
             elif n_pred_ch <= 3:
                 # No background channel to remove, assume input is only [TC, WT, ET]
                 pass
             else:
-                target = target[:, 1:]
+                if n_target_ch > 1:
+                    target = target[:, 1:]
                 pred = pred[:, 1:]
         else:
             if n_pred_ch != 3:
-                print("Warning: `include_background=True` but input has no background channel.")
+                print("[Warning] `include_background=True` but input has no background channel.")
 
         if self.squared_pred:
             pred_sq = pred ** 2
@@ -97,10 +99,7 @@ class BratsDiceLoss(nn.Module):
             pred_sq = pred
             target_sq = target
 
-        if self.batch:
-            dims = (0, 2, 3, 4)
-        else:
-            dims = (2, 3, 4)
+        dims = (0, 2, 3, 4) if self.batch else (2, 3, 4)
        
         intersection = torch.sum(pred * target, dims)
         cardinality = torch.sum(pred_sq + target_sq, dims)
@@ -108,7 +107,7 @@ class BratsDiceLoss(nn.Module):
         dice = (2. * intersection + self.smooth_nr) / (cardinality + self.smooth_dr)
         loss_per_channel = 1 - dice  # shape [3]
 
-        weights = self.weights.detach()
+        weights = self.weights.to(pred.device)
 
         if self.reduction == 'mean':
             weighted_loss = (loss_per_channel * weights).mean()

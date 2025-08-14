@@ -38,7 +38,7 @@ def init_weights(module):
             nn.init.constant_(module.out_proj.bias, 0)
 
 
-def save_metrics_to_file(train_losses, val_losses, val_dices, val_mean_dices, val_dices_style2, val_mean_dices_style2, val_hd95s, lr_history, fold, output_dir="metrics"):
+def save_metrics_to_file(train_losses, val_losses, val_dices, val_mean_dices, val_hd95s, lr_history, fold, output_dir="metrics"):
     os.makedirs(output_dir, exist_ok=True)
 
     # 拆分 val_dices 字典数组为独立的列表
@@ -46,9 +46,6 @@ def save_metrics_to_file(train_losses, val_losses, val_dices, val_mean_dices, va
     val_dices_tc = [d['TC'] for d in val_dices]
     val_dices_et = [d['ET'] for d in val_dices]
     
-    val_dices_wt_style2 = [d['WT'] for d in val_dices_style2]
-    val_dices_tc_style2 = [d['TC'] for d in val_dices_style2]
-    val_dices_et_style2 = [d['ET'] for d in val_dices_style2]
 
     data = {
         "train_losses": train_losses,
@@ -57,10 +54,6 @@ def save_metrics_to_file(train_losses, val_losses, val_dices, val_mean_dices, va
         "val_dices_tc": val_dices_tc,
         "val_dices_et": val_dices_et,
         "val_mean_dices": val_mean_dices,
-        "val_dices_wt_style2": val_dices_wt_style2,
-        "val_dices_tc_style2": val_dices_tc_style2,
-        "val_dices_et_style2": val_dices_et_style2,
-        "val_mean_dices_style2": val_mean_dices_style2,
         "val_hd95s": val_hd95s,
         "lr_history": lr_history
     }
@@ -70,32 +63,6 @@ def save_metrics_to_file(train_losses, val_losses, val_dices, val_mean_dices, va
         json.dump(data, f, indent=4)
         
         
-def save_val_case_list(val_case_dirs, fold, save_dir=None):
-    """
-    保存验证集case名单到txt文件。
-
-    参数：
-    - val_case_dirs: list，验证集文件夹路径列表
-    - fold: int，当前fold编号
-    - save_dir: str或None，保存目录路径，默认当前路径下的'val_cases'文件夹
-
-    返回：
-    - val_list_path: str，保存的txt文件完整路径
-    """
-    if save_dir is None:
-        save_dir = os.path.join(os.getcwd(), 'val_cases')  # 当前工作目录下的val_cases文件夹
-    os.makedirs(save_dir, exist_ok=True)
-
-    val_case_ids = [os.path.basename(p) for p in val_case_dirs]
-    val_list_path = os.path.join(save_dir, f"val_cases_fold{fold}.txt")
-
-    with open(val_list_path, 'w') as f:
-        for case_id in val_case_ids:
-            f.write(case_id + '\n')
-
-    print(f"[Fold {fold}] Validation case list saved to: {val_list_path}")
-    return val_list_path
-
 
 def save_case_list(case_dirs, name, fold=None, save_dir=None):
     """

@@ -6,8 +6,6 @@ def plot_metrics(
     val_losses, 
     val_dices, 
     val_mean_dices, 
-    val_dices_style2, 
-    val_mean_dices_style2, 
     val_hd95s, 
     lr_history, 
     fold_number):
@@ -18,10 +16,6 @@ def plot_metrics(
     val_dices_wt = [d['WT'] for d in val_dices]
     val_dices_tc = [d['TC'] for d in val_dices]
     val_dices_et = [d['ET'] for d in val_dices]
-
-    val_dices_wt_style2 = [d['WT'] for d in val_dices_style2]
-    val_dices_tc_style2 = [d['TC'] for d in val_dices_style2]
-    val_dices_et_style2 = [d['ET'] for d in val_dices_style2]
 
     # 判断是否绘制 HD95 曲线
     has_hd95 = len(val_hd95s) == len(epochs)
@@ -60,21 +54,9 @@ def plot_metrics(
     plt.legend()
     plt.grid(True)
 
-    # Subplot 4: Dice Scores (Style 2)
-    plt.subplot(rows, cols, 4)
-    plt.plot(epochs, val_dices_wt_style2, label='WT Dice')
-    plt.plot(epochs, val_dices_tc_style2, label='TC Dice')
-    plt.plot(epochs, val_dices_et_style2, label='ET Dice')
-    plt.plot(epochs, val_mean_dices_style2, label='Mean Dice', linestyle='--', color='black')
-    plt.title("Validation Dice Scores (Style 2)")
-    plt.xlabel("Epoch")
-    plt.ylabel("Dice")
-    plt.legend()
-    plt.grid(True)
-
-    # Subplot 5 (optional): HD95
+    # Subplot 4 (optional): HD95
     if has_hd95:
-        plt.subplot(rows, cols, 5)
+        plt.subplot(rows, cols, 4)
         plt.plot(epochs, val_hd95s, 'r', label='Val 95HD')
         plt.title("Validation 95% Hausdorff Distance")
         plt.xlabel("Epoch")

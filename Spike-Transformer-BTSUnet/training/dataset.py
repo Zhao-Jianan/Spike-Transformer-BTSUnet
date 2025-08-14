@@ -18,7 +18,8 @@ import random
 
 
 class BraTSDataset(MonaiDataset):
-    def __init__(self, data_dicts, T=8, patch_size=(128,128,128), num_classes=4, mode="train", encode_method='none', sliding_window_data=False,debug=False):
+    def __init__(self, data_dicts, T=8, patch_size=(128,128,128), num_classes=4, 
+                 mode="train", encode_method='none', sliding_window_data=False, debug=False):
         """
         data_dicts: list of dict, 每个 dict 形如：
           {
@@ -86,27 +87,24 @@ class BraTSDataset(MonaiDataset):
         self.transform = Compose([
             ToTensord(keys=["image", "label"])
         ])
+        
+        self.rng = np.random.default_rng(cfg.seed if hasattr(cfg, 'seed') else None)
 
     def __len__(self):
-        if self.double_crop:
-        # 每个数据用两次
-            return len(self.data_dicts) * 2
-        else:
-            return len(self.data_dicts)
-    
+        # 返回数据集大小
+        return len(self.data_dicts) * 2 if self.double_crop else len(self.data_dicts)
 
     def __getitem__(self, idx):
-        if self.double_crop:        
-            # 真实数据索引
-            real_idx = idx // 2
-            # 0 表示第一次用（tumor-aware），1 表示第二次用（random）
-            crop_version = idx % 2
+        if self.double_crop:                    
+            real_idx = idx // 2 # 真实数据索引
+            crop_version = idx % 2  # 0 表示第一次用（tumor-aware），1 表示第二次用（random）
             data = self.data_dicts[real_idx]
         else:
             data = self.data_dicts[idx]
             
         case_name = os.path.basename(data["label"]).replace(f"{self.sep}seg{self.suffix}", "")
 
+        # 加载数据
         if self.et_label == 4:
             data = self.load_transform(data)  # load nii -> MetaTensor (C, D, H, W) + affine
         elif self.et_label == 3:
@@ -114,8 +112,11 @@ class BraTSDataset(MonaiDataset):
         else:
             raise ValueError(f"Wrong ET Label in the config: {self.et_label}")
 
-        data["image"] = data["image"].permute(0, 3, 1, 2).contiguous()
-        data["label"] = data["label"].permute(0, 3, 1, 2).contiguous()  # (C, D, H, W)
+        if data["image"].shape[3] == 155:
+            data["image"] = data["image"].permute(0, 3, 1, 2).contiguous()
+        if data["label"].shape[3] == 155:
+            data["label"] = data["label"].permute(0, 3, 1, 2).contiguous()  # (C, D, H, W)
+            
         img_meta = data["image"].meta
         label_meta = data["label"].meta
         
@@ -129,8 +130,8 @@ class BraTSDataset(MonaiDataset):
             need_orientation_or_spacing = True
         else:
             # 检查 spacing 是否不是 (1.0, 1.0, 1.0)
-            if not (torch.allclose(torch.tensor(img_spacing[:3]), torch.tensor([1.0, 1.0, 1.0])) and
-                    torch.allclose(torch.tensor(label_spacing[:3]), torch.tensor([1.0, 1.0, 1.0]))):
+            if not (torch.allclose(torch.tensor(img_spacing[:3]), torch.tensor([1.0, 1.0, 1.0]), atol=1e-3) and
+                    torch.allclose(torch.tensor(label_spacing[:3]), torch.tensor([1.0, 1.0, 1.0]), atol=1e-3)):
                 need_orientation_or_spacing = True
             # 检查 orientation 是否不是 RAS
             if not (img_meta.get("original_channel_dim", None) == 0 and
@@ -255,12 +256,12 @@ class BraTSDataset(MonaiDataset):
         if mode == "tumor_aware_random":
         # 获取肿瘤前景 mask（任意类别）
             foreground_mask = label.sum(axis=0) > 0
-            foreground_voxels = np.argwhere(foreground_mask.cpu().numpy())
+            coords = torch.nonzero(foreground_mask, as_tuple=False)
 
-            if len(foreground_voxels) > 0:
+            if coords.numel() > 0:
                 # 从前景中随机选一个点作为 patch 中心
-                center = foreground_voxels[np.random.choice(len(foreground_voxels))]
-                cd, ch, cw = center
+                center = coords[self.rng.integers(len(coords))]
+                cd, ch, cw = center.tolist()
 
                 # 随机扰动中心点（增加多样性）
                 cd += np.random.randint(-pd//4, pd//4 + 1)
@@ -273,9 +274,9 @@ class BraTSDataset(MonaiDataset):
 
             else:
                 # 无肿瘤则随机裁剪
-                d_start = np.random.randint(0, D - pd + 1)
-                h_start = np.random.randint(0, H - ph + 1)
-                w_start = np.random.randint(0, W - pw + 1)
+                d_start = self.rng.integers(0, D - pd + 1)
+                h_start = self.rng.integers(0, H - ph + 1)
+                w_start = self.rng.integers(0, W - pw + 1)
                 
         elif mode == "tumor_center":
         # 获取肿瘤前景 mask（任意类别）
@@ -330,9 +331,9 @@ class BraTSDataset(MonaiDataset):
                 
         else:
             # 纯随机裁剪
-            d_start = np.random.randint(0, D - pd + 1)
-            h_start = np.random.randint(0, H - ph + 1)
-            w_start = np.random.randint(0, W - pw + 1)
+            d_start = self.rng.integers(0, D - pd + 1)
+            h_start = self.rng.integers(0, H - ph + 1)
+            w_start = self.rng.integers(0, W - pw + 1)
 
         data["image"] = img[:, d_start:d_start + pd, h_start:h_start + ph, w_start:w_start + pw]
         data["label"] = label[:, d_start:d_start + pd, h_start:h_start + ph, w_start:w_start + pw]
@@ -351,6 +352,9 @@ class BraTSDataset(MonaiDataset):
         输入:
             img_rescale: torch.Tensor, shape (B, C, D, H, W), 数值应已在 [0, 1] 区间 
         """
+        if img.dim() == 4:
+            img = img.unsqueeze(0)  # (1, C, D, H, W)
+            
         if self.encode_method == 'poisson':
             x_seq = torch.stack([self.poisson_encoder(img) for _ in range(self.T)], dim=0)
         elif self.encode_method == 'latency':
@@ -360,369 +364,15 @@ class BraTSDataset(MonaiDataset):
             x_seq = spike.squeeze(1)  # (T,C,D,H,W)
         elif self.encode_method == 'weighted_phase':
             img = img * (1 - 2**(-self.T))
-            img = img.unsqueeze(0)  # (1,C,D,H,W)
             self.weighted_phase_encoder.encode(img)  # (T,1,C,D,H,W)
             spike = self.weighted_phase_encoder.spike.float()
             x_seq = spike.squeeze(1)  # (T,C,D,H,W)
         elif self.encode_method == 'none':
-            x_seq = img.unsqueeze(0).repeat(self.T, 1, 1, 1, 1)
+            x_seq = img.repeat(self.T, 1, 1, 1, 1)
         else:
             raise NotImplementedError(f"Encoding method '{self.encode_method}' is not implemented.")
         # x_seq: (T, C, D, H, W), label: (C_label, D, H, W)
         return x_seq
-
-
-
-
-class BraTSDatasetDoubleCrop(MonaiDataset):
-    def __init__(self, data_dicts, T=8, patch_size=(128,128,128), num_classes=4, mode="train", encode_method='none', sliding_window_data=False,debug=False):
-        """
-        data_dicts: list of dict, 每个 dict 形如：
-          {
-            "image": [t1_path, t1ce_path, t2_path, flair_path],  # 四模态路径列表
-            "label": label_path
-          }
-        """
-        self.data_dicts = data_dicts
-        self.T = T
-        self.patch_size = patch_size
-        self.num_warmup_epochs = cfg.num_warmup_epochs
-        self.center_crop_prob = 1.0  # 默认100%中心crop
-        self.train_crop_mode = cfg.train_crop_mode
-        self.val_crop_mode = cfg.val_crop_mode
-        self.tumor_crop_ratio = cfg.tumor_crop_ratio
-        self.sliding_window_data = sliding_window_data
-        self.num_classes = num_classes
-        self.mode = mode
-        self.debug = debug
-        self.encode_method = encode_method
-        self.poisson_encoder = PoissonEncoder()
-        self.latency_encoder = LatencyEncoder(self.T)
-        self.weighted_phase_encoder = WeightedPhaseEncoder(self.T)
-        
-        self.sep = cfg.modality_separator
-        self.suffix = cfg.image_suffix
-        self.et_label = cfg.et_label
-        
-
-        # 读取数据，自动封装成 MetaTensor (带affine)
-        self.load_transform = Compose([
-            LoadImaged(keys=["image", "label"]),  # 加载 nii，自动带 affine
-            EnsureChannelFirstd(keys=["image", "label"]),  # 保证通道维度在前 (C, D, H, W)
-            ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),  # [0: TC, 1: WT, 2: ET]
-        ])
-        
-        self.load_transform_custom_convert = Compose([
-            LoadImaged(keys=["image", "label"]),  # 加载 nii，自动带 affine
-            EnsureChannelFirstd(keys=["image", "label"]),  # 保证通道维度在前 (C, D, H, W)
-            ConvertToMultiChannelBasedOnBrats2023Classesd(
-                keys="label"
-            ),  # [0: TC, 1: WT, 2: ET]
-        ])      
-        
-        # 统一空间预处理
-        self.preprocess = Compose([
-            Orientationd(keys=["image", "label"], axcodes="RAS"),
-            Spacingd(keys=["image", "label"], pixdim=(1.0, 1.0, 1.0), mode=("bilinear", "nearest")),
-        ])
-        
-        self.normalize = NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True)
-
-        # 数据增强 pipeline
-        self.aug_transform = Compose([
-            RandFlipd(keys=["image", "label"], spatial_axis=0, prob=0.5),
-            RandFlipd(keys=["image", "label"], spatial_axis=1, prob=0.5),
-            RandFlipd(keys=["image", "label"], spatial_axis=2, prob=0.5),
-            RandScaleIntensityd(keys=["image"], factors=0.1, prob=0.5),
-            RandShiftIntensityd(keys=["image"], offsets=0.1, prob=0.5),
-            ToTensord(keys=["image", "label"])
-        ])
-        
-
-        self.transform = Compose([
-            ToTensord(keys=["image", "label"])
-        ])
-
-    def __len__(self):
-        # 每个数据用两次
-        return len(self.data_dicts) * 2
-
-    def __getitem__(self, idx):
-            # 真实数据索引
-        real_idx = idx // 2
-        # 0 表示第一次用（tumor-aware），1 表示第二次用（random）
-        crop_version = idx % 2
-        
-        data = self.data_dicts[real_idx]
-        case_name = os.path.basename(data["label"]).replace(f"{self.sep}seg{self.suffix}", "")
-
-        if self.et_label == 4:
-            data = self.load_transform(data)  # load nii -> MetaTensor (C, D, H, W) + affine
-        elif self.et_label == 3:
-            data = self.load_transform_custom_convert(data)  # load nii -> MetaTensor (C, D, H, W) + affine
-        else:
-            raise ValueError(f"Wrong ET Label in the config: {self.et_label}")
-
-        data["image"] = data["image"].permute(0, 3, 1, 2).contiguous()
-        data["label"] = data["label"].permute(0, 3, 1, 2).contiguous()  # (C, D, H, W)
-        img_meta = data["image"].meta
-        label_meta = data["label"].meta
-        
-        # spacing
-        img_spacing = img_meta.get("pixdim", None)
-        label_spacing = label_meta.get("pixdim", None)
-        
-        need_orientation_or_spacing = False
-
-        if img_meta.get("spatial_shape") is None:  # 安全性检查
-            need_orientation_or_spacing = True
-        else:
-            # 检查 spacing 是否不是 (1.0, 1.0, 1.0)
-            if not (torch.allclose(torch.tensor(img_spacing[:3]), torch.tensor([1.0, 1.0, 1.0])) and
-                    torch.allclose(torch.tensor(label_spacing[:3]), torch.tensor([1.0, 1.0, 1.0]))):
-                need_orientation_or_spacing = True
-            # 检查 orientation 是否不是 RAS
-            if not (img_meta.get("original_channel_dim", None) == 0 and
-                    img_meta.get("original_affine", None) is not None):
-                need_orientation_or_spacing = True
-
-        # 只有在必要时运行 preprocess
-        if need_orientation_or_spacing:
-            print(f'DO PREPROPROCESS!!!')
-            data = self.preprocess(data)
-
-
-        data["image"] = self.center_crop(data["image"])
-        data["label"] = self.center_crop(data["label"])
-
-        data = self.normalize(data)
-
-        if self.mode == "train":
-            if crop_version == 0:
-                crop_mode = "tumor_aware_random"
-            else:
-                crop_mode = "random"
-                
-            data = self.patch_crop(data, mode=crop_mode)    
-                
-            if np.random.rand() < 0.5:
-                data = self.aug_transform(data)
-            else:
-                data = self.transform(data)
-            
-            img = data["image"]  # Tensor (C, D, H, W)
-            label = data["label"]  # Tensor (C_label, D, H, W) 
-            
-            if self.debug:
-                unique_vals = torch.unique(label)
-                if label.min() < 0 or label.max() >= self.num_classes:
-                    print(f"[ERROR] Label out of range in sample {case_name}")
-                    print(f"Label unique values: {unique_vals}")
-                    raise ValueError(f"Label contains invalid class ID(s): {unique_vals.tolist()}")
-                
-                if img.dim() == 4:
-                    C = img.shape[0]
-                    for c in range(C):
-                        min_val = img[c].min().item()
-                        max_val = img[c].max().item()
-                        print(f"Channel {c}: min={min_val:.4f}, max={max_val:.4f}")
-                else:
-                    print("Not a 4D tensor; skipping per-channel stats.")
-
-            # 生成 T 个时间步的脉冲输入，重复编码
-            if self.encode_method == 'none':
-                img_rescale = img
-            else:
-                img_rescale = self.rescale_to_unit_range(img)
-            x_seq = self.encode_spike_input(img_rescale)
-
-            # x_seq: (T, C, D, H, W), label: (C_label, D, H, W)
-            return x_seq, label
-             
-        else: # self.mode == "val"
-            if self.val_crop_mode == "sliding_window" or self.sliding_window_data:
-                data = self.transform(data)
-                img = data["image"]  # Tensor (C, D, H, W)
-                label = data["label"]  # Tensor (C_label, D, H, W) 
-                # img = img.unsqueeze(0).repeat(self.T, 1, 1, 1, 1)  # x_seq: (T, C, D, H, W), label: (C_label, D, H, W)
-                return img, label
-            
-            else: # self.val_crop_mode in ["tumor_aware_random", "random"]:
-                if crop_version == 0:
-                    crop_mode = "tumor_aware_random"
-                else:
-                    crop_mode = "random"                
-                
-                data = self.patch_crop(data, mode=crop_mode)
-                data = self.transform(data)
-                
-                img = data["image"]  # Tensor (C, D, H, W)
-                label = data["label"]  # Tensor (C_label, D, H, W) 
-                
-                # 生成 T 个时间步的脉冲输入，重复编码
-                if self.encode_method == 'none':
-                    img_rescale = img
-                else:
-                    img_rescale = self.rescale_to_unit_range(img)
-                x_seq = self.encode_spike_input(img_rescale)
-
-                # x_seq: (T, C, D, H, W), label: (C_label, D, H, W)
-                return x_seq, label
-    
-    
-    def center_crop(self, img: torch.Tensor, crop_size=(144,144,144)) -> torch.Tensor:
-        _, D, H, W = img.shape
-        cd, ch, cw = crop_size
-        sd = (D - cd) // 2
-        sh = (H - ch) // 2
-        sw = (W - cw) // 2
-        return img[:, sd:sd+cd, sh:sh+ch, sw:sw+cw]
-    
-    
-    def get_crop_mode(self, is_train=True):
-        if is_train:
-            crop_mode = self.train_crop_mode
-        else:
-            crop_mode = self.val_crop_mode
-
-        return crop_mode if np.random.rand() < self.tumor_crop_ratio else "random"
-    
-    # 随机裁剪，支持 warmup 模式
-    # warmup 模式下，优先裁剪肿瘤中心区域；否则随机裁剪
-    def patch_crop(self, data, mode="tumor_aware_random"):
-        img = data["image"]        # (C, D, H, W)
-        label = data["label"]      # (C, D, H, W), one-hot
-        _, D, H, W = img.shape
-        pd, ph, pw = self.patch_size
-        assert D >= pd and H >= ph and W >= pw, f"Patch size {self.patch_size} too big for image {img.shape}"
-
-        if mode == "tumor_aware_random":
-        # 获取肿瘤前景 mask（任意类别）
-            foreground_mask = label.sum(axis=0) > 0
-            foreground_voxels = np.argwhere(foreground_mask.cpu().numpy())
-
-            if len(foreground_voxels) > 0:
-                # 从前景中随机选一个点作为 patch 中心
-                center = foreground_voxels[np.random.choice(len(foreground_voxels))]
-                cd, ch, cw = center
-
-                # 随机扰动中心点（增加多样性）
-                cd += np.random.randint(-pd//4, pd//4 + 1)
-                ch += np.random.randint(-ph//4, ph//4 + 1)
-                cw += np.random.randint(-pw//4, pw//4 + 1)
-
-                d_start = np.clip(cd - pd // 2, 0, D - pd)
-                h_start = np.clip(ch - ph // 2, 0, H - ph)
-                w_start = np.clip(cw - pw // 2, 0, W - pw)
-
-            else:
-                # 无肿瘤则随机裁剪
-                d_start = np.random.randint(0, D - pd + 1)
-                h_start = np.random.randint(0, H - ph + 1)
-                w_start = np.random.randint(0, W - pw + 1)
-                
-        elif mode == "tumor_center":
-        # 获取肿瘤前景 mask（任意类别）
-            foreground_mask = label.sum(axis=0) > 0
-            foreground_voxels = np.argwhere(foreground_mask.cpu().numpy())
-
-            if len(foreground_voxels) > 0:
-                # 从前景中随机选一个点作为 patch 中心
-                center = foreground_voxels[np.random.choice(len(foreground_voxels))]
-                cd, ch, cw = center
-
-                d_start = np.clip(cd - pd // 2, 0, D - pd)
-                h_start = np.clip(ch - ph // 2, 0, H - ph)
-                w_start = np.clip(cw - pw // 2, 0, W - pw)
-
-            else:
-                # 无肿瘤则随机裁剪
-                d_start = np.random.randint(0, D - pd + 1)
-                h_start = np.random.randint(0, H - ph + 1)
-                w_start = np.random.randint(0, W - pw + 1)
-                
-        elif mode == "warmup_weighted_random":
-            if random.random() < self.center_crop_prob:
-                # 偏向肿瘤区域的随机裁剪（带扰动）
-                foreground_mask = label.sum(axis=0) > 0
-                foreground_voxels = np.argwhere(foreground_mask.cpu().numpy())
-
-                if len(foreground_voxels) > 0:
-                    center = foreground_voxels[np.random.choice(len(foreground_voxels))]
-                    cd, ch, cw = center
-
-                    # 随机扰动中心点
-                    cd += np.random.randint(-pd // 4, pd // 4 + 1)
-                    ch += np.random.randint(-ph // 4, ph // 4 + 1)
-                    cw += np.random.randint(-pw // 4, pw // 4 + 1)
-
-                    d_start = np.clip(cd - pd // 2, 0, D - pd)
-                    h_start = np.clip(ch - ph // 2, 0, H - ph)
-                    w_start = np.clip(cw - pw // 2, 0, W - pw)
-
-                else:
-                    # 没有肿瘤 → 随机裁剪
-                    d_start = np.random.randint(0, D - pd + 1)
-                    h_start = np.random.randint(0, H - ph + 1)
-                    w_start = np.random.randint(0, W - pw + 1)
-
-            else:
-                # 纯随机裁剪（不管是否有肿瘤）
-                d_start = np.random.randint(0, D - pd + 1)
-                h_start = np.random.randint(0, H - ph + 1)
-                w_start = np.random.randint(0, W - pw + 1)
-                
-        else:
-            # 纯随机裁剪
-            d_start = np.random.randint(0, D - pd + 1)
-            h_start = np.random.randint(0, H - ph + 1)
-            w_start = np.random.randint(0, W - pw + 1)
-
-        data["image"] = img[:, d_start:d_start + pd, h_start:h_start + ph, w_start:w_start + pw]
-        data["label"] = label[:, d_start:d_start + pd, h_start:h_start + ph, w_start:w_start + pw]
-        return data
-    
-    def rescale_to_unit_range(self, x: torch.Tensor) -> torch.Tensor:
-        # 逐个样本 min-max 归一化，不改变整体分布，只用于编码器
-        x_min = x.amin(dim=[1, 2, 3], keepdim=True)
-        x_max = x.amax(dim=[1, 2, 3], keepdim=True)
-        x_rescaled = (x - x_min) / (x_max - x_min + 1e-8)
-        return x_rescaled.clamp(0., 1.)
-    
-    def encode_spike_input(self, img: torch.Tensor) -> torch.Tensor:
-        """
-        对归一化图像进行脉冲编码，支持 poisson / latency / weighted_phase。
-        输入:
-            img_rescale: torch.Tensor, shape (B, C, D, H, W), 数值应已在 [0, 1] 区间 
-        """
-        if self.encode_method == 'poisson':
-            x_seq = torch.stack([self.poisson_encoder(img) for _ in range(self.T)], dim=0)
-        elif self.encode_method == 'latency':
-            img = img.unsqueeze(0)  # (1,C,D,H,W)
-            self.latency_encoder.encode(img)  # (T,1,C,D,H,W)
-            spike = self.latency_encoder.spike
-            x_seq = spike.squeeze(1)  # (T,C,D,H,W)
-        elif self.encode_method == 'weighted_phase':
-            img = img * (1 - 2**(-self.T))
-            img = img.unsqueeze(0)  # (1,C,D,H,W)
-            self.weighted_phase_encoder.encode(img)  # (T,1,C,D,H,W)
-            spike = self.weighted_phase_encoder.spike.float()
-            x_seq = spike.squeeze(1)  # (T,C,D,H,W)
-        elif self.encode_method == 'none':
-            x_seq = img.unsqueeze(0).repeat(self.T, 1, 1, 1, 1)
-        else:
-            raise NotImplementedError(f"Encoding method '{self.encode_method}' is not implemented.")
-        # x_seq: (T, C, D, H, W), label: (C_label, D, H, W)
-        return x_seq
-
-
-
-
-
-
-
-
-
 
 
 
