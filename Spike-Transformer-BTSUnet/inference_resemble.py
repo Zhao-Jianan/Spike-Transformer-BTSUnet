@@ -26,10 +26,13 @@ from inference.inference_utils import (
 
 
 
-def pred_single_case_soft(case_dir, prob_save_dir, model, inference_engine, device, center_crop=True):
+def pred_single_case_soft(case_dir, prob_save_dir, model, inference_engine, device, center_crop=True, dataset_flag=None):
     case_name = os.path.basename(case_dir)
     print(f"Processing case: {case_name}")
-    image_paths = [os.path.join(case_dir, f"{case_name}_{mod}.nii") for mod in cfg.modalities]
+    if dataset_flag == 'BraTS23':
+        image_paths = [os.path.join(case_dir, f"{case_name}-{mod}.nii.gz") for mod in cfg.modalities]
+    else:
+        image_paths = [os.path.join(case_dir, f"{case_name}_{mod}.nii") for mod in cfg.modalities]
 
     x_batch, metadata = preprocess_for_inference_test(image_paths, center_crop=center_crop)
     if not center_crop:
@@ -55,7 +58,7 @@ def pred_single_case_soft(case_dir, prob_save_dir, model, inference_engine, devi
 
     
 
-def run_inference_folder_soft(case_root, save_dir, model, inference_engine, device, case_list=None,center_crop=True):
+def run_inference_folder_soft(case_root, save_dir, model, inference_engine, device, case_list=None,center_crop=True, dataset_flag=None):
     os.makedirs(save_dir, exist_ok=True)
 
     # 仅包含在 test_case_list 中的目录
@@ -77,17 +80,17 @@ def run_inference_folder_soft(case_root, save_dir, model, inference_engine, devi
     for case_dir in tqdm(case_dirs, desc="Soft Voting Inference"):
         if center_crop:
             case_name, metadata = pred_single_case_soft(
-                case_dir, save_dir, model, inference_engine, device, center_crop=center_crop)
+                case_dir, save_dir, model, inference_engine, device, center_crop=center_crop, dataset_flag=dataset_flag)
             metadata_dict[case_name] = metadata
         else:
-            pred_single_case_soft(case_dir, save_dir, model, inference_engine, device, center_crop=center_crop)
+            pred_single_case_soft(case_dir, save_dir, model, inference_engine, device, center_crop=center_crop, dataset_flag=dataset_flag)
     
     if center_crop:
         return metadata_dict
 
 
-   
-def soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list, dice_style=1, center_crop=True, prefix=None):
+
+def soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list, dice_style=1, center_crop=True, prefix=None, dataset_flag=None):
     metadata_dir = os.path.join(prob_base_dir, "metadata")
     os.makedirs(metadata_dir, exist_ok=True)
     
@@ -134,16 +137,20 @@ def soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list, dice_style=
         
         if center_crop:
             if fold == 1:
-                metadata_dict = run_inference_folder_soft(case_dir, fold_prob_dir, model, inference_engine, cfg.device, test_case_list, center_crop=center_crop)
+                metadata_dict = run_inference_folder_soft(
+                    case_dir, fold_prob_dir, model, inference_engine, cfg.device, 
+                    test_case_list, center_crop=center_crop, dataset_flag=dataset_flag)
                 # 保存metadata_dict为json文件
                 metadata_json_path = os.path.join(metadata_dir, "case_metadata.json")
                 with open(metadata_json_path, "w") as f:
                     json.dump(metadata_dict, f)
                 print(f"Saved metadata JSON to {metadata_json_path}")
             else:
-                run_inference_folder_soft(case_dir, fold_prob_dir, model, inference_engine, cfg.device, test_case_list, center_crop=center_crop)
+                run_inference_folder_soft(case_dir, fold_prob_dir, model, inference_engine, 
+                                          cfg.device, test_case_list, center_crop=center_crop, dataset_flag=dataset_flag)
         else:
-            run_inference_folder_soft(case_dir, fold_prob_dir, model, inference_engine, cfg.device, test_case_list, center_crop=center_crop)
+            run_inference_folder_soft(case_dir, fold_prob_dir, model, inference_engine, cfg.device, 
+                                      test_case_list, center_crop=center_crop, dataset_flag=dataset_flag)
 
             
     return metadata_json_path if center_crop else None
@@ -231,6 +238,33 @@ def inference_BraTS2020_test_data(experiment_id, dice_style, center_crop=True, p
     ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir, center_crop=center_crop, metadata_json_path=metadata_json_path)
 
     print("Inference completed.")
+    
+
+def inference_BraTS2023_test_data(experiment_id, dice_style, center_crop=True, prefix=None):
+    # BraTS2020 test data inference
+    print(f"Starting inference for BraTS2023 test data with experiment ID {experiment_id} and dice style {dice_style}...")
+ 
+    dice_style_str = "" if dice_style == 1 else f"_dice_style{dice_style}"
+    prefix_str = f"_{prefix}" if prefix else ""
+        
+    prob_base_dir = f"/hpc/ajhz839/inference/BraTS2023/test_prob_folds_exp{experiment_id}{dice_style_str}{prefix_str}/"
+    ensemble_output_dir = f"/hpc/ajhz839/inference/BraTS2023/test_pred_soft_ensemble_exp{experiment_id}{dice_style_str}{prefix_str}/"
+        
+    case_dir = "/hpc/ajhz839/data/BraTS2023/val/"
+    ckpt_dir = f"/hpc/ajhz839/checkpoint/experiment_{experiment_id}/"
+
+    check_all_folds_ckpt_exist(ckpt_dir, dice_style, prefix)
+
+    test_case_list = sorted([
+        d for d in os.listdir(case_dir)
+        if os.path.isdir(os.path.join(case_dir, d))
+    ])
+    
+    metadata_json_path=soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list, dice_style=dice_style, center_crop=center_crop, prefix=prefix, dataset_flag='BraTS23')
+
+    ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir, center_crop=center_crop, metadata_json_path=metadata_json_path)
+
+    print("Inference completed.")
 
 
 
@@ -245,11 +279,18 @@ def main():
     # ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir)
     
     
-    # BraTS2020 test data inference
-    experiment_id = 83
+    # # BraTS2020 test data inference
+    # experiment_id = 83
+    # dice_style = 2
+    # prefix = None  # "slidingwindow"
+    # inference_BraTS2020_test_data(experiment_id, dice_style, center_crop=True, prefix=prefix)
+    
+    
+    # BraTS2023 test data inference
+    experiment_id = 75
     dice_style = 2
     prefix = None  # "slidingwindow"
-    inference_BraTS2020_test_data(experiment_id, dice_style, center_crop=True, prefix=prefix)
+    inference_BraTS2023_test_data(experiment_id, dice_style, center_crop=True, prefix=prefix)
     
    
     # # Clinical data inference

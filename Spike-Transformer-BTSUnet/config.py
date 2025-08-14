@@ -16,12 +16,12 @@ class Config:
         # self.image_suffix = ".nii"
         # self.et_label = 4
         
-        # BraTS2020
-        self.root_dirs = ['/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData'] 
-        self.modalities = ['t1', 't1ce', 't2', 'flair']
-        self.modality_separator = "_"
-        self.image_suffix = ".nii"
-        self.et_label = 4
+        # # BraTS2020
+        # self.root_dirs = ['/hpc/ajhz839/data/BraTS2020/MICCAI_BraTS2020_TrainingData'] 
+        # self.modalities = ['t1', 't1ce', 't2', 'flair']
+        # self.modality_separator = "_"
+        # self.image_suffix = ".nii"
+        # self.et_label = 4
         
         # # BraTS2021
         # self.root_dirs = ['/hpc/ajhz839/data/BraTS2021_Training_Data']
@@ -30,12 +30,12 @@ class Config:
         # self.image_suffix = ".nii.gz"
         # self.et_label = 4
         
-        # # BraTS2023
-        # self.root_dirs = ['/hpc/ajhz839/data/BraTS2023/train/']
-        # self.modalities = ['t1n', 't1c', 't2w', 't2f']
-        # self.modality_separator = "-" 
-        # self.image_suffix = ".nii.gz"    
-        # self.et_label = 3
+        # BraTS2023
+        self.root_dirs = ['/hpc/ajhz839/data/BraTS2023/train/']
+        self.modalities = ['t1n', 't1c', 't2w', 't2f']
+        self.modality_separator = "-" 
+        self.image_suffix = ".nii.gz"    
+        self.et_label = 3
         
         # # BraTS2025 SSA
         # self.root_dirs = ['/hpc/ajhz839/data/BraTS2023-SSA-V2/']
@@ -47,9 +47,9 @@ class Config:
         self.encode_method = 'none'  # poisson, latency, weighted_phase, none
 
         self.tumor_crop_ratio = 0.8 # 肿瘤区域裁剪比例
-        self.patch_size = [96, 96, 96] # [64, 64, 64] [96, 96, 96] [128, 128, 128]
+        self.patch_size = [64, 64, 64] # [64, 64, 64] [96, 96, 96] [128, 128, 128]
         self.inference_patch_size = [128, 128, 128]  # 推理时的patch大小
-        self.use_grad_accum = True  # 是否使用梯度累积
+        self.use_grad_accum = False  # 是否使用梯度累积
         self.accumulation_steps = 4
 
         self.num_classes = 3
@@ -57,8 +57,8 @@ class Config:
         self.T = 4
         self.norm_type = 'group'  # group, batch
         # self.num_norm_groups = [8, 12, 24, 32]
-        self.num_epochs = 600
-        self.batch_size = 1
+        self.num_epochs = 1000
+        self.batch_size = 2
         self.k_folds = 5
         
         self.loss_function = 'dice' # dice, focal, dice_with_fp_penalty, tversky, adaptive_regional
@@ -77,7 +77,7 @@ class Config:
         self.num_warmup_epochs = -1  # -1表示不使用warmup
         self.early_stop_patience = 80
         
-        self.base_lr = 5e-4 # 1e-3
+        self.base_lr = 1e-3 # 1e-3  5e-4
         self.min_lr = 1e-6
 
         self.step_mode = 'm'

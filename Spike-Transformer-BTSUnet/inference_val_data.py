@@ -19,8 +19,7 @@ from inference.inference_utils import (
     convert_prediction_to_label_suppress_fp, check_all_folds_ckpt_exist,
     check_all_folds_val_txt_exist, restore_to_original_shape, convert_label_to_onehot
     )
-from inference.inference_metrics import dice_score_braTS_style
-from training.metrics import dice_score_braTS_overall, dice_score_braTS_per_sample_avg
+from training.metrics import  dice_score_braTS_per_sample_avg
 
 
 def compute_avg_dice(dice_list, index_map):
@@ -77,11 +76,15 @@ def compute_avg_dice_style2(dice_dicts_style2_post):
 
 
 
-def pred_single_case(case_dir, model, inference_engine, device, center_crop=True):
+def pred_single_case(case_dir, model, inference_engine, device, center_crop=True, dataset_flag=None):
     case_name = os.path.basename(case_dir)
     print(f"Processing case: {case_name}")
-    image_paths = [os.path.join(case_dir, f"{case_name}_{mod}.nii") for mod in cfg.modalities]
-    seg_path = os.path.join(case_dir, f"{case_name}_seg.nii")
+    if dataset_flag == 'BraTS23':
+        image_paths = [os.path.join(case_dir, f"{case_name}-{mod}.nii.gz") for mod in cfg.modalities]
+        seg_path = os.path.join(case_dir, f"{case_name}-seg.nii.gz")
+    else:
+        image_paths = [os.path.join(case_dir, f"{case_name}_{mod}.nii") for mod in cfg.modalities]
+        seg_path = os.path.join(case_dir, f"{case_name}_seg.nii")
     print(f"Image paths: {image_paths}")
     print(f"Ground truth path: {seg_path}")
     
@@ -103,15 +106,15 @@ def pred_single_case(case_dir, model, inference_engine, device, center_crop=True
     return output_prob, output, gt_label, gt_tensor_hwd, metadata
 
 
-def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inference_engine, device, center_crop=True):
+def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inference_engine, device, center_crop=True, dataset_flag=None):
     os.makedirs(save_dir, exist_ok=True)
     if prob_save_dir:
         os.makedirs(prob_save_dir, exist_ok=True)
     
     # 1. 推理获得概率图和 metadata    
     prob, pred_tensor, gt_tensor, raw_gt_tensor_hwd, metadata = pred_single_case(
-        case_dir, model, inference_engine, device, center_crop=center_crop)
-    
+        case_dir, model, inference_engine, device, center_crop=center_crop, dataset_flag=dataset_flag)
+
     case_name = os.path.basename(case_dir)
 
     if prob_save_dir:
@@ -142,7 +145,7 @@ def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inferenc
 
         
     # 将预测结果转换为标签（不做 PP）
-    label_np = convert_prediction_to_label_suppress_fp(prob)  # shape: (D, H, W)
+    label_np = convert_prediction_to_label_suppress_fp(prob, dataset_flag=dataset_flag)  # shape: (D, H, W)
     label_tensor = torch.from_numpy(label_np)
 
     if center_crop:
@@ -164,7 +167,10 @@ def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inferenc
     
    
     # 保存预测 nii
-    ref_nii_path = os.path.join(case_dir, f"{case_name}_{cfg.modalities[cfg.modalities.index('t1ce')]}.nii")
+    if dataset_flag == 'BraTS23':
+        ref_nii_path = os.path.join(case_dir, f"{case_name}-{cfg.modalities[cfg.modalities.index('t1c')]}.nii.gz")
+    else:    
+        ref_nii_path = os.path.join(case_dir, f"{case_name}_{cfg.modalities[cfg.modalities.index('t1ce')]}.nii")
     ref_nii = nib.load(ref_nii_path)
     nib.save(nib.Nifti1Image(final_label_np, affine=ref_nii.affine, header=ref_nii.header),
              os.path.join(save_dir, f"{case_name}_pred_mask.nii.gz"))
@@ -175,7 +181,8 @@ def run_inference_soft_single(case_dir, save_dir, prob_save_dir, model, inferenc
     return final_label_np, raw_gt_np
     
 
-def run_inference_folder_single(case_root, save_dir, prob_save_dir, model, inference_engine, device, whitelist=None, center_crop=True):
+def run_inference_folder_single(case_root, save_dir, prob_save_dir, model, inference_engine, device, 
+                                whitelist=None, center_crop=True, dataset_flag=None):
     os.makedirs(save_dir, exist_ok=True)
     # 存储预测和GT数组
     pred_list = []
@@ -210,7 +217,7 @@ def run_inference_folder_single(case_root, save_dir, prob_save_dir, model, infer
     
     for case_dir in tqdm(case_dirs, desc="Single Model Inference"):
         pred_np, gt_np = run_inference_soft_single(
-            case_dir, save_dir, prob_save_dir, model, inference_engine, device, center_crop=center_crop
+            case_dir, save_dir, prob_save_dir, model, inference_engine, device, center_crop=center_crop, dataset_flag=dataset_flag
         )
         pred_list.append(pred_np)
         gt_list.append(gt_np)
@@ -257,7 +264,8 @@ def run_inference_all_folds(
     dice_style=1,
     prefix=None,  # None表示不使用前缀，'slidingwindow'表示使用滑窗前缀    
     center_crop=True,  # 是否进行中心裁剪
-    fold_to_run=None  # None表示跑所有fold，否则跑指定fold
+    fold_to_run=None,  # None表示跑所有fold，否则跑指定fold
+    dataset_flag=None
 ):
     inference_engine = build_inference_engine_func()
 
@@ -300,7 +308,9 @@ def run_inference_all_folds(
             prob_save_dir = None
 
         run_inference_func(
-            case_dir, output_dir, prob_save_dir, model, inference_engine, device, whitelist, center_crop=center_crop)
+            case_dir, output_dir, prob_save_dir, model, inference_engine, device, 
+            whitelist, center_crop=center_crop, dataset_flag=dataset_flag
+        )
 
         print(f"Fold {fold} inference done. Results saved in {output_dir}")
         print(f"Probabilities saved in {prob_save_dir}")
@@ -365,14 +375,60 @@ def inference_BraTS2020_val_data(experiment_id, dice_style, center_crop=True, pr
     )
     
     print("5 fold validation data inference completed.")
+    
+    
+def inference_BraTS2023_val_data(experiment_id, dice_style, center_crop=True, prefix=None):
+    # BraTS 2020 validation data inference
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    val_cases_dir = os.path.join(script_dir, 'val_cases')   # 存放验证集case名单txt的文件夹 
+    # val_cases_dir = 'val_cases/'   
+    ckpt_dir = f"/hpc/ajhz839/checkpoint/experiment_{experiment_id}/"  # 模型ckpt所在目录
+    case_dir = "/hpc/ajhz839/data/BraTS2023/train/"
+
+    dice_style_str = "" if dice_style == 1 else f"_dice_style{dice_style}"
+    prefix_str = f"_{prefix}" if prefix else ""
+
+    output_base_dir = f"/hpc/ajhz839/validation/BraTS2023_val_pred_exp{experiment_id}{dice_style_str}{prefix_str}/"
+    prob_base_dir = None # f"/hpc/ajhz839/validation/BraTS2023_val_prob_folds_exp{experiment_id}{dice_style_str}{prefix_str}/"
+
+    check_all_folds_ckpt_exist(ckpt_dir, dice_style, prefix)
+    check_all_folds_val_txt_exist(val_cases_dir)
+
+    print("5 fold validation data inference started.")
+
+    run_inference_all_folds(
+        build_model_func=build_model,
+        build_inference_engine_func=build_inference_engine,
+        run_inference_func=run_inference_folder_single,
+        val_cases_dir=val_cases_dir,
+        ckpt_dir=ckpt_dir,
+        case_dir=case_dir,
+        prob_base_dir=prob_base_dir,
+        output_base_dir=output_base_dir,
+        device=cfg.device,
+        num_folds=5,
+        dice_style=dice_style,
+        prefix=prefix,
+        center_crop=center_crop,  # 是否进行中心裁剪
+        fold_to_run=None,  # 跑全部fold 1~5
+        dataset_flag="BraTS23"  # 指定数据集标志
+    )
+    
+    print("5 fold validation data inference completed.")
 
 
 def main():
-    # BraTS 2020 validation data inference
-    experiment_id = 83
+    # # BraTS 2020 validation data inference
+    # experiment_id = 83
+    # dice_style = 2
+    # prefix = None
+    # inference_BraTS2020_val_data(experiment_id, dice_style, center_crop=True, prefix=prefix)
+    
+    # BraTS 2023 validation data inference
+    experiment_id = 75
     dice_style = 2
     prefix = None
-    inference_BraTS2020_val_data(experiment_id, dice_style, center_crop=True, prefix=prefix)
+    inference_BraTS2023_val_data(experiment_id, dice_style, center_crop=True, prefix=prefix)
 
     
     # # Clinical data inference
