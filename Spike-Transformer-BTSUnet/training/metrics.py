@@ -75,6 +75,57 @@ def dice_score_braTS_per_sample_avg(pred, target, eps=1e-5):
 
 
 
+def dice_score_nnunet_multiclass_torch_batch(pred, target, eps=1e-8):
+    """
+    逐样本计算 Dice，再求平均（全程 GPU，nnU-Net 逻辑）
+    Args:
+        pred (Tensor): [B, 3, D, H, W]，logits
+        target (Tensor): [B, 3, D, H, W]，one-hot gt
+        eps   (float): 平滑项
+    Returns:
+        dice_dict (dict): 各类别平均Dice {'TC': float, 'WT': float, 'ET': float}
+    """
+
+    def compute_tp_fp_fn_tn_torch(mask_ref: torch.Tensor, mask_pred: torch.Tensor, ignore_mask: torch.Tensor = None):
+        mask_ref = mask_ref.bool()
+        mask_pred = mask_pred.bool()
+        if ignore_mask is None:
+            use_mask = torch.ones_like(mask_ref, dtype=torch.bool)
+        else:
+            use_mask = ~ignore_mask.bool()
+        tp = torch.sum((mask_ref & mask_pred) & use_mask)
+        fp = torch.sum((~mask_ref & mask_pred) & use_mask)
+        fn = torch.sum((mask_ref & ~mask_pred) & use_mask)
+        tn = torch.sum((~mask_ref & ~mask_pred) & use_mask)
+        return tp, fp, fn, tn
+
+    assert pred.shape == target.shape, f"Shape mismatch: {pred.shape} vs {target.shape}"
+    assert pred.dim() == 5, "pred/target must be [B, 3, D, H, W]"
+
+    # 二值化
+    pred_prob = torch.sigmoid(pred)
+    pred_bin = (pred_prob > 0.5)
+    target_bin = target.bool()
+
+    B, C = pred_bin.shape[:2]
+    dice_sum = torch.zeros(C, device=pred.device, dtype=torch.float32)
+
+    for b in range(B):
+        for c in range(C):
+            tp, fp, fn, _ = compute_tp_fp_fn_tn_torch(target_bin[b, c], pred_bin[b, c])
+            # 如果该类别在 GT 和预测中都不存在，则 dice = 1.0
+            dice = torch.where(
+                (tp + fp + fn) == 0,
+                torch.tensor(1.0, device=pred.device, dtype=torch.float32),
+                (2 * tp.float()) / (2 * tp.float() + fp.float() + fn.float() + eps)
+            )
+            dice_sum[c] += dice
+
+    dice_avg = dice_sum / B
+
+    # 返回 Python float 字典（接口和 metrics1 完全一致）
+    return {k: dice_avg[i].item() for i, k in enumerate(['TC', 'WT', 'ET'])}
+
 
 
 class BratsDiceMetric(nn.Module):

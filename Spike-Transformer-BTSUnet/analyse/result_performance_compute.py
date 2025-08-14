@@ -7,10 +7,9 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import json
 from inference.inference_utils import restore_to_original_shape, convert_label_to_onehot
 from inference.inference_metrics import (
-    dice_score_braTS_style, compute_dice_from_nifti, compute_dice_from_nifti_nnunet, compute_dice_from_nifti_braTS_style,
-    compute_soft_dice, compute_hd95_from_nifti, compute_sensitivity_specificity_from_nifti,
-    load_nifti_as_tensor
-    )
+    compute_dice_from_nifti, load_nifti_as_tensor, compute_soft_dice,
+    compute_hd95_from_nifti, compute_sensitivity_specificity_from_nifti,
+)
 
 
 def find_gt_path(gt_root, case_name):
@@ -76,7 +75,6 @@ def batch_compute_metrics(
     pred_files = sorted([f for f in os.listdir(pred_dir) if f.endswith(".nii.gz")])
     # pred_files = sorted([f for f in os.listdir(pred_dir) if f.endswith(".nii")])    
     all_dice_scores = []
-    all_dice_scores_style2 = []  # BraTS style Dice
     compare_mode = "crop"  # 默认比较模式为裁剪
     all_soft_dice_scores = []
     all_hd95_scores = []
@@ -102,9 +100,7 @@ def batch_compute_metrics(
 
         # 计算 Hard Dice
         dice = compute_dice_from_nifti(pred_path, gt_path)
-        dice_style2 = compute_dice_from_nifti_braTS_style(pred_path, gt_path)
         all_dice_scores.append(dice)
-        all_dice_scores_style2.append(dice_style2)
         
         
         # Soft Dice (if probability maps provided)
@@ -178,13 +174,11 @@ def batch_compute_metrics(
             all_sensitivity_specificity_scores.append(scores)
 
         print(f"{case_name}: dice: {dice} | HD95: {hd95 if compute_hd95 else 'N/A'}")
-        print(f"{case_name}: dice style2: {dice_style2}")
         if compute_sensitivity_specificity:
             print(f"{case_name}: sensitivity & specificity: {scores}")
 
     # 打印平均值
     print_avg_metrics(all_dice_scores, prefix="Hard Dice")
-    print_avg_metrics(all_dice_scores_style2, prefix="BraTS Style Dice", keys=["Dice_TC", "Dice_WT", "Dice_ET", "Mean_Dice"])
     if all_soft_dice_scores:
         print_avg_metrics(all_soft_dice_scores, prefix="Soft Dice")
 
@@ -201,7 +195,7 @@ def batch_compute_metrics(
             ]
         )
     
-    return all_dice_scores, all_dice_scores_style2, all_soft_dice_scores, all_hd95_scores, all_sensitivity_specificity_scores
+    return all_dice_scores, all_soft_dice_scores, all_hd95_scores, all_sensitivity_specificity_scores
 
 
 def inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_style, prefix=None, metric_obj=None, metadata_json_path = None):
@@ -210,7 +204,6 @@ def inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_sty
     """
 
     all_fold_dice_scores = []
-    all_fold_dice_scores_style2 = []
     all_fold_soft_dice_scores = []
 
     gt_root = '../../data/BraTS2020/MICCAI_BraTS2020_TrainingData'
@@ -222,7 +215,7 @@ def inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_sty
         prob_dir = f'../../Project/Pred/BraTS2020/validation_dataset/BraTS2020_val_prob_folds_exp{experiment_index}{dice_score_style_str}{prefix_str}/fold{fold_index}'
 
         print(f"Pred dir: {pred_dir}")
-        all_dice_scores, all_dice_scores_style2, all_soft_dice_scores, _, _ = batch_compute_metrics(
+        all_dice_scores, all_soft_dice_scores, _, _ = batch_compute_metrics(
             pred_dir=pred_dir,
             gt_root=gt_root,
             prob_dir=prob_dir, # 概率图
@@ -234,7 +227,6 @@ def inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_sty
             )
         
         all_fold_dice_scores.append(all_dice_scores)
-        all_fold_dice_scores_style2.append(all_dice_scores_style2)
         all_fold_soft_dice_scores.append(all_soft_dice_scores)
 
     # 打印所有折的平均值
@@ -246,7 +238,6 @@ def inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_sty
     for i in range(5):
         print(f"\nFold {i+1}:")
         print_avg_metrics(all_fold_dice_scores[i], prefix="Hard Dice")
-        print_avg_metrics(all_fold_dice_scores_style2[i], prefix="BraTS Style Dice", keys=["Dice_TC", "Dice_WT", "Dice_ET", "Mean_Dice"])
         if all_soft_dice_scores:
             print_avg_metrics(all_fold_soft_dice_scores[i], prefix="Soft Dice")
 
@@ -277,7 +268,6 @@ def inference_dice_compute_nnunet_val_data():
     """
 
     all_fold_dice_scores = []
-    all_fold_dice_scores_style2 = []
     
     gt_root = '../../data/BraTS2020/MICCAI_BraTS2020_TrainingData'
     for fold_index in range(0, 5):
@@ -285,7 +275,7 @@ def inference_dice_compute_nnunet_val_data():
         pred_dir = f'../../Compared_exp/Result/nnUnet/BraTS_2020/fold_{fold_index}/validation'
 
         print(f"Pred dir: {pred_dir}")
-        all_dice_scores, all_dice_scores_style2, _, _, _ = batch_compute_metrics(
+        all_dice_scores, all_soft_dice_scores, _, _, _ = batch_compute_metrics(
             pred_dir=pred_dir,
             gt_root=gt_root,
             prob_dir=None, # 概率图
@@ -297,7 +287,6 @@ def inference_dice_compute_nnunet_val_data():
             )
         
         all_fold_dice_scores.append(all_dice_scores)
-        all_fold_dice_scores_style2.append(all_dice_scores_style2)
 
     # 打印所有折的平均值
     print("\n============================================")
@@ -307,9 +296,7 @@ def inference_dice_compute_nnunet_val_data():
     print("\n============================================")
     for i in range(5):
         print(f"\nFold {i+1}:")
-        print_avg_metrics(all_fold_dice_scores[i], prefix="Hard Dice")
-        print_avg_metrics(all_fold_dice_scores_style2[i], prefix="BraTS Style Dice", keys=["Dice_TC", "Dice_WT", "Dice_ET", "Mean_Dice"])
-    
+        print_avg_metrics(all_fold_dice_scores[i], prefix="Hard Dice")    
 
 def main():
     batch_compute = True
@@ -328,7 +315,7 @@ def main():
         
 
         # BraTS 2020 Validation or Test
-        mode = 'val'  # 'val' or 'test'
+        mode = 'test'  # 'val' or 'test'
         experiment_index = 83
         dice_score_style = 2
         prefix = None

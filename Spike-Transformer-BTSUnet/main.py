@@ -6,7 +6,7 @@ import torch.optim as optim
 from sklearn.model_selection import KFold, train_test_split
 from model.spike_former_unet_model import spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
 # from model.simple_unet_model import spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
-from training.losses import BratsDiceLoss, BratsFocalLoss, BratsDiceLosswithFPPenalty, BratsTverskyLoss, AdaptiveRegionalLoss
+from training.losses import BratsDiceLoss, BratsDiceLossOptimized, BratsFocalLoss, BratsDiceLosswithFPPenalty, BratsTverskyLoss, AdaptiveRegionalLoss
 from training.utils import init_weights, save_metrics_to_file, save_case_list
 from training.train import train_fold, get_scheduler, EarlyStopping
 from training.plot import plot_metrics
@@ -31,7 +31,7 @@ def get_loss_function(cfg):
     """Return the loss function based on cfg.loss_function."""
     loss_map = {
         'focal': lambda: BratsFocalLoss(alpha=0.25, gamma=2.0, reduction='mean'),
-        'dice': lambda: BratsDiceLoss(
+        'dice': lambda: BratsDiceLossOptimized( # BratsDiceLoss
             smooth_nr=0, smooth_dr=1e-5, squared_pred=True,
             sigmoid=True, weights=cfg.loss_weights),
         'dice_with_fp_penalty': lambda: BratsDiceLosswithFPPenalty(

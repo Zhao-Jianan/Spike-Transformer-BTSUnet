@@ -1,7 +1,7 @@
 import os
 import torch
 import numpy as np
-from .metrics import compute_hd95, dice_score_braTS_per_sample_avg
+from .metrics import compute_hd95, dice_score_braTS_per_sample_avg, dice_score_nnunet_multiclass_torch_batch
 import time
 from inference.inference_helper import TemporalSlidingWindowInference
 from config import config as cfg
@@ -90,101 +90,6 @@ class EarlyStopping:
 
 
 # 训练和验证函数
-# def train(train_loader, model, optimizer, criterion, device, debug=False, compute_time=False, use_amp=True):
-#     model.train()
-    
-#     running_loss = 0.0
-#     scaler = GradScaler(enabled=use_amp)  # 混合精度缩放器
-#     print('Train -------------->>>>>>>')
-#     for x_seq, y in train_loader:
-#         if compute_time:
-#             torch.cuda.synchronize()  # 确保CUDA操作完成再计时
-#             start_time = time.time()
-            
-#         if debug:
-#             # 数据检查：检查输入 x_seq 和标签 y 是否包含 NaN 或 Inf
-#             if torch.isnan(x_seq).any() or torch.isinf(x_seq).any():
-#                 print(f"[FATAL] x_seq contains NaN/Inf at batch, stopping.")
-#                 break
-#             if torch.isnan(y).any() or torch.isinf(y).any():
-#                 print(f"[FATAL] y contains NaN/Inf at batch, stopping.")
-#                 break
-        
-#         x_seq = x_seq.permute(1, 0, 2, 3, 4, 5).contiguous().to(device, non_blocking=True)   # [B, T, 1, D, H, W] → [T, B, 1, D, H, W]
-#         y = y.to(device, non_blocking=True)
-        
-#         if compute_time:
-#             torch.cuda.synchronize()
-#             time1 = time.time()
-#             print(f"[DEBUG] Permute time: {time1 - start_time:.4f} seconds")
-            
-#         # 用 set_to_none=True，减少内存峰值
-#         optimizer.zero_grad(set_to_none=True)
-        
-#         with autocast(device_type='cuda', enabled=use_amp):
-#             output = model(x_seq)
-        
-#             if compute_time:
-#                 time2 = time.time()
-#                 print(f"[DEBUG] Model forward time: {time2 - time1:.4f} seconds")
-
-#             if debug:
-#                 # 检查模型输出是否为 NaN 或 Inf
-#                 if torch.isnan(output).any() or torch.isinf(output).any():
-#                     print(f"[FATAL] model output NaN/Inf at batch, stopping.")
-#                     print(f"Output: {output}")  # 输出模型输出，检查其值
-#                     break
-            
-#             if compute_time:    
-#                 time3 = time.time()
-#                 print(f"[DEBUG] Model output time: {time3 - time2:.4f} seconds") 
-#                 print(f"pred device: {output.device}, target device: {y.device}, weights device: {criterion.weights.device}") 
-                        
-#             loss = criterion(output, y)
-        
-#         if compute_time:
-#             torch.cuda.synchronize()
-#             time4 = time.time()
-#             print(f"[DEBUG] Loss computation time: {time4 - time3:.4f} seconds")
-        
-#         if debug:
-#             # 检查 loss 是否为 NaN
-#             if torch.isnan(loss):
-#                 print(f"[FATAL] loss NaN at batch, stopping at epoch") 
-#                 break
-        
-#         if compute_time:
-#             torch.cuda.synchronize()
-#             time5 = time.time()
-
-#         scaler.scale(loss).backward()
-        
-#         if compute_time:
-#             torch.cuda.synchronize()
-#             time6 = time.time()
-#             print(f"[DEBUG] Backward time: {time6 - time5:.4f} seconds")
-            
-#         scaler.step(optimizer)
-#         scaler.update()
-        
-#         if compute_time:
-#             torch.cuda.synchronize()
-#             time7 = time.time()
-#             print(f"[DEBUG] Optimizer step time: {time7 - time6:.4f} seconds")
-            
-#         running_loss += loss.item()
-        
-#         if compute_time:
-#             torch.cuda.synchronize()
-#             end_time = time.time()
-#             print(f"[DEBUG] add loss time: {end_time - time7:.4f} seconds")
-#             print(f"[DEBUG] Batch time: {end_time - start_time:.4f} seconds")
-            
-#     avg_loss = running_loss / len(train_loader)
-#     return avg_loss
-
-
-
 def train(train_loader, model, optimizer, criterion, device, debug=False, compute_time=False, 
           use_amp=True, use_grad_accum=False, accumulation_steps=1):
     model.train()
@@ -192,10 +97,6 @@ def train(train_loader, model, optimizer, criterion, device, debug=False, comput
     running_loss = 0.0
     scaler = GradScaler(enabled=use_amp)  # 混合精度缩放器
     print('Train -------------->>>>>>>')
-
-    # 如果使用梯度累积，需要先清零一次
-    if not use_grad_accum:
-        optimizer.zero_grad(set_to_none=True)
 
     for step, (x_seq, y) in enumerate(train_loader, start=1):
         if compute_time:
@@ -219,8 +120,11 @@ def train(train_loader, model, optimizer, criterion, device, debug=False, comput
             print(f"[DEBUG] Permute time: {time1 - start_time:.4f} seconds")
         
         # 梯度累积模式下，每 accumulation_steps 才清零一次梯度
-        if use_grad_accum and (step - 1) % accumulation_steps == 0:
-            optimizer.zero_grad(set_to_none=True)
+        if use_grad_accum:
+            if (step - 1) % accumulation_steps == 0:
+                optimizer.zero_grad(set_to_none=True)
+        else:
+            optimizer.zero_grad(set_to_none=True)  # 普通训练每 batch 清零
 
         with autocast(device_type='cuda', enabled=use_amp):
             output = model(x_seq)
@@ -260,12 +164,6 @@ def train(train_loader, model, optimizer, criterion, device, debug=False, comput
 
     avg_loss = running_loss / len(train_loader)
     return avg_loss
-
-
-
-
-
-
 
 
 # 初始化滑动窗口推理器
@@ -319,7 +217,7 @@ def validate(val_loader, model, criterion, device, val_crop_mode='crop', compute
                     print(f"Output: {output}")
                     break
 
-            dice = dice_score_braTS_per_sample_avg(output, y_onehot) # dict: {'TC':..., 'WT':..., 'ET':...}
+            dice = dice_score_nnunet_multiclass_torch_batch(output, y_onehot) # dict: {'TC':..., 'WT':..., 'ET':...}
             # 累加各类别的dice值
             for key in total_dice.keys():
                 total_dice[key] += dice[key]

@@ -117,6 +117,90 @@ class BratsDiceLoss(nn.Module):
             raise ValueError(f"Unsupported reduction type: {self.reduction}")
 
         return weighted_loss
+ 
+ 
+    
+class BratsDiceLossOptimized(nn.Module):
+    def __init__(self, 
+                 smooth_nr=0.0, 
+                 smooth_dr=1e-5, 
+                 squared_pred=True, 
+                 sigmoid=True, 
+                 weights=None, 
+                 include_background=True,
+                 batch=False,
+                 reduction='mean'):
+        super().__init__()
+        self.smooth_nr = smooth_nr
+        self.smooth_dr = smooth_dr
+        self.squared_pred = squared_pred
+        self.sigmoid = sigmoid
+        self.include_background = include_background
+        self.reduction = reduction
+        self.batch = batch
+
+        if weights is None:
+            weights = torch.tensor([1.0, 1.0, 1.0], dtype=torch.float32)
+        else:
+            weights = torch.tensor(weights, dtype=torch.float32)
+            weights = weights / weights.sum()
+            
+        self.register_buffer("weights", weights)
+
+    def forward(self, pred, target):
+        """
+        pred:   [B, C, D, H, W] 模型输出 logits 或概率
+        target: [B, C, D, H, W] 或 [B, 1, D, H, W]  (label map 或 one-hot)
+        """
+        if self.sigmoid:
+            pred = torch.sigmoid(pred)          
+
+        # ===== 显存优化：标签统一处理为 one-hot (bool) =====
+        with torch.no_grad():
+            if pred.shape != target.shape:
+                # 从整型标签生成 one-hot，布尔节省显存
+                target_onehot = torch.zeros_like(pred, dtype=torch.bool)
+                target_onehot.scatter_(1, target.long(), 1)
+            else:
+                target_onehot = target.bool()
+
+            if not self.include_background:
+                target_onehot = target_onehot[:, 1:]
+            elif target_onehot.shape[1] != pred.shape[1]:
+                # 若 include_background=True 但 target 没有背景通道
+                pass  
+
+        # ===== 预测通道对齐 =====
+        if not self.include_background:
+            pred = pred[:, 1:]
+
+        # ===== 计算平方项 =====
+        pred_sq = pred ** 2 if self.squared_pred else pred
+        target_sq = target_onehot.float() ** 2 if self.squared_pred else target_onehot.float()
+
+        dims = (0, 2, 3, 4) if self.batch else (2, 3, 4)
+
+        # ===== 显存优化：提前 no_grad 计算 sum_gt =====
+        with torch.no_grad():
+            sum_gt = target_sq.sum(dims)
+
+        intersection = torch.sum(pred * target_onehot.float(), dims)
+        sum_pred = pred_sq.sum(dims)
+
+        dice = (2. * intersection + self.smooth_nr) / torch.clamp_min(sum_pred + sum_gt + self.smooth_dr, 1e-8)
+        loss_per_channel = 1 - dice
+
+        # ===== 通道加权 =====
+        weights = self.weights.to(pred.device)
+        if self.reduction == 'mean':
+            weighted_loss = (loss_per_channel * weights).mean()
+        elif self.reduction == 'sum':
+            weighted_loss = (loss_per_channel * weights).sum()
+        else:
+            raise ValueError(f"Unsupported reduction type: {self.reduction}")
+
+        return weighted_loss    
+    
 
 class BratsDiceLosswithFPPenalty(nn.Module):
     def __init__(self, 
