@@ -418,17 +418,17 @@ def inference_BraTS2023_val_data(experiment_id, dice_style, center_crop=True, pr
 
 
 def main():
-    # # BraTS 2020 validation data inference
-    # experiment_id = 83
-    # dice_style = 2
-    # prefix = None
-    # inference_BraTS2020_val_data(experiment_id, dice_style, center_crop=True, prefix=prefix)
-    
-    # BraTS 2023 validation data inference
-    experiment_id = 75
+    # BraTS 2020 validation data inference
+    experiment_id = 86
     dice_style = 2
     prefix = None
-    inference_BraTS2023_val_data(experiment_id, dice_style, center_crop=True, prefix=prefix)
+    inference_BraTS2020_val_data(experiment_id, dice_style, center_crop=True, prefix=prefix)
+    
+    # # BraTS 2023 validation data inference
+    # experiment_id = 75
+    # dice_style = 2
+    # prefix = None
+    # inference_BraTS2023_val_data(experiment_id, dice_style, center_crop=True, prefix=prefix)
 
     
     # # Clinical data inference

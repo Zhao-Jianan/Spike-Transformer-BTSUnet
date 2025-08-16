@@ -156,7 +156,7 @@ def soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list, dice_style=
     return metadata_json_path if center_crop else None
 
 
-def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, metadata_json_path=None):
+def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, metadata_json_path=None, dataset_flag=None):
     os.makedirs(output_dir, exist_ok=True)
     
     if metadata_json_path and center_crop:
@@ -176,7 +176,7 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, meta
             if os.path.exists(pkl_path):
                 with open(pkl_path, "rb") as f:
                     strategy = pickle.load(f)
-                label_fold = convert_prediction_to_label_suppress_fp(prob)
+                label_fold = convert_prediction_to_label_suppress_fp(prob, dataset_flag=dataset_flag)
                 label_fold = apply_postprocessing_brats(label_fold, strategy)  # 应用独立策略
                 prob = np.eye(cfg.num_classes)[label_fold]  # 重新转为 one-hot 概率图
                 prob = np.transpose(prob, (3, 0, 1, 2))  # (C, D, H, W)
@@ -188,7 +188,7 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, meta
         mean_prob = np.mean(np.stack(prob_list, axis=0), axis=0)  # [C, D, H, W]
         print(f"Mean probability shape for case {case}: {mean_prob.shape}")
 
-        label_np = convert_prediction_to_label_suppress_fp(mean_prob)
+        label_np = convert_prediction_to_label_suppress_fp(mean_prob, dataset_flag=dataset_flag)
 
         print("Label shape before restoring to original shape:", label_np.shape)  # (D, H, W)
 
@@ -204,8 +204,10 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, meta
 
         print("Label shape before transposing:", restored_label.shape)  # (D, H, W)
         final_label = np.transpose(restored_label, (1, 2, 0))
-
-        ref_nii_path = os.path.join(case_dir, case, f"{case}_{cfg.modalities[cfg.modalities.index('t1ce')]}.nii")
+        if dataset_flag== 'BraTS23':
+            ref_nii_path = os.path.join(case_dir, case, f"{case}-{cfg.modalities[cfg.modalities.index('t1c')]}.nii.gz")
+        else:
+            ref_nii_path = os.path.join(case_dir, case, f"{case}_{cfg.modalities[cfg.modalities.index('t1ce')]}.nii")
         ref_nii = nib.load(ref_nii_path)
         pred_nii = nib.Nifti1Image(final_label, affine=ref_nii.affine, header=ref_nii.header)
 
@@ -260,9 +262,15 @@ def inference_BraTS2023_test_data(experiment_id, dice_style, center_crop=True, p
         if os.path.isdir(os.path.join(case_dir, d))
     ])
     
-    metadata_json_path=soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list, dice_style=dice_style, center_crop=center_crop, prefix=prefix, dataset_flag='BraTS23')
+    metadata_json_path=soft_ensemble(
+        prob_base_dir, case_dir, ckpt_dir, test_case_list, 
+        dice_style=dice_style, center_crop=center_crop, prefix=prefix, dataset_flag='BraTS23'
+        )
 
-    ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir, center_crop=center_crop, metadata_json_path=metadata_json_path)
+    ensemble_soft_voting(
+        prob_base_dir, case_dir, ensemble_output_dir, 
+        center_crop=center_crop, metadata_json_path=metadata_json_path, dataset_flag='BraTS23'
+        )
 
     print("Inference completed.")
 
@@ -280,7 +288,7 @@ def main():
     
     
     # # BraTS2020 test data inference
-    # experiment_id = 83
+    # experiment_id = 86
     # dice_style = 2
     # prefix = None  # "slidingwindow"
     # inference_BraTS2020_test_data(experiment_id, dice_style, center_crop=True, prefix=prefix)
