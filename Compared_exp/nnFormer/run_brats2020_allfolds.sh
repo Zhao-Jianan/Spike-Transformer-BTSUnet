@@ -19,8 +19,9 @@ echo "================"
 ####################
 cd /hpc/ajhz839/compared_models/nnFormer/nnFormer/
 echo "===== 开始五折训练 ====="
-CUDA_VISIBLE_DEVICES=${CUDA} nnFormer_train 3d_fullres nnFormerTrainerV2 ${TASK_ID} all
-
+for fold in 0 1 2 3 4; do
+    CUDA_VISIBLE_DEVICES=${CUDA} nnFormer_train 3d_fullres nnFormerTrainerV2 ${TASK_ID} $fold
+done
 ####################
 # 2. 五折预测
 ####################

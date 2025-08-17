@@ -287,18 +287,18 @@ def main():
     # ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir)
     
     
-    # # BraTS2020 test data inference
-    # experiment_id = 86
+    # BraTS2020 test data inference
+    experiment_id = 91
+    dice_style = 1
+    prefix = None  # "slidingwindow"
+    inference_BraTS2020_test_data(experiment_id, dice_style, center_crop=True, prefix=prefix)
+    
+    
+    # # BraTS2023 test data inference
+    # experiment_id = 75
     # dice_style = 2
     # prefix = None  # "slidingwindow"
-    # inference_BraTS2020_test_data(experiment_id, dice_style, center_crop=True, prefix=prefix)
-    
-    
-    # BraTS2023 test data inference
-    experiment_id = 75
-    dice_style = 2
-    prefix = None  # "slidingwindow"
-    inference_BraTS2023_test_data(experiment_id, dice_style, center_crop=True, prefix=prefix)
+    # inference_BraTS2023_test_data(experiment_id, dice_style, center_crop=True, prefix=prefix)
     
    
     # # Clinical data inference

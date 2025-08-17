@@ -204,9 +204,9 @@ pkill -f spikeformerunet75/inference_resemble.py
 pkill -f spikeformerunet77/inference_val_data.py
 
 [infer]
-nohup python spikeformerunet86/inference_val_data.py > inference_log_exp86_val_data.out 2>&1 &
+nohup python spikeformerunet91/inference_val_data.py > inference_log_exp91_val_data.out 2>&1 &
 
-nohup python spikeformerunet75/inference_resemble.py > inference_log_exp75_test_data.out 2>&1 &
+nohup python spikeformerunet91/inference_resemble.py > inference_log_exp91_test_data.out 2>&1 &
 
 nohup python spikeformerunet82/inference_val_data.py > inference_log_exp82_val_data_dice_style_2_post.out 2>&1 &
 
@@ -226,3 +226,4 @@ nohup python spikeformerunet15/check_dataset_split.py > dataset_split_log.out 2>
 
 [sh]
 nohup bash run_all_folds_BraTS2020.sh > brats20_train_nnformer.log 2>&1 &
+nohup bash run_all_folds_BraTS2020_2to4.sh > brats20_train_nnunet_fold2-4.log 2>&1 &
