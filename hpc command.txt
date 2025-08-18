@@ -195,11 +195,14 @@ nohup python spikeformerunet93/main.py > New-93-log_bra20_spikeformerunet_144c96
 nohup python spikeformerunet94/main.py > New-94-log_bra20_spikeformerunet_144c96p2b_1e3_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware075.out 2>&1 &
 [95]
 nohup python spikeformerunet95/main.py > New-95-log_bra20_spikeformerunet_144c64p4b_1e3_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware075.out 2>&1 &
+[96]
+nohup python spikeformerunet96/main.py > New-96-log_bra23SSA_spikeformerunet_144c64p4b_1e3_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware075.out 2>&1 &
+
 
 ps -u $USER -f | grep python
 pgrep -u $USER -a python
 pkill -f filename.py
-pkill -f spikeformerunet92/main.py
+pkill -f spikeformerunet96/main.py
 pkill -f spikeformerunet75/inference_resemble.py
 pkill -f spikeformerunet77/inference_val_data.py
 
