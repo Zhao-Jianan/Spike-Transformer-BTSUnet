@@ -1081,7 +1081,16 @@ class MS_SpikeCatConverge3D(base.MemoryModule):
     def __init__(self, channels, norm_type='group', tau=2.0, lif_type='para_lif', step_mode='m'):
         super().__init__()
         if lif_type == 'lif':
-            self.lif = neuron.LIFNode(
+            self.lif1 = neuron.LIFNode(
+                tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode
+            )
+            self.lif2 = neuron.LIFNode(
                 tau=tau,
                 decay_input=True,
                 detach_reset=True,
@@ -1091,7 +1100,17 @@ class MS_SpikeCatConverge3D(base.MemoryModule):
                 step_mode=step_mode
             )
         elif lif_type == 'para_lif':
-            self.lif = neuron.ParametricLIFNode(
+            self.lif1 = neuron.ParametricLIFNode(
+                init_tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode,
+                backend='cupy'
+            )
+            self.lif2 = neuron.ParametricLIFNode(
                 init_tau=tau,
                 decay_input=True,
                 detach_reset=True,
@@ -1102,7 +1121,7 @@ class MS_SpikeCatConverge3D(base.MemoryModule):
                 backend='cupy'
             )
         elif lif_type == 'general_para_lif':
-            self.lif = GeneralParametricLIFNode(
+            self.lif1 = GeneralParametricLIFNode(
                 init_tau=tau,
                 init_threshold=1.0,
                 learnable_tau=True,
@@ -1113,7 +1132,19 @@ class MS_SpikeCatConverge3D(base.MemoryModule):
                 surrogate_function=surrogate.ATan(), # surrogate.ATan()
                 step_mode=step_mode,
                 backend='cupy'
-            )           
+            )
+            self.lif2 = GeneralParametricLIFNode(
+                init_tau=tau,
+                init_threshold=1.0,
+                learnable_tau=True,
+                learnable_threshold=True,
+                decay_input=True,
+                detach_reset=True,                
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), # surrogate.ATan()
+                step_mode=step_mode,
+                backend='cupy'
+            )            
             
         self.conv = layer.Conv3d(channels*2, channels, kernel_size=1, step_mode=step_mode)
         
@@ -1123,12 +1154,261 @@ class MS_SpikeCatConverge3D(base.MemoryModule):
             self.norm = layer.GroupNorm(num_groups=8, num_channels=channels, step_mode=step_mode)
 
     def forward(self, x1, x2):
-        x1 = self.lif(x1)
-        x2 = self.lif(x2)
+        x1 = self.lif1(x1)
+        x2 = self.lif2(x2)
         x = torch.cat((x1, x2), dim=2)
         x = self.conv(x)
         x = self.norm(x)
         return x 
+    
+    
+class Gated_SpikeConverge3D(base.MemoryModule):
+    def __init__(self, channels, norm_type='group', tau=2.0, lif_type='para_lif', step_mode='m'):
+        super().__init__()
+
+        # ----------------- LIF 单元 -----------------
+        if lif_type == 'lif':
+            self.lif1 = neuron.LIFNode(
+                tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode
+            )
+            self.lif2 = neuron.LIFNode(
+                tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode
+            )
+        elif lif_type == 'para_lif':
+            self.lif1 = neuron.ParametricLIFNode(
+                init_tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode,
+                backend='cupy'
+            )
+            self.lif2 = neuron.ParametricLIFNode(
+                init_tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode,
+                backend='cupy'
+            )
+        elif lif_type == 'general_para_lif':
+            self.lif1 = GeneralParametricLIFNode(
+                init_tau=tau,
+                init_threshold=1.0,
+                learnable_tau=True,
+                learnable_threshold=True,
+                decay_input=True,
+                detach_reset=True,                
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), # surrogate.ATan()
+                step_mode=step_mode,
+                backend='cupy'
+            )
+            self.lif2 = GeneralParametricLIFNode(
+                init_tau=tau,
+                init_threshold=1.0,
+                learnable_tau=True,
+                learnable_threshold=True,
+                decay_input=True,
+                detach_reset=True,                
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), # surrogate.ATan()
+                step_mode=step_mode,
+                backend='cupy'
+            )    
+
+        # ----------------- 门控网络 -----------------
+        # 输入: cat(x1,x2)，通道=2C；输出: 通道=C 的 gate
+        self.gate_conv = layer.Conv3d(channels * 2, channels, kernel_size=1, step_mode=step_mode)
+
+            
+        if norm_type == 'batch':
+            self.norm = layer.BatchNorm3d(num_features=channels, step_mode=step_mode)
+        elif norm_type == 'group':
+            self.norm = layer.GroupNorm(num_groups=8, num_channels=channels, step_mode=step_mode)
+
+        self.sigmoid = torch.nn.Sigmoid()
+
+    def forward(self, x1, x2):
+        # spike 激活
+        x1 = self.lif1(x1)
+        x2 = self.lif2(x2)
+
+        # 计算 gate
+        gate_input = torch.cat((x1, x2), dim=2)     # [B, 2C, D, H, W]
+        g = self.gate_conv(gate_input)              # [B, C, D, H, W]
+        g = self.norm(g)
+        g = self.sigmoid(g)                         # [0,1] 门控系数
+
+        # 门控融合
+        out = g * x1 + (1 - g) * x2
+        return out
+
+
+class MS_SpikeAttentionConverge3D(base.MemoryModule):
+    def __init__(self, channels, norm_type='group', tau=2.0, lif_type='para_lif', step_mode='m'):
+        super().__init__()
+
+        # ----------------- LIF 激活 -----------------
+        if lif_type == 'lif':
+            self.lif1 = neuron.LIFNode(
+                tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode
+            )
+            self.lif2 = neuron.LIFNode(
+                tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode
+            )
+            self.att_lif = neuron.LIFNode(
+                tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode
+            )
+        elif lif_type == 'para_lif':
+            self.lif1 = neuron.ParametricLIFNode(
+                init_tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode,
+                backend='cupy'
+            )
+            self.lif2 = neuron.ParametricLIFNode(
+                init_tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode,
+                backend='cupy'
+            )
+            self.att_lif = neuron.ParametricLIFNode(
+                init_tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode,
+                backend='cupy'
+            )
+        elif lif_type == 'general_para_lif':
+            self.lif1 = GeneralParametricLIFNode(
+                init_tau=tau,
+                init_threshold=1.0,
+                learnable_tau=True,
+                learnable_threshold=True,
+                decay_input=True,
+                detach_reset=True,                
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), # surrogate.ATan()
+                step_mode=step_mode,
+                backend='cupy'
+            )
+            self.lif2 = GeneralParametricLIFNode(
+                init_tau=tau,
+                init_threshold=1.0,
+                learnable_tau=True,
+                learnable_threshold=True,
+                decay_input=True,
+                detach_reset=True,                
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), # surrogate.ATan()
+                step_mode=step_mode,
+                backend='cupy'
+            )
+            self.att_lif = GeneralParametricLIFNode(
+                init_tau=tau,
+                init_threshold=1.0,
+                learnable_tau=True,
+                learnable_threshold=True,
+                decay_input=True,
+                detach_reset=True,                
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), # surrogate.ATan()
+                step_mode=step_mode,
+                backend='cupy'
+            )    
+
+        # ----------------- 融合卷积 -----------------
+        self.conv = layer.Conv3d(channels, channels, kernel_size=1, step_mode=step_mode)
+
+        # ----------------- 通道注意力 -----------------
+        self.ca_fc1 = layer.Conv3d(channels * 2, channels, kernel_size=1, step_mode=step_mode)
+        self.ca_fc2 = layer.Conv3d(channels, channels, kernel_size=1, step_mode=step_mode)
+
+        # ----------------- 空间注意力 -----------------
+        self.sa_conv = layer.Conv3d(1, 1, kernel_size=7, padding=3, step_mode=step_mode)  # 输出1通道用于广播
+
+        # ----------------- 归一化 -----------------
+        if norm_type == 'batch':
+            self.norm = layer.BatchNorm3d(num_features=channels, step_mode=step_mode)
+        elif norm_type == 'group':
+            self.norm = layer.GroupNorm(num_groups=8, num_channels=channels, step_mode=step_mode)
+
+        self.sigmoid = torch.nn.Sigmoid()
+
+    def forward(self, x1, x2):
+        """
+        x1, x2: [T, B, C, D, H, W]
+        """
+        # ----------------- LIF 激活 -----------------        
+        x1 = self.lif1(x1)
+        x2 = self.lif2(x2)
+
+        # ----------------- 通道注意力 -----------------
+        ca = torch.cat([x1, x2], dim=2)      # [T,B,2C,D,H,W]
+        ca = self.ca_fc1(ca)                 # [T,B,C//2,D,H,W]
+        ca = self.att_lif(ca)
+        ca = self.ca_fc2(ca)                 # [T,B,C,D,H,W]
+        ca = self.sigmoid(ca)                # [0,1] 门控系数
+        out_ca = ca * x1 + (1 - ca) * x2        # 通道融合
+
+        # ----------------- 空间注意力（广播版本） -----------------
+        sa = out_ca.mean(2, keepdim=True)  # [T,B,1,D,H,W]
+        sa = self.sa_conv(sa)               # [T,B,1,D,H,W]
+        sa = self.att_lif(sa)
+        sa = self.sigmoid(sa)
+        out = sa * out_ca + (1 - sa) * out_ca    # 广播到所有通道
+
+        # ----------------- 融合卷积 + 归一化 -----------------
+        out = self.conv(out)
+        out = self.norm(out)
+        return out
+
  
     
 class Spike_Former_Unet3D(nn.Module):
@@ -1291,11 +1571,18 @@ class Spike_Former_Unet3D(nn.Module):
             ) for i in range(layers[2])])
 
         if skip_connection == 'add':
-            self.converge3 = AddConverge3D(channels=embed_dim[2], norm_type=norm_type, step_mode=step_mode)
+            self.converge3 = AddConverge3D(
+                channels=embed_dim[2], norm_type=norm_type, step_mode=step_mode)
         elif skip_connection == 'cat':
             self.converge3 = MS_SpikeCatConverge3D(
-                channels=embed_dim[2], norm_type=norm_type, lif_type=lif_type, step_mode=step_mode)        
-        
+                channels=embed_dim[2], norm_type=norm_type, lif_type=lif_type, step_mode=step_mode) 
+        elif skip_connection == 'gate':
+            self.converge3 = Gated_SpikeConverge3D(
+                channels=embed_dim[2], norm_type=norm_type, lif_type=lif_type, step_mode=step_mode)
+        elif skip_connection == 'attention':
+            self.converge3 = MS_SpikeAttentionConverge3D(
+                channels=embed_dim[2], norm_type=norm_type, lif_type=lif_type, step_mode=step_mode)
+
         # Decode-Stage 2
         self.upsample2 = MS_SpikeUpSampling3D(
             in_channels=embed_dim[2],
@@ -1316,9 +1603,18 @@ class Spike_Former_Unet3D(nn.Module):
         
 
         if skip_connection == 'add':
-            self.converge2 = AddConverge3D(channels=embed_dim[1], norm_type=norm_type, step_mode=step_mode)
+            self.converge2 = AddConverge3D(
+                channels=embed_dim[1], norm_type=norm_type, step_mode=step_mode)
         elif skip_connection == 'cat':
-            self.converge2 = MS_SpikeCatConverge3D(channels=embed_dim[1], norm_type=norm_type, lif_type=lif_type, step_mode=step_mode)                     
+            self.converge2 = MS_SpikeCatConverge3D(
+                channels=embed_dim[1], norm_type=norm_type, lif_type=lif_type, step_mode=step_mode)                     
+        elif skip_connection == 'gate':
+            self.converge2 = Gated_SpikeConverge3D(
+                channels=embed_dim[1], norm_type=norm_type, lif_type=lif_type, step_mode=step_mode)
+        elif skip_connection == 'attention':
+            self.converge2 = MS_SpikeAttentionConverge3D(
+                channels=embed_dim[1], norm_type=norm_type, lif_type=lif_type, step_mode=step_mode)
+
                    
         # Decode-Stage 1
         self.upsample1_b = MS_SpikeUpSampling3D(
@@ -1351,9 +1647,18 @@ class Spike_Former_Unet3D(nn.Module):
 
 
         if skip_connection == 'add':
-            self.converge1 = AddConverge3D(channels=embed_dim[0], norm_type=norm_type, step_mode=step_mode)
+            self.converge1 = AddConverge3D(
+                channels=embed_dim[0], norm_type=norm_type, step_mode=step_mode)
         elif skip_connection == 'cat':
-            self.converge1 = MS_SpikeCatConverge3D(channels=embed_dim[0], norm_type=norm_type, lif_type=lif_type, step_mode=step_mode)   
+            self.converge1 = MS_SpikeCatConverge3D(
+                channels=embed_dim[0], norm_type=norm_type, lif_type=lif_type, step_mode=step_mode)   
+        elif skip_connection == 'gate':
+            self.converge1 = Gated_SpikeConverge3D(
+                channels=embed_dim[0], norm_type=norm_type, lif_type=lif_type, step_mode=step_mode)
+        elif skip_connection == 'attention':
+            self.converge1 = MS_SpikeAttentionConverge3D(
+                channels=embed_dim[0], norm_type=norm_type, lif_type=lif_type, step_mode=step_mode)
+
         
         self.final_upsample = MS_SpikeUpSampling3D(
             in_channels=embed_dim[0] // 2,
@@ -1382,7 +1687,7 @@ class Spike_Former_Unet3D(nn.Module):
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
-        if isinstance(m, nn.Linear):
+        if isinstance(m, (nn.Conv2d, nn.Conv3d, nn.Linear)):
             trunc_normal_(m.weight, std=0.02)
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
@@ -1403,6 +1708,7 @@ class Spike_Former_Unet3D(nn.Module):
         for blk in self.encode_block1_b:
             e1 = blk(e1)
         skip1 = e1                 # Skip2 shape: [T, B, 96, 16, 16, 16]
+
         # Encode-stage 2
         e2 = self.downsample2(e1)            # Downsample2 output shape: [T, B, 192, 8, 8, 8]
         for blk in self.encode_block2_a:
@@ -1410,11 +1716,13 @@ class Spike_Former_Unet3D(nn.Module):
         for blk in self.encode_block2_b:
             e2 = blk(e2)
         skip2 = e2                  # Skip3 shape: [T, B, 192, 8, 8, 8]
+
         # Encode-stage 3
         e3 = self.downsample3(e2)            # Downsample3 output shape: [T, B, 384, 4, 4, 4]
         for blk in self.encode_block3:
             e3 = blk(e3)
         skip3 = e3                  # Skip4 shape: [T, B, 384, 4, 4, 4]
+
         # Encode-stage 4
         e4 = self.feature_downsample(e3)     # Downsample4 output shape: [T, B, 480, 4, 4, 4]
         for blk in self.feature_block:
@@ -1428,6 +1736,7 @@ class Spike_Former_Unet3D(nn.Module):
         
         # Decode-Stage 2
         d2 = self.upsample2(d3)              # Upsample2 output shape: [T, B, 192, 8, 8, 8]
+        
         d2 = self.converge2(d2, skip2)       # Converge2 output shape: [T, B, 192, 8, 8, 8]
         for blk in self.decode_block2_a:
             d2 = blk(d2)
@@ -1471,7 +1780,7 @@ def spike_former_unet3D_8_384(in_channels=4, num_classes=3, T=4, norm_type='grou
         depths=[8, 8, 8, 8],
         layers=[2, 2, 6, 2],
         sr_ratios=[1, 1, 1, 1],
-        skip_connection='cat',
+        skip_connection='attention', #  add cat gate attention
         T=T,
         lif_type='general_para_lif', # lif, para_lif, general_para_lif
         norm_type=norm_type,

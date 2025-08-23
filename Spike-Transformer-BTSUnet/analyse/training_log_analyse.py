@@ -46,7 +46,7 @@ def find_best_val_mean_dice(json_path):
 
 def main():
     root_path = "././Project/Result/"
-    experiment_name = "86-bra20_spikeformerunet_144c64p4b_5e4_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware075"
+    experiment_name = "95-bra20_spikeformerunet_144c64p4b_1e3_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware075"
     fold_num = "5"
     file_path = f"{root_path}{experiment_name}/fold_{fold_num}_metrics.json"
 

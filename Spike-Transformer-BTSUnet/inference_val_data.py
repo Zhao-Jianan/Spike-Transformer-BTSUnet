@@ -419,7 +419,7 @@ def inference_BraTS2023_val_data(experiment_id, dice_style, center_crop=True, pr
 
 def main():
     # BraTS 2020 validation data inference
-    experiment_id = 91
+    experiment_id = 95
     dice_style = 1
     prefix = None
     inference_BraTS2020_val_data(experiment_id, dice_style, center_crop=True, prefix=prefix)

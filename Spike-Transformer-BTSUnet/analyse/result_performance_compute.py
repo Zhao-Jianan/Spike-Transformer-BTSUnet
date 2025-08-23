@@ -12,10 +12,16 @@ from inference.inference_metrics import (
 )
 
 
-def find_gt_path(gt_root, case_name):
+def find_gt_path(gt_root, case_name, dataset_flag):
     """
-    自动判断是否存在 HGG/LGG 子文件夹，兼容 BraTS2018 和 BraTS2020 目录结构。
+    自动判断是否存在 HGG/LGG 子文件夹，兼容 BraTS2018, BraTS2020 和 BraTS2023 目录结构。
     """
+    if dataset_flag == "BraTS23":
+        # BraTS2023 结构（无 HGG/LGG）
+        candidate_path = os.path.join(gt_root, case_name, f"{case_name}-seg.nii.gz")
+        if os.path.exists(candidate_path):
+            return candidate_path
+
     # BraTS2020 结构（无 HGG/LGG）
     candidate_path = os.path.join(gt_root, case_name, f"{case_name}_seg.nii")
     if os.path.exists(candidate_path):
@@ -70,10 +76,12 @@ def batch_compute_metrics(
     metric_obj=None,
     compute_hd95=False,
     compute_sensitivity_specificity=False,
-    metadata_json_path=None
+    metadata_json_path=None,
+    dataset_flag=None
 ):
+
     pred_files = sorted([f for f in os.listdir(pred_dir) if f.endswith(".nii.gz")])
-    # pred_files = sorted([f for f in os.listdir(pred_dir) if f.endswith(".nii")])    
+  
     all_dice_scores = []
     compare_mode = "crop"  # 默认比较模式为裁剪
     all_soft_dice_scores = []
@@ -91,7 +99,7 @@ def batch_compute_metrics(
         # case_name = pred_file.replace(".nii", "")
         print(f"Processing case: {case_name}")
         pred_path = os.path.join(pred_dir, pred_file)
-        gt_path = find_gt_path(gt_root, case_name)
+        gt_path = find_gt_path(gt_root, case_name, dataset_flag)
 
         if gt_path is None:
             print(f"[Warning] GT not found for {case_name}")
@@ -99,7 +107,7 @@ def batch_compute_metrics(
 
 
         # 计算 Hard Dice
-        dice = compute_dice_from_nifti(pred_path, gt_path)
+        dice = compute_dice_from_nifti(pred_path, gt_path,dataset_flag=dataset_flag)
         all_dice_scores.append(dice)
         
         
@@ -207,6 +215,10 @@ def inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_sty
     all_fold_soft_dice_scores = []
 
     gt_root = '../../data/BraTS2020/MICCAI_BraTS2020_TrainingData'
+    if not os.path.exists(gt_root):
+        print(f"Ground truth directory does not exist: {gt_root}")
+        return
+
     dice_score_style_str = "" if dice_score_style == 1 else f"_dice_style{dice_score_style}"
     prefix_str = f"_{prefix}" if prefix else ""
     for fold_index in range(1, 6):
@@ -214,7 +226,9 @@ def inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_sty
         pred_dir = f'../../Project/Pred/BraTS2020/validation_dataset/BraTS2020_val_pred_exp{experiment_index}{dice_score_style_str}{prefix_str}/val_fold{fold_index}_pred'
         prob_dir = f'../../Project/Pred/BraTS2020/validation_dataset/BraTS2020_val_prob_folds_exp{experiment_index}{dice_score_style_str}{prefix_str}/fold{fold_index}'
 
-        print(f"Pred dir: {pred_dir}")
+        if not os.path.exists(pred_dir):
+            print(f"Prediction directory does not exist: {pred_dir}")
+            return
         all_dice_scores, all_soft_dice_scores, _, _ = batch_compute_metrics(
             pred_dir=pred_dir,
             gt_root=gt_root,
@@ -242,15 +256,22 @@ def inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_sty
             print_avg_metrics(all_fold_soft_dice_scores[i], prefix="Soft Dice")
 
 
-def inference_dice_compute_for_brats20_test_data(experiment_index, dice_score_style, prefix=None, metric_obj=None, metadata_json_path = None):   
+def inference_dice_compute_for_brats20_test_data(experiment_index, dice_score_style, prefix=None, metric_obj=None, 
+                                                 metadata_json_path = None):   
         gt_root = '../../data/BraTS2020/MICCAI_BraTS2020_TrainingData'
+        if not os.path.exists(gt_root):
+            print(f"Ground truth directory does not exist: {gt_root}")
+            return
+        
         dice_score_style_str = "" if dice_score_style == 1 else f"_dice_style{dice_score_style}"
         prefix_str = f"_{prefix}" if prefix else ""
         pred_dir = f'../../Project/Pred/BraTS2020/test_dataset/test_pred_soft_ensemble_exp{experiment_index}{dice_score_style_str}{prefix_str}'
         prob_dir = None # f'./Pred/BraTS2020/test_dataset/test_prob_soft_ensemble_exp{experiment_index}'
         metric_obj = None # BratsDiceMetric()
         
-        print(f"Pred dir: {pred_dir}")
+        if not os.path.exists(pred_dir):
+            print(f"Prediction directory does not exist: {pred_dir}")
+            return
 
         batch_compute_metrics(
             pred_dir=pred_dir,
@@ -271,13 +292,13 @@ def inference_dice_compute_for_brats23_val_data(experiment_index, dice_score_sty
     all_fold_dice_scores = []
     all_fold_soft_dice_scores = []
 
-    gt_root = '../../data/BraTS2020/MICCAI_BraTS2020_TrainingData'
+    gt_root = '../../data/BraTS2023'
     dice_score_style_str = "" if dice_score_style == 1 else f"_dice_style{dice_score_style}"
     prefix_str = f"_{prefix}" if prefix else ""
     for fold_index in range(1, 6):
         print(f"Processing fold {fold_index} for experiment {experiment_index} with style {dice_score_style}")
-        pred_dir = f'../../Project/Pred/BraTS2020/validation_dataset/BraTS2020_val_pred_exp{experiment_index}{dice_score_style_str}{prefix_str}/val_fold{fold_index}_pred'
-        prob_dir = f'../../Project/Pred/BraTS2020/validation_dataset/BraTS2020_val_prob_folds_exp{experiment_index}{dice_score_style_str}{prefix_str}/fold{fold_index}'
+        pred_dir = f'../../Project/Pred/BraTS2023/BraTS2023_val_pred_exp{experiment_index}{dice_score_style_str}{prefix_str}/val_fold{fold_index}_pred'
+        prob_dir = None # f'../../Project/Pred/BraTS2023/validation_dataset/BraTS2023_val_prob_folds_exp{experiment_index}{dice_score_style_str}{prefix_str}/fold{fold_index}'
 
         print(f"Pred dir: {pred_dir}")
         all_dice_scores, all_soft_dice_scores, _, _ = batch_compute_metrics(
@@ -288,7 +309,8 @@ def inference_dice_compute_for_brats23_val_data(experiment_index, dice_score_sty
             metric_obj=metric_obj, # BratsDiceMetric 实例
             compute_hd95=False,
             compute_sensitivity_specificity=False,
-            metadata_json_path=metadata_json_path
+            metadata_json_path=metadata_json_path,
+            dataset_flag="BraTS23"
             )
         
         all_fold_dice_scores.append(all_dice_scores)
@@ -364,7 +386,7 @@ def main():
 
         # BraTS 2020 Validation or Test
         mode = 'test'  # 'val' or 'test'
-        experiment_index = 91
+        experiment_index = 95
         dice_score_style = 1
         prefix = None
         if mode == 'val':
@@ -375,7 +397,7 @@ def main():
 
         # # BraTS 2023 Validation or Test
         # mode = 'val'  # 'val' or 'test'
-        # experiment_index = 86
+        # experiment_index = 75
         # dice_score_style = 2
         # prefix = None
         # if mode == 'val':

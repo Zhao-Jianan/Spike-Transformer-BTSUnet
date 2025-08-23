@@ -11,13 +11,15 @@ def load_nifti_image(path):
     return nii.get_fdata()
 
 # 创建 RGB mask（1: Blue, 2: Green, 4: Red）
-def create_rgba_mask(mask):
+def create_rgba_mask(mask, dataset_flag=None):
     rgba = np.zeros(mask.shape + (4,), dtype=np.uint8)  # RGBA format
     rgba[mask == 0] = [0, 0, 0, 0]       # fully transparent
-    rgba[mask == 1] = [0, 0, 255, 255]     # necrotic and non-enhancing tumor core (NCR/NET — label 1) # Blue, opaque
-    rgba[mask == 2] = [0, 255, 0, 255]   # peritumoral edema (ED — label 2)  Green, opaque
-    # rgba[mask == 3] = [255, 0, 0, 255]     # Enhancing - Red, opaque
-    rgba[mask == 4] = [255, 0, 0, 255]     # GD-enhancing tumor (ET — label 4) # Red, opaque
+    rgba[mask == 1] = [0, 0, 255, 155]     # necrotic and non-enhancing tumor core (NCR/NET — label 1) # Blue, opaque
+    rgba[mask == 2] = [0, 255, 0, 155]   # peritumoral edema (ED — label 2)  Green, opaque
+    if dataset_flag == "BraTS23":
+        rgba[mask == 3] = [255, 0, 0, 155]     # Enhancing - Red, opaque
+    else:
+        rgba[mask == 4] = [255, 0, 0, 155]     # GD-enhancing tumor (ET — label 4) # Red, opaque
     return rgba
 
 
@@ -40,7 +42,8 @@ def select_best_slice(mask):
 
 # 可视化函数
 
-def plot_modalities_with_masks(t1, t1ce, t2, flair, gt_mask, pred_mask, case_name, slice_idx=80, save_path='output.png'):
+def plot_modalities_with_masks(t1, t1ce, t2, flair, gt_mask, pred_mask, case_name, 
+                               slice_idx=80, save_path='output.png', dataset_flag=None):
     modalities = [t1, t1ce, t2, flair]
     modality_names = ['T1', 'T1ce', 'T2', 'FLAIR']
     row_labels = ['Original Image', 'Ground Truth', 'Predict Result']
@@ -68,11 +71,11 @@ def plot_modalities_with_masks(t1, t1ce, t2, flair, gt_mask, pred_mask, case_nam
             if row == 1:
                 mask = gt_mask[:, :, slice_idx]
                 mask = np.rot90(mask, k=1)
-                ax.imshow(create_rgba_mask(mask))
+                ax.imshow(create_rgba_mask(mask,dataset_flag))
             elif row == 2:
                 mask = pred_mask[:, :, slice_idx]
                 mask = np.rot90(mask, k=1)
-                ax.imshow(create_rgba_mask(mask))
+                ax.imshow(create_rgba_mask(mask,dataset_flag))
 
             if row == 0:
                 ax.set_title(name, fontsize=14)
@@ -98,7 +101,8 @@ def plot_modalities_with_masks(t1, t1ce, t2, flair, gt_mask, pred_mask, case_nam
     plt.close()
     
 
-def visulize(case_name, t1_path, t1ce_path, t2_path, flair_path, gt_mask_path, pred_mask_path, save_dir, experiment_index): 
+def visulize(case_name, t1_path, t1ce_path, t2_path, flair_path, gt_mask_path, pred_mask_path, 
+             save_dir, experiment_index, dataset_flag=None): 
     # 加载图像数据
     t1 = load_nifti_image(t1_path)
     t1ce = load_nifti_image(t1ce_path)
@@ -110,7 +114,8 @@ def visulize(case_name, t1_path, t1ce_path, t2_path, flair_path, gt_mask_path, p
     
     # 可视化中间层 (中间 slice 通常是肿瘤区域)
     best_slice = select_best_slice(gt_mask)
-    plot_modalities_with_masks(t1, t1ce, t2, flair, gt_mask, pred_mask, case_name, slice_idx=best_slice, save_path=save_path)
+    plot_modalities_with_masks(t1, t1ce, t2, flair, gt_mask, pred_mask, 
+                               case_name, slice_idx=best_slice, save_path=save_path, dataset_flag=dataset_flag)
     print(f"Visualization completed and saved to {save_path}")
     
         
@@ -186,11 +191,11 @@ def visulize_for_brats20(experiment_index, case_name, mode='val'):
     visulize(case_name, t1_path, t1ce_path, t2_path, flair_path, gt_mask_path, pred_mask_path, save_dir, experiment_index)
     
     
-def visulize_for_brats23(experiment_index, case_name, mode='val', fold=1):
+def visulize_for_brats23(experiment_index, case_name, mode='val', dice_style=1, fold=1):
     # BraTS 2023 val
-    data_dir = f'./Data/BraTS2023/{case_name}'
-    pred_dir = f'./Pred/BraTS23_val_fold{fold}_pred'
-    save_dir = './visualise/BraTS_2023/val'
+    data_dir = f'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Data/BraTS2023/{case_name}'
+    pred_dir = f'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Project/Pred/BraTS2023/BraTS2023_val_pred_exp{experiment_index}_dice_style{dice_style}/val_fold{fold}_pred'
+    save_dir = 'C:/Users/ajhz839/code/Python_Projects/Spike-Transformer-BTSUnet/Project/visualise/BraTS_2023'
     
     t1_path = os.path.join(data_dir, f'{case_name}-t1n.nii.gz')
     t1ce_path = os.path.join(data_dir, f'{case_name}-t1c.nii.gz')
@@ -199,7 +204,8 @@ def visulize_for_brats23(experiment_index, case_name, mode='val', fold=1):
     gt_mask_path = os.path.join(data_dir, f'{case_name}-seg.nii.gz')     # ground truth
     pred_mask_path = os.path.join(pred_dir, f'{case_name}_pred_mask.nii.gz') # model prediction
         
-    visulize(case_name, t1_path, t1ce_path, t2_path, flair_path, gt_mask_path, pred_mask_path, save_dir, experiment_index)
+    visulize(case_name, t1_path, t1ce_path, t2_path, flair_path, gt_mask_path, pred_mask_path, 
+             save_dir, experiment_index, dataset_flag="BraTS23")
 
 
 def visulize_for_clinical_data(experiment_index, time_point, patient_name):
@@ -227,19 +233,20 @@ def main():
     # visulize_for_brats18(experiment_index, case_name,  mode=mode, fold=fold)
 
     
-    # BraTS 2020 val and test
-    mode = 'test'  # 'val' or 'test'
-    experiment_index = 76
-    case_name = 'BraTS20_Training_306'
-    visulize_for_brats20(experiment_index, case_name,  mode=mode)
+    # # BraTS 2020 val and test
+    # mode = 'test'  # 'val' or 'test'
+    # experiment_index = 76
+    # case_name = 'BraTS20_Training_306'
+    # visulize_for_brats20(experiment_index, case_name,  mode=mode)
 
 
 
-    # # BraTS 2023 Training set
-    # case_name = 'BraTS-GLI-00006-000'
-    # fold = 1
-    # experiment_index = 'exp65'
-    # visulize_for_brats23(experiment_index, case_name, mode='val', fold=1)
+    # BraTS 2023 Training set
+    case_name = 'BraTS-GLI-00000-000'
+    experiment_index = 75
+    dice_style=2
+    fold = 3
+    visulize_for_brats23(experiment_index, case_name, mode='val', dice_style=dice_style, fold=fold)
 
     
     # # Clinical Data
