@@ -75,6 +75,7 @@ class Config:
         self.scheduler = 'polynomial' # cosine, polynomial
         self.power = 2.0  # 300-2.0
         self.num_warmup_epochs = -1  # -1表示不使用warmup
+        self.early_stop_monitor = 'loss'  # 监控的指标  dice loss
         self.early_stop_patience = 80
         
         self.base_lr = 1e-3 # 1e-3  5e-4

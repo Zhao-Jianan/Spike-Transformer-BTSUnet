@@ -1,7 +1,7 @@
 import os
 import pickle
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import torch
 import nibabel as nib
 import numpy as np
@@ -288,7 +288,7 @@ def main():
     
     
     # BraTS2020 test data inference
-    experiment_id = 95
+    experiment_id = 94
     dice_style = 1
     prefix = None  # "slidingwindow"
     inference_BraTS2020_test_data(experiment_id, dice_style, center_crop=True, prefix=prefix)

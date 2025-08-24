@@ -397,9 +397,14 @@ def train_one_fold(
             print(f"Epoch {epoch+1} learning rate(s): {current_lrs[0]}")
             lr_history.append(current_lrs[0]) 
             
+            
         # ===== 早停机制 =====            
         if early_stopping is not None:
-            early_stopping(patch_val_mean_dice, epoch+1)
+            if early_stopping.monitor == 'loss':
+                stop_flag = patch_val_loss
+            elif early_stopping.monitor == 'dice':
+                stop_flag = patch_val_mean_dice
+            early_stopping(stop_flag, epoch+1)
             if early_stopping.early_stop:
                 print(f"[Fold {fold}] Early stopping at epoch {epoch+1}")
                 break

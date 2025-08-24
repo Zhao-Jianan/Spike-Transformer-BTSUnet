@@ -6,7 +6,8 @@ import torch.optim as optim
 from sklearn.model_selection import KFold, train_test_split
 from model.spike_former_unet_model import spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
 # from model.simple_unet_model import spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
-from training.losses import BratsDiceLoss, BratsDiceLossOptimized, BratsFocalLoss, BratsDiceLosswithFPPenalty, BratsTverskyLoss, AdaptiveRegionalLoss
+from training.losses import (BratsDiceLoss, BratsDiceLossOptimized, BratsFocalLoss, 
+                             BratsDiceLosswithFPPenalty, BratsTverskyLoss, AdaptiveRegionalLoss)
 from training.utils import init_weights, save_metrics_to_file, save_case_list
 from training.train import train_fold, get_scheduler, EarlyStopping
 from training.plot import plot_metrics
@@ -41,7 +42,7 @@ def get_loss_function(cfg):
             alpha=0.7, beta=0.3, smooth_nr=0.0, smooth_dr=1e-5,
             sigmoid=True, weights=cfg.loss_weights),
         'adaptive_regional': lambda: AdaptiveRegionalLoss(
-            global_weight=0.7, regional_weight=0.3, smooth=1e-6, pool_size=8)
+            topk_ratio=0.1)
     }
 
     if cfg.loss_function not in loss_map:
@@ -115,7 +116,7 @@ def main():
         optimizer = optim.AdamW(model.parameters(), lr=cfg.base_lr, eps=1e-8, weight_decay=1e-4)
         scheduler = get_scheduler(optimizer, cfg.num_warmup_epochs, cfg.num_epochs, 
                                   cfg.base_lr, cfg.min_lr, cfg.scheduler, cfg.power)
-        early_stopping = EarlyStopping(patience=cfg.early_stop_patience, delta=0, monitor='loss') # dice loss
+        early_stopping = EarlyStopping(patience=cfg.early_stop_patience, delta=0, monitor=cfg.early_stop_monitor)
 
         # 根据交叉验证划分数据集
         train_case_dirs = [train_val_dirs[i] for i in train_idx]

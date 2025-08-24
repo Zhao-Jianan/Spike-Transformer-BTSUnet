@@ -463,64 +463,259 @@ def adaptive_regional_loss(y_true, y_pred):
     
     return final_loss
 
-class AdaptiveRegionalLoss(nn.Module):
-    """
-    PyTorch module implementation of adaptive regional loss
-    """
-    def __init__(self, global_weight=0.7, regional_weight=0.3, smooth=1e-6, pool_size=8):
-        super(AdaptiveRegionalLoss, self).__init__()
-        self.global_weight = global_weight
-        self.regional_weight = regional_weight
-        self.smooth = smooth
-        self.pool_size = pool_size
+# class AdaptiveRegionalLoss(nn.Module):
+#     """
+#     PyTorch module implementation of adaptive regional loss
+#     """
+#     def __init__(self, global_weight=0.7, regional_weight=0.3, smooth=1e-6, pool_size=8):
+#         super(AdaptiveRegionalLoss, self).__init__()
+#         self.global_weight = global_weight
+#         self.regional_weight = regional_weight
+#         self.smooth = smooth
+#         self.pool_size = pool_size
     
-    def forward(self, y_pred, y_true):
-        """
-        Forward pass
+#     def forward(self, y_pred, y_true):
+#         """
+#         Forward pass
         
-        Args:
-            y_pred: Predicted tensor of shape (batch, channels, depth, height, width)
-            y_true: Ground truth tensor of shape (batch, channels, depth, height, width)
+#         Args:
+#             y_pred: Predicted tensor of shape (batch, channels, depth, height, width)
+#             y_true: Ground truth tensor of shape (batch, channels, depth, height, width)
         
-        Returns:
-            final_loss: Scalar tensor containing the computed loss
-        """
-        # Basic type conversion and clipping
-        y_true = y_true.float()
-        y_pred = torch.clamp(y_pred.float(), min=1e-7, max=1.0)
+#         Returns:
+#             final_loss: Scalar tensor containing the computed loss
+#         """
+#         # Basic type conversion and clipping
+#         y_true = y_true.float()
+#         y_pred = torch.clamp(y_pred.float(), min=1e-7, max=1.0)
         
-        # Global dice calculation
-        intersection = torch.sum(y_true * y_pred, dim=[2, 3, 4])
-        union = torch.sum(y_true, dim=[2, 3, 4]) + torch.sum(y_pred, dim=[2, 3, 4])
+#         # Global dice calculation
+#         intersection = torch.sum(y_true * y_pred, dim=[2, 3, 4])
+#         union = torch.sum(y_true, dim=[2, 3, 4]) + torch.sum(y_pred, dim=[2, 3, 4])
         
-        # Avoid zero denominators
-        union = torch.where(union == 0, torch.ones_like(union) * self.smooth, union)
+#         # Avoid zero denominators
+#         union = torch.where(union == 0, torch.ones_like(union) * self.smooth, union)
         
-        global_dice = (2.0 * intersection + self.smooth) / (union + self.smooth)
-        dice_loss = 1.0 - torch.mean(global_dice)
+#         global_dice = (2.0 * intersection + self.smooth) / (union + self.smooth)
+#         dice_loss = 1.0 - torch.mean(global_dice)
         
-        # Regional dice with 3D average pooling
-        pooled_true = F.avg_pool3d(y_true, kernel_size=self.pool_size, stride=self.pool_size)
-        pooled_pred = F.avg_pool3d(y_pred, kernel_size=self.pool_size, stride=self.pool_size)
+#         # Regional dice with 3D average pooling
+#         pooled_true = F.avg_pool3d(y_true, kernel_size=self.pool_size, stride=self.pool_size)
+#         pooled_pred = F.avg_pool3d(y_pred, kernel_size=self.pool_size, stride=self.pool_size)
         
-        # Calculate regional dice
-        region_intersection = torch.sum(pooled_true * pooled_pred, dim=[2, 3, 4])
-        region_union = torch.sum(pooled_true, dim=[2, 3, 4]) + torch.sum(pooled_pred, dim=[2, 3, 4])
+#         # Calculate regional dice
+#         region_intersection = torch.sum(pooled_true * pooled_pred, dim=[2, 3, 4])
+#         region_union = torch.sum(pooled_true, dim=[2, 3, 4]) + torch.sum(pooled_pred, dim=[2, 3, 4])
         
-        # Avoid zero denominators in regional dice
-        region_union = torch.where(region_union == 0, torch.ones_like(region_union) * self.smooth, region_union)
+#         # Avoid zero denominators in regional dice
+#         region_union = torch.where(region_union == 0, torch.ones_like(region_union) * self.smooth, region_union)
         
-        region_dice = (2.0 * region_intersection + self.smooth) / (region_union + self.smooth)
-        region_loss = 1.0 - torch.mean(region_dice)
+#         region_dice = (2.0 * region_intersection + self.smooth) / (region_union + self.smooth)
+#         region_loss = 1.0 - torch.mean(region_dice)
         
-        # Weighted final loss
-        final_loss = self.global_weight * dice_loss + self.regional_weight * region_loss
+#         # Weighted final loss
+#         final_loss = self.global_weight * dice_loss + self.regional_weight * region_loss
         
-        # Final NaN check
-        final_loss = torch.where(torch.isnan(final_loss), torch.tensor(0.0, device=final_loss.device), final_loss)
+#         # Final NaN check
+#         final_loss = torch.where(torch.isnan(final_loss), torch.tensor(0.0, device=final_loss.device), final_loss)
         
-        return final_loss  
+#         return final_loss  
    
+
+
+
+def adaptive_regional_loss(y_true, y_pred):
+    """
+    y_true: (B, C, D, H, W) ground truth
+    y_pred: (B, C, D, H, W) prediction (already passed through sigmoid/softmax if needed)
+    """
+    # Ensure float and clamp values
+    y_true = y_true.float()
+    y_pred = y_pred.float().clamp(1e-7, 1.0)
+
+    smooth = 1e-6
+    
+    # =================== GLOBAL DICE ===================
+    intersection = torch.sum(y_true * y_pred, dim=[1, 2, 3, 4])
+    union = torch.sum(y_true, dim=[1, 2, 3, 4]) + torch.sum(y_pred, dim=[1, 2, 3, 4])
+    union = torch.where(union == 0, torch.ones_like(union) * smooth, union)
+
+    global_dice = (2.0 * intersection + smooth) / (union + smooth)
+    dice_loss = 1.0 - torch.mean(global_dice)
+
+    # =================== REGIONAL DICE ===================
+    pooled_true = F.avg_pool3d(y_true, kernel_size=8, stride=8, padding=0)
+    pooled_pred = F.avg_pool3d(y_pred, kernel_size=8, stride=8, padding=0)
+
+    region_intersection = torch.sum(pooled_true * pooled_pred, dim=[1, 2, 3, 4])
+    region_union = torch.sum(pooled_true, dim=[1, 2, 3, 4]) + torch.sum(pooled_pred, dim=[1, 2, 3, 4])
+    region_union = torch.where(region_union == 0, torch.ones_like(region_union) * smooth, region_union)
+
+    region_dice = (2.0 * region_intersection + smooth) / (region_union + smooth)
+
+    # =================== FRAGMENTATION DETECTION ===================
+    region_dice_mean = torch.mean(region_dice)
+    global_dice_mean = torch.mean(global_dice)
+
+    fragmentation_ratio = global_dice_mean / (region_dice_mean + smooth)
+    fragmentation_threshold = 1.3
+    is_fragmented = fragmentation_ratio > fragmentation_threshold
+
+    # =================== ADAPTIVE REGIONAL AGGREGATION ===================
+    region_loss_normal = 1.0 - region_dice_mean
+
+    batch_size = region_dice.shape[0]
+    k = max(1, int(batch_size * 0.1))
+    top_k_region_dice, _ = torch.topk(region_dice, k=k)
+    region_loss_fragmented = 1.0 - torch.mean(top_k_region_dice)
+
+    if is_fragmented:
+        region_loss = region_loss_fragmented
+    else:
+        region_loss = region_loss_normal
+
+    # =================== ADAPTIVE DIFFICULTY WEIGHTING ===================
+    prediction_confidence = torch.abs(y_pred - 0.5) * 2.0
+    difficulty_weight = 1.0 - prediction_confidence
+
+    if is_fragmented:
+        difficulty_multiplier = 0.2
+    else:
+        difficulty_multiplier = 0.5
+
+    weighted_dice_loss = dice_loss * (1.0 + torch.mean(difficulty_weight) * difficulty_multiplier)
+
+    # =================== ADAPTIVE FINAL WEIGHTING ===================
+    if is_fragmented:
+        global_weight = 0.8
+    else:
+        global_weight = 0.7
+
+    regional_weight = 1.0 - global_weight
+
+    final_loss = global_weight * weighted_dice_loss + regional_weight * region_loss
+
+    # Avoid NaNs
+    if torch.isnan(final_loss):
+        final_loss = torch.tensor(0.0, dtype=torch.float32, device=y_true.device)
+
+    return final_loss
+
+
+
+
+
+class AdaptiveRegionalLoss(nn.Module):
+    def __init__(self, 
+                 smooth_nr=0.0, 
+                 smooth_dr=1e-6, 
+                 squared_pred=False, 
+                 sigmoid=True, 
+                 weights=None, 
+                 include_background=True,
+                 batch=False,
+                 reduction='mean',
+                 pool_size=8,
+                 fragmentation_threshold=1.3,
+                 topk_ratio=0.1):
+        super().__init__()
+        self.smooth_nr = smooth_nr
+        self.smooth_dr = smooth_dr
+        self.squared_pred = squared_pred
+        self.sigmoid = sigmoid
+        self.include_background = include_background
+        self.reduction = reduction
+        self.batch = batch
+        self.pool_size = pool_size
+        self.fragmentation_threshold = fragmentation_threshold
+        self.topk_ratio = topk_ratio
+
+        if weights is None:
+            weights = torch.tensor([1.0, 1.0, 1.0], dtype=torch.float32)
+        else:
+            weights = torch.tensor(weights, dtype=torch.float32)
+            weights = weights / weights.sum()
+        self.register_buffer("weights", weights)
+
+    def forward(self, pred, target):
+        """
+        pred:   [B, C, D, H, W] 模型输出 (logits 或概率)
+        target: [B, C, D, H, W] one-hot 标签 [TC, WT, ET]
+        """
+        target = target.float()
+        pred = pred.float()
+        
+        if self.sigmoid:
+            pred = torch.sigmoid(pred)
+
+        n_pred_ch = pred.shape[1]
+        n_target_ch = target.shape[1]
+
+        # ---------- 通道处理 ----------
+        if not self.include_background:
+            if n_pred_ch == 1:
+                print("[Warning] single channel prediction, `include_background=False` ignored.")
+            elif n_pred_ch <= 3:
+                pass
+            else:
+                if n_target_ch > 1:
+                    target = target[:, 1:]
+                pred = pred[:, 1:]
+        else:
+            if n_pred_ch != 3:
+                print("[Warning] `include_background=True` but input has no background channel.")
+
+        if self.squared_pred:
+            pred = pred ** 2
+            target = target ** 2
+
+        # ========= Global Dice =========
+        dims = (0, 2, 3, 4) if self.batch else (2, 3, 4)
+        intersection = torch.sum(pred * target, dim=dims)
+        union = torch.sum(pred, dim=dims) + torch.sum(target, dim=dims)
+        union = torch.where(union == 0, torch.ones_like(union) * self.smooth_dr, union)
+        global_dice = (2.0 * intersection + self.smooth_nr) / (union + self.smooth_dr)
+        dice_loss = 1.0 - torch.mean(global_dice)
+
+        # ========= Regional Dice =========
+        pooled_true = F.avg_pool3d(target, kernel_size=self.pool_size, stride=self.pool_size, padding=0)
+        pooled_pred = F.avg_pool3d(pred, kernel_size=self.pool_size, stride=self.pool_size, padding=0)
+
+        region_intersection = torch.sum(pooled_true * pooled_pred, dim=[1, 2, 3, 4])
+        region_union = torch.sum(pooled_true, dim=[1, 2, 3, 4]) + torch.sum(pooled_pred, dim=[1, 2, 3, 4])
+        region_union = torch.where(region_union == 0, torch.ones_like(region_union) * self.smooth_dr, region_union)
+        region_dice = (2.0 * region_intersection + self.smooth_nr) / (region_union + self.smooth_dr)
+
+        region_dice_mean = torch.mean(region_dice)
+        global_dice_mean = torch.mean(global_dice)
+
+        # Fragmentation detection
+        fragmentation_ratio = global_dice_mean / (region_dice_mean + self.smooth_dr)
+        is_fragmented = fragmentation_ratio > self.fragmentation_threshold
+
+        # Adaptive regional aggregation
+        region_loss_normal = 1.0 - region_dice_mean
+        batch_size = region_dice.shape[0]
+        k = max(1, int(batch_size * self.topk_ratio))
+        top_k_region_dice, _ = torch.topk(region_dice, k=k)
+        region_loss_fragmented = 1.0 - torch.mean(top_k_region_dice)
+        region_loss = region_loss_fragmented if is_fragmented else region_loss_normal
+
+        # Adaptive difficulty weighting
+        prediction_confidence = torch.abs(pred - 0.5) * 2.0
+        difficulty_weight = 1.0 - prediction_confidence
+        difficulty_multiplier = 0.2 if is_fragmented else 0.5
+        weighted_dice_loss = dice_loss * (1.0 + torch.mean(difficulty_weight) * difficulty_multiplier)
+
+        # Adaptive global vs regional weighting
+        global_weight = 0.8 if is_fragmented else 0.7
+        regional_weight = 1.0 - global_weight
+        final_loss = global_weight * weighted_dice_loss + regional_weight * region_loss
+
+        if torch.isnan(final_loss):
+            final_loss = torch.tensor(0.0, dtype=torch.float32, device=pred.device)
+
+        return final_loss
    
 
 def main():

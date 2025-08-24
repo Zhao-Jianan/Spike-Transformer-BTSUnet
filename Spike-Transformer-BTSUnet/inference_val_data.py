@@ -1,6 +1,6 @@
 import os
 os.chdir(os.path.dirname(__file__))
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import torch
 import nibabel as nib
 import numpy as np
@@ -419,7 +419,7 @@ def inference_BraTS2023_val_data(experiment_id, dice_style, center_crop=True, pr
 
 def main():
     # BraTS 2020 validation data inference
-    experiment_id = 95
+    experiment_id = 94
     dice_style = 1
     prefix = None
     inference_BraTS2020_val_data(experiment_id, dice_style, center_crop=True, prefix=prefix)
