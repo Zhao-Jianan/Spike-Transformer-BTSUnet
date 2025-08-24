@@ -1063,15 +1063,132 @@ class MS_SpikeUpSampling3D(nn.Module):
         return x    
     
  
+# class AddConverge3D(base.MemoryModule):
+#     def __init__(self, channels, norm_type='group', tau=2.0, lif_type='para_lif', step_mode='m'):
+#         super().__init__()
+#         if lif_type == 'lif':
+#             self.lif = neuron.LIFNode(
+#                 tau=tau,
+#                 decay_input=True,
+#                 detach_reset=True,
+#                 v_threshold=1.0,
+#                 v_reset=0.0,
+#                 surrogate_function=surrogate.ATan(), 
+#                 step_mode=step_mode
+#             )
+#         elif lif_type == 'para_lif':
+#             self.lif = neuron.ParametricLIFNode(
+#                 init_tau=tau,
+#                 decay_input=True,
+#                 detach_reset=True,
+#                 v_threshold=1.0,
+#                 v_reset=0.0,
+#                 surrogate_function=surrogate.ATan(),
+#                 step_mode=step_mode,
+#                 backend='cupy'
+#             )
+#         elif lif_type == 'general_para_lif':
+#             self.lif = GeneralParametricLIFNode(
+#                 init_tau=tau,
+#                 init_threshold=1.0,
+#                 learnable_tau=True,
+#                 learnable_threshold=True,
+#                 decay_input=True,
+#                 detach_reset=True,                
+#                 v_reset=0.0,
+#                 surrogate_function=surrogate.ATan(), # surrogate.ATan()
+#                 step_mode=step_mode,
+#                 backend='cupy'
+#             )
+
+#         if norm_type == 'batch':
+#             self.norm = layer.BatchNorm3d(num_features=channels, step_mode=step_mode)
+#         elif norm_type == 'group':
+#             self.norm = layer.GroupNorm(num_groups=8, num_channels=channels, step_mode=step_mode)
+
+#     def forward(self, x1, x2):
+#         x = x1 + x2  # skip connection by addition
+#         x = self.lif(x)
+#         x = self.norm(x)
+#         return x 
+    
 class AddConverge3D(base.MemoryModule):
-    def __init__(self, channels, norm_type='group', step_mode='m'):
+    def __init__(self, channels, norm_type='group', tau=2.0, lif_type='para_lif', step_mode='m'):
         super().__init__()
+        if lif_type == 'lif':
+            self.lif1 = neuron.LIFNode(
+                tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode
+            )
+            self.lif2 = neuron.LIFNode(
+                tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), 
+                step_mode=step_mode
+            )
+        elif lif_type == 'para_lif':
+            self.lif1 = neuron.ParametricLIFNode(
+                init_tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode,
+                backend='cupy'
+            )
+            self.lif2 = neuron.ParametricLIFNode(
+                init_tau=tau,
+                decay_input=True,
+                detach_reset=True,
+                v_threshold=1.0,
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(),
+                step_mode=step_mode,
+                backend='cupy'
+            )
+        elif lif_type == 'general_para_lif':
+            self.lif1 = GeneralParametricLIFNode(
+                init_tau=tau,
+                init_threshold=1.0,
+                learnable_tau=True,
+                learnable_threshold=True,
+                decay_input=True,
+                detach_reset=True,                
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), # surrogate.ATan()
+                step_mode=step_mode,
+                backend='cupy'
+            )
+            self.lif2 = GeneralParametricLIFNode(
+                init_tau=tau,
+                init_threshold=1.0,
+                learnable_tau=True,
+                learnable_threshold=True,
+                decay_input=True,
+                detach_reset=True,                
+                v_reset=0.0,
+                surrogate_function=surrogate.ATan(), # surrogate.ATan()
+                step_mode=step_mode,
+                backend='cupy'
+            )      
+
         if norm_type == 'batch':
             self.norm = layer.BatchNorm3d(num_features=channels, step_mode=step_mode)
         elif norm_type == 'group':
             self.norm = layer.GroupNorm(num_groups=8, num_channels=channels, step_mode=step_mode)
 
     def forward(self, x1, x2):
+        x1 = self.lif1(x1)
+        x2 = self.lif2(x2)
         x = x1 + x2  # skip connection by addition
         x = self.norm(x)
         return x 
@@ -1780,7 +1897,7 @@ def spike_former_unet3D_8_384(in_channels=4, num_classes=3, T=4, norm_type='grou
         depths=[8, 8, 8, 8],
         layers=[2, 2, 6, 2],
         sr_ratios=[1, 1, 1, 1],
-        skip_connection='attention', #  add cat gate attention
+        skip_connection='add', #  add, cat, gate, attention
         T=T,
         lif_type='general_para_lif', # lif, para_lif, general_para_lif
         norm_type=norm_type,

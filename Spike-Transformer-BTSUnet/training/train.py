@@ -54,38 +54,52 @@ def get_scheduler(
     
 # 早停机制 
 class EarlyStopping:
-    def __init__(self, patience=cfg.early_stop_patience, delta=0.0, start_epoch=200):
+    def __init__(self, patience=cfg.early_stop_patience, delta=0.0, start_epoch=200, monitor='dice'):
+        """
+        Args:
+            patience (int): 容忍多少个 epoch 没有提升
+            delta (float): 提升的最小幅度
+            start_epoch (int): 从哪个 epoch 开始启用 early stopping
+            monitor (str): 'dice' 或 'loss'，决定监控的指标
+        """
+        assert monitor in ['dice', 'loss'], "monitor 必须是 'dice' 或 'loss'"
         self.patience = patience
         self.delta = delta
         self.start_epoch = start_epoch
+        self.monitor = monitor
         self.best_score = None
         self.best_epoch = None
         self.counter = 0
         self.early_stop = False
 
-    def __call__(self, val_dice_mean, current_epoch):
-            """
-            Args:
-                val_dice_mean (float): 验证集上的 Dice 平均分（作为早停判断依据）
-                current_epoch (int): 当前 epoch 数
-            """
-            if current_epoch < self.start_epoch:
-                return  # 尚未达到启用早停的轮次
+    def __call__(self, val_metric, current_epoch):
+        """
+        Args:
+            val_metric (float): 验证集上的指标（根据 monitor 选择传 val_dice_mean 或 val_loss）
+            current_epoch (int): 当前 epoch 数
+        """
+        if current_epoch < self.start_epoch:
+            return  # 尚未启用早停
 
-            score = val_dice_mean
+        score = val_metric
 
-            if self.best_score is None:
-                self.best_score = score
-                self.best_epoch = current_epoch
-            elif score < self.best_score + self.delta:
-                self.counter += 1
-                if self.counter >= self.patience:
-                    self.early_stop = True
-                    print(f"[EarlyStopping] Early stopping triggered at epoch {current_epoch}.")
-            else:
-                self.best_score = score
-                self.best_epoch = current_epoch
-                self.counter = 0
+        # 对 loss 取反，这样更小的 loss 会被认为是“更好”
+        if self.monitor == 'loss':
+            score = -score
+
+        if self.best_score is None:
+            self.best_score = score
+            self.best_epoch = current_epoch
+        elif score < self.best_score + self.delta:
+            self.counter += 1
+            if self.counter >= self.patience:
+                self.early_stop = True
+                print(f"[EarlyStopping] Triggered at epoch {current_epoch}. Best epoch: {self.best_epoch}")
+        else:
+            self.best_score = score
+            self.best_epoch = current_epoch
+            self.counter = 0
+
 
 
 
@@ -264,7 +278,9 @@ def train_one_fold(
     warmup_epochs = cfg.num_warmup_epochs
     train_crop_mode = cfg.train_crop_mode
 
-
+    best_val_loss = float("inf")
+    first_loss_saved = False
+    
     for epoch in range(num_epochs):
         print(f'----------[Fold {fold}] Epoch {epoch+1}/{num_epochs} ----------')
         if train_crop_mode == 'warmup_weighted_random':
@@ -360,7 +376,19 @@ def train_one_fold(
                         entire_best_dice = entire_val_mean_dice
                         torch.save(model.state_dict(), os.path.join(ckpt_dir, f'best_model_fold{fold}_entire.pth'))
                         print(f"[Fold {fold}] Epoch {epoch+1}: Sliding Window New best Dice = {entire_val_mean_dice:.4f}, model saved.")
-                    
+
+        # 保存初始最佳损失
+        if not first_loss_saved:
+            best_val_loss = patch_val_loss
+            torch.save(model.state_dict(), os.path.join(ckpt_dir, f'best_model_fold{fold}_loss.pth'))
+            print(f"[Fold {fold}] Epoch {epoch+1}: Initial best val loss = {patch_val_loss:.4f}, model saved.")
+            first_loss_saved = True
+        # 保存后续最佳损失
+        elif patch_val_loss < best_val_loss - 1e-6:  # 防止浮点误差
+            best_val_loss = patch_val_loss
+            torch.save(model.state_dict(), os.path.join(ckpt_dir, f'best_model_fold{fold}_loss.pth'))
+            print(f"[Fold {fold}] Epoch {epoch+1}: New best val loss = {patch_val_loss:.4f}, model saved.")  
+                      
         # ===== 学习率调度 =====
         if scheduler is not None:
             scheduler.step()  # 更新学习率
@@ -375,6 +403,11 @@ def train_one_fold(
             if early_stopping.early_stop:
                 print(f"[Fold {fold}] Early stopping at epoch {epoch+1}")
                 break
+
+    # 保存最后的模型
+    last_checkpoint_path = os.path.join(ckpt_dir, f'last_model_fold{fold}.pth')
+    torch.save(model.state_dict(), last_checkpoint_path)
+    print(f"[Fold {fold}] Training finished at epoch {epoch+1}, last model saved to {last_checkpoint_path}")
 
     return train_losses, patch_val_losses, patch_val_dices, patch_val_mean_dices, patch_val_hd95s, lr_history
 

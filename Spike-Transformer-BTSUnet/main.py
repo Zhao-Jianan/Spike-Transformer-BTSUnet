@@ -115,7 +115,7 @@ def main():
         optimizer = optim.AdamW(model.parameters(), lr=cfg.base_lr, eps=1e-8, weight_decay=1e-4)
         scheduler = get_scheduler(optimizer, cfg.num_warmup_epochs, cfg.num_epochs, 
                                   cfg.base_lr, cfg.min_lr, cfg.scheduler, cfg.power)
-        early_stopping = EarlyStopping(patience=cfg.early_stop_patience, delta=0)
+        early_stopping = EarlyStopping(patience=cfg.early_stop_patience, delta=0, monitor='loss') # dice loss
 
         # 根据交叉验证划分数据集
         train_case_dirs = [train_val_dirs[i] for i in train_idx]

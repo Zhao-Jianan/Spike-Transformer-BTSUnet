@@ -198,11 +198,19 @@ nohup python spikeformerunet94/main.py > New-94-log_bra20_spikeformerunet_144c96
 [96]
 nohup python spikeformerunet96/main.py > New-96-log_bra23SSA_spikeformerunet_144c64p4b_1e3_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware075.out 2>&1 &
 [101]
-nohup python spikeformerunet101/main.py > New-101-log_bra20_spikeformerunet_144c64p4b_1e3_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware075_catskip.out 2>&1 &
+nohup python spikeformerunet101/main.py > New-101-log_bra20_spikeformerunet_144c64p4b_1e3_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware075_catskip_stopdice.out 2>&1 &
 [102]
 nohup python spikeformerunet102/main.py > New-102-log_bra20_spikeformerunet_144c64p4b_1e3_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware075_gateskip.out 2>&1 &
 [103]
-nohup python spikeformerunet103/main.py > New-103-log_bra20_spikeformerunet_144c64p4b_1e3_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware075_attskip.out 2>&1 &
+nohup python spikeformerunet103/main.py > New-103-log_bra20_spikeformerunet_144c64p4b_1e3_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware075_attskip_stopdice.out 2>&1 &
+[104]
+nohup python spikeformerunet104/main.py > New-104-log_bra20_spikeformerunet_144c64p4b_1e3_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware075_catskip_stoploss.out 2>&1 &
+[105]
+nohup python spikeformerunet105/main.py > New-105-log_bra20_spikeformerunet_144c64p4b_1e3_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware075_attskip_stoploss.out 2>&1 &
+[106]
+nohup python spikeformerunet106/main.py > New-106-log_bra20_spikeformerunet_144c64p4b_1e3_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware075_addskip_stoploss.out 2>&1 &
+[107]
+nohup python spikeformerunet107/main.py > New-107-log_bra20_spikeformerunet_144c64p4b_1e3_1e6_poly20_paralif_tauthread_diceloss111_catskip_seed42_aware075_addtype2skip_stoploss.out 2>&1 &
 
 
 ps -u $USER -f | grep python
