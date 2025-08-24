@@ -213,6 +213,8 @@ nohup python spikeformerunet106/main.py > New-106-log_bra20_spikeformerunet_144c
 nohup python spikeformerunet107/main.py > New-107-log_bra20_spikeformerunet_144c64p4b_1e3_1e6_poly20_paralif_tauthread_diceloss111_addlifskip_seed42_aware075_stoploss.out 2>&1 &
 [108]
 nohup python spikeformerunet108/main.py > New-108-log_bra20_spikeformerunet_144c64p4b_1e3_1e6_poly20_paralif_tauthread_adaptiveloss_addtype2skip_seed42_aware075_stoploss.out 2>&1 &
+[109]
+nohup python spikeformerunet109/main.py > New-109-log_bra20_simpleunet_144c64p4b_1e3_1e6_poly20_diceloss111_addskip_seed42_aware075_stoploss.out 2>&1 &
 
 ps -u $USER -f | grep python
 pgrep -u $USER -a python
@@ -222,9 +224,9 @@ pkill -f spikeformerunet75/inference_resemble.py
 pkill -f spikeformerunet77/inference_val_data.py
 
 [infer]
-nohup python spikeformerunet95/inference_val_data.py > inference_log_exp95_val_data.out 2>&1 &
+nohup python spikeformerunet94/inference_val_data.py > inference_log_exp94_val_data.out 2>&1 &
 
-nohup python spikeformerunet92/inference_resemble.py > inference_log_exp92_test_data.out 2>&1 &
+nohup python spikeformerunet94/inference_resemble.py > inference_log_exp94_test_data.out 2>&1 &
 
 nohup python spikeformerunet82/inference_val_data.py > inference_log_exp82_val_data_dice_style_2_post.out 2>&1 &
 

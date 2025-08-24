@@ -1897,7 +1897,7 @@ def spike_former_unet3D_8_384(in_channels=4, num_classes=3, T=4, norm_type='grou
         depths=[8, 8, 8, 8],
         layers=[2, 2, 6, 2],
         sr_ratios=[1, 1, 1, 1],
-        skip_connection='cat', #  add, cat, gate, attention
+        skip_connection='add', #  add, cat, gate, attention
         T=T,
         lif_type='general_para_lif', # lif, para_lif, general_para_lif
         norm_type=norm_type,
