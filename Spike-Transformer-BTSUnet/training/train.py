@@ -424,7 +424,7 @@ def train_fold(train_loader, val_loader, sliding_window_val_loader,
                num_epochs, fold, compute_hd, cfg,
                scheduler, early_stopping, use_amp,
                use_grad_accum, accumulation_steps):
-    logger.info(f"\n[Fold {fold+1}] Training Started")
+    logger.info(f"\n\n[Fold {fold+1}] Training Started")
     
     train_losses, val_losses, val_dices, val_mean_dices, val_hd95s, lr_history = train_one_fold(
         train_loader, val_loader, sliding_window_val_loader, model, optimizer, criterion, device, 
@@ -433,7 +433,7 @@ def train_fold(train_loader, val_loader, sliding_window_val_loader,
         use_grad_accum=use_grad_accum, accumulation_steps=accumulation_steps
     )
     
-    logger.info(f"[Fold {fold+1}] Training Completed")
+    logger.info(f"\n\n[Fold {fold+1}] Training Completed")
     
     return train_losses, val_losses, val_dices, val_mean_dices, val_hd95s, lr_history
 

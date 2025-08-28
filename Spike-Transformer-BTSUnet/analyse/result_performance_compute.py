@@ -49,14 +49,14 @@ def show_avg_metrics(metrics_list, prefix="", keys=None, safe=True):
         safe: 若为True，会跳过None；False时直接抛错
     """
     if not metrics_list:
-        logger.info(f"\n=== {prefix} Scores ===")
+        logger.info(f"=== {prefix} Scores ===")
         logger.info("No metrics to display.")
         return
 
     if keys is None:
         keys = metrics_list[0].keys()
 
-    logger.info(f"\n=== Average {prefix} Scores ===")
+    logger.info(f"=== Average {prefix} Scores ===")
     for k in keys:
         try:
             vals = [m[k] for m in metrics_list if not safe or m[k] is not None]
@@ -215,7 +215,7 @@ def inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_sty
     all_fold_dice_scores = []
     all_fold_soft_dice_scores = []
 
-    gt_root = '../../data/BraTS2020/MICCAI_BraTS2020_TrainingData'
+    gt_root = 'Z:/Datasets/BraTS2020/MICCAI_BraTS2020_TrainingData'
     if not os.path.exists(gt_root):
         logger.warning(f"Ground truth directory does not exist: {gt_root}")
         return
@@ -245,13 +245,13 @@ def inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_sty
         all_fold_soft_dice_scores.append(all_soft_dice_scores)
 
     # 打印所有折的平均值
-    logger.info("\n============================================")
-    logger.info("\n============================================")
-    logger.info("\n=== Average Dice Scores across all folds ===")
-    logger.info("\n============================================")
-    logger.info("\n============================================")
+    logger.info("============================================")
+    logger.info("============================================")
+    logger.info("=== Average Dice Scores across all folds ===")
+    logger.info("============================================")
+    logger.info("============================================")
     for i in range(5):
-        logger.info(f"\nFold {i+1}:")
+        logger.info(f"Fold {i+1}:")
         show_avg_metrics(all_fold_dice_scores[i], prefix="Hard Dice")
         if all_soft_dice_scores:
             show_avg_metrics(all_fold_soft_dice_scores[i], prefix="Soft Dice")
@@ -318,13 +318,13 @@ def inference_dice_compute_for_brats23_val_data(experiment_index, dice_score_sty
         all_fold_soft_dice_scores.append(all_soft_dice_scores)
 
     # 打印所有折的平均值
-    logger.info("\n============================================")
-    logger.info("\n============================================")
-    logger.info("\n=== Average Dice Scores across all folds ===")
-    logger.info("\n============================================")
-    logger.info("\n============================================")
+    logger.info("============================================")
+    logger.info("============================================")
+    logger.info("=== Average Dice Scores across all folds ===")
+    logger.info("============================================")
+    logger.info("============================================")
     for i in range(5):
-        logger.info(f"\nFold {i+1}:")
+        logger.info(f"Fold {i+1}:")
         show_avg_metrics(all_fold_dice_scores[i], prefix="Hard Dice")
         if all_soft_dice_scores:
             show_avg_metrics(all_fold_soft_dice_scores[i], prefix="Soft Dice")
@@ -360,13 +360,13 @@ def inference_dice_compute_nnunet_val_data():
         all_fold_dice_scores.append(all_dice_scores)
 
     # 打印所有折的平均值
-    logger.info("\n============================================")
-    logger.info("\n============================================")
-    logger.info("\n=== Average Dice Scores across all folds ===")
-    logger.info("\n============================================")
-    logger.info("\n============================================")
+    logger.info("============================================")
+    logger.info("============================================")
+    logger.info("=== Average Dice Scores across all folds ===")
+    logger.info("============================================")
+    logger.info("============================================")
     for i in range(5):
-        logger.info(f"\nFold {i+1}:")
+        logger.info(f"Fold {i+1}:")
         show_avg_metrics(all_fold_dice_scores[i], prefix="Hard Dice")    
 
 def main():

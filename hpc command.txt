@@ -222,16 +222,18 @@ nohup python spikeformerunet111/main.py > New-111-log_bra20_basespikeunet_144c64
 nohup python spikeformerunet112/main.py > New-112-log_bra20_spikeformerunet_144c64p4b_1e3_1e6_poly20_paralif_tauthread_diceloss111_lifaddskip_seed42_aware1_stoploss100.out 2>&1 &
 [113] 
 nohup python spikeformerunet113/main.py > New-113-log_bra20_spikeformerunet_144c64p4b_1e3_1e6_poly20_paralif_tauthread_diceloss111_lifaddskip_seed42_aware08_stoploss100.out 2>&1 &
+[114] 
+nohup python spikeformerunet114/main.py > New-114-log_bra20_spikeformerunet_144c64p4b_1e3_1e6_poly20_paralif_tauthread_diceloss111_lifaddskip_seed42_aware08_stoploss100.log 2>&1 &
 
 ps -u $USER -f | grep python
 pgrep -u $USER -a python
 pkill -f filename.py
-pkill -f spikeformerunet103/main.py
+pkill -f spikeformerunet114/main.py
 pkill -f spikeformerunet90/inference_resemble.py
 pkill -f spikeformerunet90/inference_val_data.py
 
 [infer]
-nohup python spikeformerunet109/inference_val_data.py > inference_log_exp109_val_data.out 2>&1 &
+nohup python spikeformerunet112/inference_val_data.py > inference_log_exp112_val_data.log 2>&1 &
 
 nohup python spikeformerunet109/inference_resemble.py > inference_log_exp109_test_data.out 2>&1 &
 

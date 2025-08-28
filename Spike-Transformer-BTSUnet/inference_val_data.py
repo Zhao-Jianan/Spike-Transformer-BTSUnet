@@ -337,7 +337,7 @@ def run_inference_all_folds(
     #         logger.info(f"Style 2 with post-processing Fold {fold} - Average Dice: TC: {avg_dice_style2_post_list[i]['TC']:.4f}, WT: {avg_dice_style2_post_list[i]['WT']:.4f}, ET: {avg_dice_style2_post_list[i]['ET']:.4f} | Mean: {mean_dice:.4f}")
 
 
-def inference_BraTS2020_val_data(experiment_id, dice_style, center_crop=True, prefix=None):
+def inference_BraTS2020_val_data(experiment_id, dice_style, center_crop=True, prefix=None, fold_to_run=None):
     # BraTS 2020 validation data inference
     script_dir = os.path.dirname(os.path.abspath(__file__))
     val_cases_dir = os.path.join(script_dir, 'val_cases')   # 存放验证集case名单txt的文件夹 
@@ -351,8 +351,9 @@ def inference_BraTS2020_val_data(experiment_id, dice_style, center_crop=True, pr
     output_base_dir = f"/hpc/ajhz839/validation/BraTS2020_val_pred_exp{experiment_id}{dice_style_str}{prefix_str}/"
     prob_base_dir = None # f"/hpc/ajhz839/validation/BraTS2020_val_prob_folds_exp{experiment_id}{dice_style_str}{prefix_str}/"
 
-    check_all_folds_ckpt_exist(ckpt_dir, dice_style, prefix)
-    check_all_folds_val_txt_exist(val_cases_dir)
+    if fold_to_run is None:
+        check_all_folds_ckpt_exist(ckpt_dir, dice_style, prefix)
+        check_all_folds_val_txt_exist(val_cases_dir)
 
     logger.info("5 fold validation data inference started.")
 
@@ -370,7 +371,7 @@ def inference_BraTS2020_val_data(experiment_id, dice_style, center_crop=True, pr
         dice_style=dice_style,
         prefix=prefix,
         center_crop=center_crop,  # 是否进行中心裁剪
-        fold_to_run=None,  # 跑全部fold 1~5
+        fold_to_run=fold_to_run,  # 跑全部fold 1~5
     )
     
     logger.info("5 fold validation data inference completed.")
@@ -418,10 +419,11 @@ def inference_BraTS2023_val_data(experiment_id, dice_style, center_crop=True, pr
 
 def main():
     # BraTS 2020 validation data inference
-    experiment_id = 93
+    experiment_id = 112
     dice_style = 1
     prefix = None
-    inference_BraTS2020_val_data(experiment_id, dice_style, center_crop=True, prefix=prefix)
+    fold_to_run=1
+    inference_BraTS2020_val_data(experiment_id, dice_style, center_crop=True, prefix=prefix, fold_to_run=fold_to_run)
     
     # # BraTS 2023 validation data inference
     # experiment_id = 75
