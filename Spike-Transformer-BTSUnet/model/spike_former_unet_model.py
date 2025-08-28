@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from typing import Callable
 from spikingjelly.activation_based import neuron, functional, surrogate, layer, base
 from timm.layers import trunc_normal_, DropPath
+from utilities.logger import logger
 
 class GeneralParametricLIFNode(neuron.BaseNode):
     def __init__(self,
@@ -1951,8 +1952,8 @@ def spike_former_unet3D_8_768(in_channels=4, num_classes=3, T=4, norm_type='grou
 def count_parameters(model):
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"Total parameters: {total_params:,}")
-    print(f"Trainable parameters: {trainable_params:,}")
+    logger.info(f"Total parameters: {total_params:,}")
+    logger.info(f"Trainable parameters: {trainable_params:,}")
     return total_params, trainable_params
 
 
@@ -1967,28 +1968,28 @@ def main():
     x = torch.randn(2, 2, 4, 64, 64, 64)  # 假设输入是一个 batch 的数据
     x = x.to(device)
     output = model(x)
-    print(output.shape)  # 输出形状应该是 [1, 3, 128, 128, 128]
+    logger.info(output.shape)  # 输出形状应该是 [1, 3, 128, 128, 128]
     # from config import config as cfg  
     # model = spike_former_unet3D_8_384(
     #     num_classes=cfg.num_classes,
     #     T=cfg.T,
     #     norm_type=cfg.norm_type,
     #     step_mode=cfg.step_mode)  # 模型
-    # print("Model parameters for spike_former_unet3D_8_384:")
+    # logger.info("Model parameters for spike_former_unet3D_8_384:")
     # count_parameters(model)  # 91.852 M 
     # model = spike_former_unet3D_8_512(
     #     num_classes=cfg.num_classes,
     #     T=cfg.T,
     #     norm_type=cfg.norm_type,
     #     step_mode=cfg.step_mode)
-    # print("Model parameters for spike_former_unet3D_8_512:")
+    # logger.info("Model parameters for spike_former_unet3D_8_512:")
     # count_parameters(model)  # 162.579 M
     # model = spike_former_unet3D_8_768(
     #     num_classes=cfg.num_classes,
     #     T=cfg.T,
     #     norm_type=cfg.norm_type,
     #     step_mode=cfg.step_mode)
-    # print("Model parameters for spike_former_unet3D_8_768:")
+    # logger.info("Model parameters for spike_former_unet3D_8_768:")
     # count_parameters(model) # 364.198 M
     
 if __name__ == "__main__":

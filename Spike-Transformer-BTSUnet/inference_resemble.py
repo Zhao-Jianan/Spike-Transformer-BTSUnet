@@ -6,12 +6,13 @@ import torch
 import nibabel as nib
 import numpy as np
 from model.spike_former_unet_model import spike_former_unet3D_8_384
-#from simple_unet_model import spike_former_unet3D_8_384
+# from model.simple_unet_model import spike_former_unet3D_8_384
 import torch.nn.functional as F
 from config import config as cfg
 import time
 from tqdm import tqdm
 import json
+from utilities.logger import logger
 
 from inference.inference_helper import TemporalSlidingWindowInference, TemporalSlidingWindowInferenceWithROI
 from inference.inference_preprocess import preprocess_for_inference_test
@@ -28,7 +29,7 @@ from inference.inference_utils import (
 
 def pred_single_case_soft(case_dir, prob_save_dir, model, inference_engine, device, center_crop=True, dataset_flag=None):
     case_name = os.path.basename(case_dir)
-    print(f"Processing case: {case_name}")
+    logger.info(f"Processing case: {case_name}")
     if dataset_flag == 'BraTS23':
         image_paths = [os.path.join(case_dir, f"{case_name}-{mod}.nii.gz") for mod in cfg.modalities]
     else:
@@ -52,7 +53,7 @@ def pred_single_case_soft(case_dir, prob_save_dir, model, inference_engine, devi
     os.makedirs(prob_save_dir, exist_ok=True)
     prob_path = os.path.join(prob_save_dir, f"{case_name}_prob.npy")
     np.save(prob_path, output_prob)
-    print(f"Saved probability map: {prob_path}")
+    logger.info(f"Saved probability map: {prob_path}")
 
     return case_name, metadata
 
@@ -73,7 +74,7 @@ def run_inference_folder_soft(case_root, save_dir, model, inference_engine, devi
             if os.path.isdir(os.path.join(case_root, name))
         ])
 
-    print(f"Found {len(case_dirs)} cases to infer.")
+    logger.info(f"Found {len(case_dirs)} cases to infer.")
 
     metadata_dict = {}
 
@@ -99,7 +100,7 @@ def soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list, dice_style=
     dice_style_str = "" if dice_style == 1 else f"_dice_style{dice_style}"
     
     for fold in range(1, 6):
-        print(f"Running inference for fold {fold}")        
+        logger.info(f"Running inference for fold {fold}")        
         if prefix == 'slidingwindow':
             model_ckpt = os.path.join(ckpt_dir, f"entire_best_model_fold{fold}{dice_style_str}.pth")
         else:
@@ -144,7 +145,7 @@ def soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list, dice_style=
                 metadata_json_path = os.path.join(metadata_dir, "case_metadata.json")
                 with open(metadata_json_path, "w") as f:
                     json.dump(metadata_dict, f)
-                print(f"Saved metadata JSON to {metadata_json_path}")
+                logger.info(f"Saved metadata JSON to {metadata_json_path}")
             else:
                 run_inference_folder_soft(case_dir, fold_prob_dir, model, inference_engine, 
                                           cfg.device, test_case_list, center_crop=center_crop, dataset_flag=dataset_flag)
@@ -161,7 +162,7 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, meta
     
     if metadata_json_path and center_crop:
         with open(metadata_json_path, "r") as f:
-            print("Loading metadata from JSON file...")
+            logger.info("Loading metadata from JSON file...")
             case_metadata = json.load(f)
         
     case_names = sorted(list(set([f.split('_prob.npy')[0] for f in os.listdir(os.path.join(prob_root, 'fold1'))])))
@@ -181,19 +182,19 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, meta
                 prob = np.eye(cfg.num_classes)[label_fold]  # 重新转为 one-hot 概率图
                 prob = np.transpose(prob, (3, 0, 1, 2))  # (C, D, H, W)
             else:
-                print(f"[Warning] No postprocessing_strategy.pkl found for fold {fold}. Skipping postprocessing.")
+                logger.warning(f"[Warning] No postprocessing_strategy.pkl found for fold {fold}. Skipping postprocessing.")
 
             prob_list.append(prob)
 
         mean_prob = np.mean(np.stack(prob_list, axis=0), axis=0)  # [C, D, H, W]
-        print(f"Mean probability shape for case {case}: {mean_prob.shape}")
+        logger.info(f"Mean probability shape for case {case}: {mean_prob.shape}")
 
         label_np = convert_prediction_to_label_suppress_fp(mean_prob, dataset_flag=dataset_flag)
 
-        print("Label shape before restoring to original shape:", label_np.shape)  # (D, H, W)
+        logger.info(f"Label shape before restoring to original shape: {label_np.shape}")  # (D, H, W)
 
         if metadata_json_path and center_crop:
-            print("Restoring label to original shape using metadata...")
+            logger.info("Restoring label to original shape using metadata...")
             # 使用case_metadata中的信息恢复标签到原始形状
             metadata = case_metadata[case]
             original_shape = metadata["original_shape"]  # (D, H, W)
@@ -202,7 +203,7 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, meta
         else:
             restored_label = label_np
 
-        print("Label shape before transposing:", restored_label.shape)  # (D, H, W)
+        logger.info(f"Label shape before transposing: {restored_label.shape}")  # (D, H, W)
         final_label = np.transpose(restored_label, (1, 2, 0))
         if dataset_flag== 'BraTS23':
             ref_nii_path = os.path.join(case_dir, case, f"{case}-{cfg.modalities[cfg.modalities.index('t1c')]}.nii.gz")
@@ -218,7 +219,7 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, meta
 
 def inference_BraTS2020_test_data(experiment_id, dice_style, center_crop=True, prefix=None):
     # BraTS2020 test data inference
-    print(f"Starting inference for BraTS2020 test data with experiment ID {experiment_id} and dice style {dice_style}...")
+    logger.info(f"Starting inference for BraTS2020 test data with experiment ID {experiment_id} and dice style {dice_style}...")
  
     dice_style_str = "" if dice_style == 1 else f"_dice_style{dice_style}"
     prefix_str = f"_{prefix}" if prefix else ""
@@ -239,12 +240,12 @@ def inference_BraTS2020_test_data(experiment_id, dice_style, center_crop=True, p
 
     ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir, center_crop=center_crop, metadata_json_path=metadata_json_path)
 
-    print("Inference completed.")
+    logger.info("Inference completed.")
     
 
 def inference_BraTS2023_test_data(experiment_id, dice_style, center_crop=True, prefix=None):
     # BraTS2020 test data inference
-    print(f"Starting inference for BraTS2023 test data with experiment ID {experiment_id} and dice style {dice_style}...")
+    logger.info(f"Starting inference for BraTS2023 test data with experiment ID {experiment_id} and dice style {dice_style}...")
  
     dice_style_str = "" if dice_style == 1 else f"_dice_style{dice_style}"
     prefix_str = f"_{prefix}" if prefix else ""
@@ -272,7 +273,7 @@ def inference_BraTS2023_test_data(experiment_id, dice_style, center_crop=True, p
         center_crop=center_crop, metadata_json_path=metadata_json_path, dataset_flag='BraTS23'
         )
 
-    print("Inference completed.")
+    logger.info("Inference completed.")
 
 
 
@@ -288,7 +289,7 @@ def main():
     
     
     # BraTS2020 test data inference
-    experiment_id = 94
+    experiment_id = 93
     dice_style = 1
     prefix = None  # "slidingwindow"
     inference_BraTS2020_test_data(experiment_id, dice_style, center_crop=True, prefix=prefix)

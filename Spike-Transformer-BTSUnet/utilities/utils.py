@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 import os, json
+from .logger import logger
 
 def downsample_label(label, size):
     label = label.unsqueeze(1).float()  # [B,1,D,H,W]
@@ -93,5 +94,5 @@ def save_case_list(case_dirs, name, fold=None, save_dir=None):
         for case_id in case_ids:
             f.write(case_id + '\n')
 
-    print(f"[{name}] Case list saved to: {case_list_path}")
+    logger.info(f"[{name}] Case list saved to: {case_list_path}")
     return case_list_path

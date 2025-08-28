@@ -46,7 +46,7 @@ class Config:
         
         self.encode_method = 'none'  # poisson, latency, weighted_phase, none
 
-        self.tumor_crop_ratio = 0.75 # 肿瘤区域裁剪比例
+        self.tumor_crop_ratio = 0.8 # 肿瘤区域裁剪比例
         self.patch_size = [64, 64, 64] # [64, 64, 64] [96, 96, 96] [128, 128, 128]
         self.inference_patch_size = [128, 128, 128]  # 推理时的patch大小
         self.use_grad_accum = False  # 是否使用梯度累积
@@ -76,7 +76,7 @@ class Config:
         self.power = 2.0  # 300-2.0
         self.num_warmup_epochs = -1  # -1表示不使用warmup
         self.early_stop_monitor = 'loss'  # 监控的指标  dice loss
-        self.early_stop_patience = 80
+        self.early_stop_patience = 100
         
         self.base_lr = 1e-3 # 1e-3  5e-4
         self.min_lr = 1e-6

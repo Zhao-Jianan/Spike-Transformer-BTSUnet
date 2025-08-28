@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import os
+from utilities.logger import logger
 
 def plot_metrics(
     train_losses, 
@@ -64,7 +65,7 @@ def plot_metrics(
         plt.legend()
         plt.grid(True)
     else:
-        print(f"[Warning] Skipping 95HD plot: val_hd95s has length {len(val_hd95s)}, expected {len(epochs)}")
+        logger.warning(f"[Warning] Skipping 95HD plot: val_hd95s has length {len(val_hd95s)}, expected {len(epochs)}")
 
     plt.tight_layout()
 

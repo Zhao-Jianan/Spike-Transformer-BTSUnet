@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 from medpy.metric import binary
 from surface_distance import compute_surface_distances, compute_robust_hausdorff
-
+from utilities.logger import logger
 
 # 评估函数
 def dice_score_per_class(pred, target, num_classes=4, eps=1e-5):
@@ -190,7 +190,7 @@ def compute_hd95(pred, target, num_classes=4, ignore_index=0, mode='no_compute')
     elif mode == 'no_compute':
         return np.nan
     else:
-        print(f'hd 95 mode ERROR, {mode} is not a valid mode')
+        logger.error(f'hd 95 mode ERROR, {mode} is not a valid mode')
 
 
 def compute_hd95_slow(pred, target, num_classes=4, ignore_index=0):
@@ -237,7 +237,7 @@ def compute_hd95_fast(pred, target, spacing=(1.0, 1.0, 1.0), num_classes=4, igno
         target_bin = (target == cls)
 
         if not np.any(pred_bin) or not np.any(target_bin):
-            print(f"[HD95 Skip] Class {cls} is empty in pred or target.")
+            logger.warning(f"[HD95 Skip] Class {cls} is empty in pred or target.")
             continue
 
         try:
@@ -247,7 +247,7 @@ def compute_hd95_fast(pred, target, spacing=(1.0, 1.0, 1.0), num_classes=4, igno
             hd95 = compute_robust_hausdorff(surface_distances, percentile=95)
             hd95s.append(hd95)
         except Exception as e:
-            print(f"[HD95 Warning] Class {cls}: {e}")
+            logger.warning(f"[HD95 Warning] Class {cls}: {e}")
             continue
 
     return float(np.mean(hd95s)) if hd95s else np.nan

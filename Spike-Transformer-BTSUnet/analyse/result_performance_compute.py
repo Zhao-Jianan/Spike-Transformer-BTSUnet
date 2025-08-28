@@ -10,6 +10,7 @@ from inference.inference_metrics import (
     compute_dice_from_nifti, load_nifti_as_tensor, compute_soft_dice,
     compute_hd95_from_nifti, compute_sensitivity_specificity_from_nifti,
 )
+from utilities.logger import logger
 
 
 def find_gt_path(gt_root, case_name, dataset_flag):
@@ -33,11 +34,11 @@ def find_gt_path(gt_root, case_name, dataset_flag):
         if os.path.exists(candidate_path):
             return candidate_path
 
-    print(f"GT not found for {case_name} in {gt_root}")
+    logger.info(f"GT not found for {case_name} in {gt_root}")
     return None
 
 
-def print_avg_metrics(metrics_list, prefix="", keys=None, safe=True):
+def show_avg_metrics(metrics_list, prefix="", keys=None, safe=True):
     """
     通用平均指标打印函数
     
@@ -48,23 +49,23 @@ def print_avg_metrics(metrics_list, prefix="", keys=None, safe=True):
         safe: 若为True，会跳过None；False时直接抛错
     """
     if not metrics_list:
-        print(f"\n=== {prefix} Scores ===")
-        print("No metrics to display.")
+        logger.info(f"\n=== {prefix} Scores ===")
+        logger.info("No metrics to display.")
         return
 
     if keys is None:
         keys = metrics_list[0].keys()
 
-    print(f"\n=== Average {prefix} Scores ===")
+    logger.info(f"\n=== Average {prefix} Scores ===")
     for k in keys:
         try:
             vals = [m[k] for m in metrics_list if not safe or m[k] is not None]
             if len(vals) == 0:
-                print(f"{k}: N/A")
+                logger.info(f"{k}: N/A")
             else:
-                print(f"{k}: {np.mean(vals):.4f}")
+                logger.info(f"{k}: {np.mean(vals):.4f}")
         except Exception as e:
-            print(f"{k}: Error - {e}")
+            logger.error(f"{k}: Error - {e}")
 
 
 
@@ -97,12 +98,12 @@ def batch_compute_metrics(
     for pred_file in pred_files:
         case_name = pred_file.replace("_pred_mask.nii.gz", "")
         # case_name = pred_file.replace(".nii", "")
-        print(f"Processing case: {case_name}")
+        logger.info(f"Processing case: {case_name}")
         pred_path = os.path.join(pred_dir, pred_file)
         gt_path = find_gt_path(gt_root, case_name, dataset_flag)
 
         if gt_path is None:
-            print(f"[Warning] GT not found for {case_name}")
+            logger.warning(f"[Warning] GT not found for {case_name}")
             continue
 
 
@@ -121,12 +122,12 @@ def batch_compute_metrics(
                         prob_path = candidate
                         break
                 if prob_path is None:
-                    print(f"[Warning] Probability file not found for {case_name} in any fold.")
+                    logger.warning(f"[Warning] Probability file not found for {case_name} in any fold.")
                     continue
             else:
                 prob_path = os.path.join(prob_dir, case_name + "_prob.npy")
                 if not os.path.exists(prob_path):
-                    print(f"[Warning] Probability file not found for {case_name}.")
+                    logger.warning(f"[Warning] Probability file not found for {case_name}.")
                     continue
 
             prob_np = np.load(prob_path)  # (3, D, H, W) 裁剪区域概率图
@@ -147,7 +148,7 @@ def batch_compute_metrics(
                     prob_tensor_for_compare = torch.from_numpy(prob_np_full).float()
                     gt_for_compare = gt_tensor_full
                 else:
-                    print(f"[Warning] Metadata missing for {case_name}, cannot restore prob to full size, skipping.")
+                    logger.warning(f"[Warning] Metadata missing for {case_name}, cannot restore prob to full size, skipping.")
                     continue
 
             elif compare_mode == "crop":
@@ -161,14 +162,14 @@ def batch_compute_metrics(
                                                    crop_start[2]:crop_end[2]]
                     prob_tensor_for_compare = torch.from_numpy(prob_np).float()
                 else:
-                    print(f"[Warning] Metadata missing for {case_name}, cannot crop GT, skipping.")
+                    logger.warning(f"[Warning] Metadata missing for {case_name}, cannot crop GT, skipping.")
                     continue
             else:
                 raise ValueError(f"Unsupported compare_mode: {compare_mode}")
 
             soft_dice = compute_soft_dice(prob_tensor_for_compare, gt_for_compare, metric_obj)
             all_soft_dice_scores.append(soft_dice)
-            print(f"{case_name}: Soft Dice: {soft_dice}")
+            logger.info(f"{case_name}: Soft Dice: {soft_dice}")
 
             
         # 计算 HD95
@@ -181,20 +182,20 @@ def batch_compute_metrics(
             scores = compute_sensitivity_specificity_from_nifti(pred_path, gt_path)
             all_sensitivity_specificity_scores.append(scores)
 
-        print(f"{case_name}: dice: {dice} | HD95: {hd95 if compute_hd95 else 'N/A'}")
+        logger.info(f"{case_name}: dice: {dice} | HD95: {hd95 if compute_hd95 else 'N/A'}")
         if compute_sensitivity_specificity:
-            print(f"{case_name}: sensitivity & specificity: {scores}")
+            logger.info(f"{case_name}: sensitivity & specificity: {scores}")
 
     # 打印平均值
-    print_avg_metrics(all_dice_scores, prefix="Hard Dice")
+    show_avg_metrics(all_dice_scores, prefix="Hard Dice")
     if all_soft_dice_scores:
-        print_avg_metrics(all_soft_dice_scores, prefix="Soft Dice")
+        show_avg_metrics(all_soft_dice_scores, prefix="Soft Dice")
 
     if compute_hd95:
-        print_avg_metrics(all_hd95_scores, prefix="HD95", keys=["HD95_WT", "HD95_TC", "HD95_ET", "Mean_HD95"])
+        show_avg_metrics(all_hd95_scores, prefix="HD95", keys=["HD95_WT", "HD95_TC", "HD95_ET", "Mean_HD95"])
 
     if compute_sensitivity_specificity:
-        print_avg_metrics(
+        show_avg_metrics(
             all_sensitivity_specificity_scores,
             prefix="Sensitivity & Specificity",
             keys=[
@@ -216,18 +217,18 @@ def inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_sty
 
     gt_root = '../../data/BraTS2020/MICCAI_BraTS2020_TrainingData'
     if not os.path.exists(gt_root):
-        print(f"Ground truth directory does not exist: {gt_root}")
+        logger.warning(f"Ground truth directory does not exist: {gt_root}")
         return
 
     dice_score_style_str = "" if dice_score_style == 1 else f"_dice_style{dice_score_style}"
     prefix_str = f"_{prefix}" if prefix else ""
     for fold_index in range(1, 6):
-        print(f"Processing fold {fold_index} for experiment {experiment_index} with style {dice_score_style}")
+        logger.info(f"Processing fold {fold_index} for experiment {experiment_index} with style {dice_score_style}")
         pred_dir = f'../../Project/Pred/BraTS2020/validation_dataset/BraTS2020_val_pred_exp{experiment_index}{dice_score_style_str}{prefix_str}/val_fold{fold_index}_pred'
         prob_dir = f'../../Project/Pred/BraTS2020/validation_dataset/BraTS2020_val_prob_folds_exp{experiment_index}{dice_score_style_str}{prefix_str}/fold{fold_index}'
 
         if not os.path.exists(pred_dir):
-            print(f"Prediction directory does not exist: {pred_dir}")
+            logger.warning(f"Prediction directory does not exist: {pred_dir}")
             return
         all_dice_scores, all_soft_dice_scores, _, _ = batch_compute_metrics(
             pred_dir=pred_dir,
@@ -244,23 +245,23 @@ def inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_sty
         all_fold_soft_dice_scores.append(all_soft_dice_scores)
 
     # 打印所有折的平均值
-    print("\n============================================")
-    print("\n============================================")
-    print("\n=== Average Dice Scores across all folds ===")
-    print("\n============================================")
-    print("\n============================================")
+    logger.info("\n============================================")
+    logger.info("\n============================================")
+    logger.info("\n=== Average Dice Scores across all folds ===")
+    logger.info("\n============================================")
+    logger.info("\n============================================")
     for i in range(5):
-        print(f"\nFold {i+1}:")
-        print_avg_metrics(all_fold_dice_scores[i], prefix="Hard Dice")
+        logger.info(f"\nFold {i+1}:")
+        show_avg_metrics(all_fold_dice_scores[i], prefix="Hard Dice")
         if all_soft_dice_scores:
-            print_avg_metrics(all_fold_soft_dice_scores[i], prefix="Soft Dice")
+            show_avg_metrics(all_fold_soft_dice_scores[i], prefix="Soft Dice")
 
 
 def inference_dice_compute_for_brats20_test_data(experiment_index, dice_score_style, prefix=None, metric_obj=None, 
                                                  metadata_json_path = None):   
         gt_root = '../../data/BraTS2020/MICCAI_BraTS2020_TrainingData'
         if not os.path.exists(gt_root):
-            print(f"Ground truth directory does not exist: {gt_root}")
+            logger.warning(f"Ground truth directory does not exist: {gt_root}")
             return
         
         dice_score_style_str = "" if dice_score_style == 1 else f"_dice_style{dice_score_style}"
@@ -270,7 +271,7 @@ def inference_dice_compute_for_brats20_test_data(experiment_index, dice_score_st
         metric_obj = None # BratsDiceMetric()
         
         if not os.path.exists(pred_dir):
-            print(f"Prediction directory does not exist: {pred_dir}")
+            logger.warning(f"Prediction directory does not exist: {pred_dir}")
             return
 
         batch_compute_metrics(
@@ -296,11 +297,11 @@ def inference_dice_compute_for_brats23_val_data(experiment_index, dice_score_sty
     dice_score_style_str = "" if dice_score_style == 1 else f"_dice_style{dice_score_style}"
     prefix_str = f"_{prefix}" if prefix else ""
     for fold_index in range(1, 6):
-        print(f"Processing fold {fold_index} for experiment {experiment_index} with style {dice_score_style}")
+        logger.info(f"Processing fold {fold_index} for experiment {experiment_index} with style {dice_score_style}")
         pred_dir = f'../../Project/Pred/BraTS2023/BraTS2023_val_pred_exp{experiment_index}{dice_score_style_str}{prefix_str}/val_fold{fold_index}_pred'
         prob_dir = None # f'../../Project/Pred/BraTS2023/validation_dataset/BraTS2023_val_prob_folds_exp{experiment_index}{dice_score_style_str}{prefix_str}/fold{fold_index}'
 
-        print(f"Pred dir: {pred_dir}")
+        logger.info(f"Pred dir: {pred_dir}")
         all_dice_scores, all_soft_dice_scores, _, _ = batch_compute_metrics(
             pred_dir=pred_dir,
             gt_root=gt_root,
@@ -317,16 +318,16 @@ def inference_dice_compute_for_brats23_val_data(experiment_index, dice_score_sty
         all_fold_soft_dice_scores.append(all_soft_dice_scores)
 
     # 打印所有折的平均值
-    print("\n============================================")
-    print("\n============================================")
-    print("\n=== Average Dice Scores across all folds ===")
-    print("\n============================================")
-    print("\n============================================")
+    logger.info("\n============================================")
+    logger.info("\n============================================")
+    logger.info("\n=== Average Dice Scores across all folds ===")
+    logger.info("\n============================================")
+    logger.info("\n============================================")
     for i in range(5):
-        print(f"\nFold {i+1}:")
-        print_avg_metrics(all_fold_dice_scores[i], prefix="Hard Dice")
+        logger.info(f"\nFold {i+1}:")
+        show_avg_metrics(all_fold_dice_scores[i], prefix="Hard Dice")
         if all_soft_dice_scores:
-            print_avg_metrics(all_fold_soft_dice_scores[i], prefix="Soft Dice")
+            show_avg_metrics(all_fold_soft_dice_scores[i], prefix="Soft Dice")
         
         
         
@@ -341,10 +342,10 @@ def inference_dice_compute_nnunet_val_data():
     
     gt_root = '../../data/BraTS2020/MICCAI_BraTS2020_TrainingData'
     for fold_index in range(0, 5):
-        print(f"Processing fold {fold_index}")
+        logger.info(f"Processing fold {fold_index}")
         pred_dir = f'../../Compared_exp/Result/nnUnet/BraTS_2020/fold_{fold_index}/validation'
 
-        print(f"Pred dir: {pred_dir}")
+        logger.info(f"Pred dir: {pred_dir}")
         all_dice_scores, all_soft_dice_scores, _, _, _ = batch_compute_metrics(
             pred_dir=pred_dir,
             gt_root=gt_root,
@@ -359,14 +360,14 @@ def inference_dice_compute_nnunet_val_data():
         all_fold_dice_scores.append(all_dice_scores)
 
     # 打印所有折的平均值
-    print("\n============================================")
-    print("\n============================================")
-    print("\n=== Average Dice Scores across all folds ===")
-    print("\n============================================")
-    print("\n============================================")
+    logger.info("\n============================================")
+    logger.info("\n============================================")
+    logger.info("\n=== Average Dice Scores across all folds ===")
+    logger.info("\n============================================")
+    logger.info("\n============================================")
     for i in range(5):
-        print(f"\nFold {i+1}:")
-        print_avg_metrics(all_fold_dice_scores[i], prefix="Hard Dice")    
+        logger.info(f"\nFold {i+1}:")
+        show_avg_metrics(all_fold_dice_scores[i], prefix="Hard Dice")    
 
 def main():
     batch_compute = True
@@ -385,8 +386,8 @@ def main():
         
 
         # BraTS 2020 Validation or Test
-        mode = 'test'  # 'val' or 'test'
-        experiment_index = 95
+        mode = 'val'  # 'val' or 'test'
+        experiment_index = 109
         dice_score_style = 1
         prefix = None
         if mode == 'val':
@@ -421,7 +422,7 @@ def main():
         
 
         dice_results = compute_dice_from_nifti(pred_mask_path, gt_mask_path)
-        print(dice_results)
+        logger.info(dice_results)
 
 if __name__ == "__main__":
     main()

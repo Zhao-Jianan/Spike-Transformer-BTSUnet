@@ -2,10 +2,11 @@ import os
 from monai.data import DataLoader
 from .dataset import BraTSDataset
 from sklearn.model_selection import KFold
+from utilities.logger import logger
 
 
 def worker_init_fn(worker_id):
-    print(f"[Worker {worker_id}] initialized in PID {os.getpid()}")
+    logger.info(f"[Worker {worker_id}] initialized in PID {os.getpid()}")
 
 def build_data_dicts(case_dirs, modalities, sep, suffix):
     """
@@ -51,7 +52,7 @@ def get_data_loaders(train_dirs, val_dirs, patch_size, batch_size, T, encode_met
 
 def main():
     from config import config as cfg
-    print("TEST START")
+    logger.info("TEST START")
     case_dirs = [os.path.join(cfg.root_dir, d) for d in os.listdir(cfg.root_dir) if os.path.isdir(os.path.join(cfg.root_dir, d))]
     
     
@@ -68,10 +69,10 @@ def main():
         train_loader, val_loader = get_data_loaders(train_case_dirs, val_case_dirs, cfg.patch_size, cfg.batch_size, cfg.T, cfg.encode_method, cfg.num_workers)
         
 
-        print("Iterate one batch from val_loader:")
+        logger.info("Iterate one batch from val_loader:")
         for x, y in val_loader:
-            print(f"val batch x shape: {x.shape}, x min/max: {x.min().item()}/{x.max().item()}")
-            print(f"val batch y shape: {y.shape}, y min/max: {y.min().item()}/{y.max().item()}")
+            logger.info(f"val batch x shape: {x.shape}, x min/max: {x.min().item()}/{x.max().item()}")
+            logger.info(f"val batch y shape: {y.shape}, y min/max: {y.min().item()}/{y.max().item()}")
             break
     
     

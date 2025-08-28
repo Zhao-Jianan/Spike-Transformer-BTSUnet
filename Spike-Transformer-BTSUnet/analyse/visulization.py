@@ -4,6 +4,7 @@ import nibabel as nib
 import os
 from matplotlib import gridspec
 import matplotlib.patches as mpatches
+from utilities.logger import logger
 
 # 加载 NIfTI 图像并返回 numpy 数组
 def load_nifti_image(path):
@@ -116,7 +117,7 @@ def visulize(case_name, t1_path, t1ce_path, t2_path, flair_path, gt_mask_path, p
     best_slice = select_best_slice(gt_mask)
     plot_modalities_with_masks(t1, t1ce, t2, flair, gt_mask, pred_mask, 
                                case_name, slice_idx=best_slice, save_path=save_path, dataset_flag=dataset_flag)
-    print(f"Visualization completed and saved to {save_path}")
+    logger.info(f"Visualization completed and saved to {save_path}")
     
         
 

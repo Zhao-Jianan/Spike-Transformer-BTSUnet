@@ -15,6 +15,7 @@ from monai.data.meta_tensor import MetaTensor
 from monai.transforms.transform import Transform
 from monai.utils import TransformBackends
 import random
+from utilities.logger import logger
 
 
 class BraTSDataset(MonaiDataset):
@@ -140,7 +141,7 @@ class BraTSDataset(MonaiDataset):
 
         # 只有在必要时运行 preprocess
         if need_orientation_or_spacing:
-            print(f'DO PREPROPROCESS!!!')
+            logger.info(f'DO PREPROPROCESS!!!')
             data = self.preprocess(data)
 
 
@@ -170,8 +171,8 @@ class BraTSDataset(MonaiDataset):
             if self.debug:
                 unique_vals = torch.unique(label)
                 if label.min() < 0 or label.max() >= self.num_classes:
-                    print(f"[ERROR] Label out of range in sample {case_name}")
-                    print(f"Label unique values: {unique_vals}")
+                    logger.error(f"[ERROR] Label out of range in sample {case_name}")
+                    logger.error(f"Label unique values: {unique_vals}")
                     raise ValueError(f"Label contains invalid class ID(s): {unique_vals.tolist()}")
                 
                 if img.dim() == 4:
@@ -179,9 +180,9 @@ class BraTSDataset(MonaiDataset):
                     for c in range(C):
                         min_val = img[c].min().item()
                         max_val = img[c].max().item()
-                        print(f"Channel {c}: min={min_val:.4f}, max={max_val:.4f}")
+                        logger.debug(f"Channel {c}: min={min_val:.4f}, max={max_val:.4f}")
                 else:
-                    print("Not a 4D tensor; skipping per-channel stats.")
+                    logger.warning("Not a 4D tensor; skipping per-channel stats.")
 
             # 生成 T 个时间步的脉冲输入，重复编码
             if self.encode_method == 'none':
@@ -463,15 +464,15 @@ class BraTSDatasetTester:
         image_paths = [os.path.join(folder, f"{case_name}_{m}.nii") for m in modalities]
         label_path = os.path.join(folder, f"{case_name}_seg.nii")
         for p in image_paths + [label_path]:
-            print(f"Checking file: {p}, exists: {os.path.exists(p)}")
+            logger.info(f"Checking file: {p}, exists: {os.path.exists(p)}")
         return {"image": image_paths, "label": label_path}
 
     def run_test(self):
         import matplotlib.pyplot as plt
 
         x_seq, label = self.dataset[0]
-        print(f"x_seq shape: {x_seq.shape}")  # (T, C, D, H, W)
-        print(f"label shape: {label.shape}")  # (C_label, D, H, W)
+        logger.info(f"x_seq shape: {x_seq.shape}")  # (T, C, D, H, W)
+        logger.info(f"label shape: {label.shape}")  # (C_label, D, H, W)
 
         center_slice = x_seq.shape[2] // 2  # D方向中间切片
         C = x_seq.shape[1]

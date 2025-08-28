@@ -7,6 +7,7 @@ from inference.inference_helper import TemporalSlidingWindowInference
 from config import config as cfg
 from torch.amp import autocast, GradScaler
 import math
+from utilities.logger import logger
 
 # 训练配置
 # 学习率调度器
@@ -94,7 +95,7 @@ class EarlyStopping:
             self.counter += 1
             if self.counter >= self.patience:
                 self.early_stop = True
-                print(f"[EarlyStopping] Triggered at epoch {current_epoch}. Best epoch: {self.best_epoch}")
+                logger.info(f"[EarlyStopping] Triggered at epoch {current_epoch}. Best epoch: {self.best_epoch}")
         else:
             self.best_score = score
             self.best_epoch = current_epoch
@@ -110,7 +111,7 @@ def train(train_loader, model, optimizer, criterion, device, debug=False, comput
     
     running_loss = 0.0
     scaler = GradScaler(enabled=use_amp)  # 混合精度缩放器
-    print('Train -------------->>>>>>>')
+    logger.info('Train -------------->>>>>>>')
 
     for step, (x_seq, y) in enumerate(train_loader, start=1):
         if compute_time:
@@ -119,10 +120,10 @@ def train(train_loader, model, optimizer, criterion, device, debug=False, comput
             
         if debug:
             if torch.isnan(x_seq).any() or torch.isinf(x_seq).any():
-                print(f"[FATAL] x_seq contains NaN/Inf at batch, stopping.")
+                logger.debug(f"[FATAL] x_seq contains NaN/Inf at batch, stopping.")
                 break
             if torch.isnan(y).any() or torch.isinf(y).any():
-                print(f"[FATAL] y contains NaN/Inf at batch, stopping.")
+                logger.debug(f"[FATAL] y contains NaN/Inf at batch, stopping.")
                 break
         
         x_seq = x_seq.permute(1, 0, 2, 3, 4, 5).contiguous().to(device, non_blocking=True)
@@ -131,8 +132,8 @@ def train(train_loader, model, optimizer, criterion, device, debug=False, comput
         if compute_time:
             torch.cuda.synchronize()
             time1 = time.time()
-            print(f"[DEBUG] Permute time: {time1 - start_time:.4f} seconds")
-        
+            logger.debug(f"[DEBUG] Permute time: {time1 - start_time:.4f} seconds")
+
         # 梯度累积模式下，每 accumulation_steps 才清零一次梯度
         if use_grad_accum:
             if (step - 1) % accumulation_steps == 0:
@@ -145,11 +146,11 @@ def train(train_loader, model, optimizer, criterion, device, debug=False, comput
 
             if compute_time:
                 time2 = time.time()
-                print(f"[DEBUG] Model forward time: {time2 - time1:.4f} seconds")
+                logger.debug(f"[DEBUG] Model forward time: {time2 - time1:.4f} seconds")
 
             if debug:
                 if torch.isnan(output).any() or torch.isinf(output).any():
-                    print(f"[FATAL] model output NaN/Inf at batch, stopping.")
+                    logger.debug(f"[FATAL] model output NaN/Inf at batch, stopping.")
                     break
 
             loss = criterion(output, y)
@@ -161,10 +162,10 @@ def train(train_loader, model, optimizer, criterion, device, debug=False, comput
         if compute_time:
             torch.cuda.synchronize()
             time4 = time.time()
-            print(f"[DEBUG] Loss computation time: {time4 - time2:.4f} seconds")
-        
+            logger.debug(f"[DEBUG] Loss computation time: {time4 - time2:.4f} seconds")
+
         if debug and torch.isnan(loss):
-            print(f"[FATAL] loss NaN at batch, stopping at epoch")
+            logger.debug(f"[FATAL] loss NaN at batch, stopping at epoch")
             break
 
         scaler.scale(loss).backward()
@@ -199,16 +200,16 @@ def validate(val_loader, model, criterion, device, val_crop_mode='crop', compute
     total_dice = {'TC': 0.0, 'WT': 0.0, 'ET': 0.0}
     hd95s = []
     
-    print(f'[Validation] Mode: {val_crop_mode} -------------->>>>>>>')
+    logger.info(f'[Validation] Mode: {val_crop_mode} -------------->>>>>>>')
     with torch.no_grad():
         for i, (x_seq, y) in enumerate(val_loader):
             if debug:
                 # 数据检查：检查输入 x_seq 和标签 y 是否包含 NaN 或 Inf
                 if torch.isnan(x_seq).any() or torch.isinf(x_seq).any():
-                    print(f"[FATAL] x_seq contains NaN/Inf at batch, stopping.")
+                    logger.debug(f"[FATAL] x_seq contains NaN/Inf at batch, stopping.")
                     break
                 if torch.isnan(y).any() or torch.isinf(y).any():
-                    print(f"[FATAL] y contains NaN/Inf at batch, stopping.")
+                    logger.debug(f"[FATAL] y contains NaN/Inf at batch, stopping.")
                     break
             
             if val_crop_mode == 'sliding_window':
@@ -227,8 +228,8 @@ def validate(val_loader, model, criterion, device, val_crop_mode='crop', compute
             if debug:
                 # 检查 output 是否为 NaN 或 Inf
                 if torch.isnan(output).any() or torch.isinf(output).any():
-                    print(f"[FATAL] model output NaN/Inf at batch, stopping.")
-                    print(f"Output: {output}")
+                    logger.debug(f"[FATAL] model output NaN/Inf at batch, stopping.")
+                    logger.debug(f"Output: {output}")
                     break
 
             dice = dice_score_nnunet_multiclass_torch_batch(output, y_onehot) # dict: {'TC':..., 'WT':..., 'ET':...}
@@ -239,7 +240,7 @@ def validate(val_loader, model, criterion, device, val_crop_mode='crop', compute
             if compute_hd:
                 hd95 = compute_hd95(output, y_onehot)
                 # if np.isnan(hd95):
-                #     print(f"[Warning] NaN in HD95")
+                #     logger.warning(f"[Warning] NaN in HD95")
                 hd95s.append(hd95)
 
             total_loss += loss.item()
@@ -282,7 +283,7 @@ def train_one_fold(
     first_loss_saved = False
     
     for epoch in range(num_epochs):
-        print(f'----------[Fold {fold}] Epoch {epoch+1}/{num_epochs} ----------')
+        logger.info(f'----------[Fold {fold}] Epoch {epoch+1}/{num_epochs} ----------')
         if train_crop_mode == 'warmup_weighted_random':
         # 计算当前中心 crop 概率（线性衰减）
             if epoch < warmup_epochs:
@@ -293,7 +294,7 @@ def train_one_fold(
             if hasattr(train_loader.dataset, 'center_crop_prob'):
                 train_loader.dataset.center_crop_prob = prob
                 if prob > 0:
-                    print(f"Epoch {epoch+1}: center crop prob = {prob:.2f}")
+                    logger.info(f"Epoch {epoch+1}: center crop prob = {prob:.2f}")
                     
         # ===== 训练阶段 =====    
         train_start_time = time.time()
@@ -302,7 +303,7 @@ def train_one_fold(
         # 计时结束
         train_end_time = time.time()
         train_elapsed_time = train_end_time - train_start_time
-        print(f"[Fold {fold}] Epoch {epoch+1} training time: {train_elapsed_time:.2f} seconds")
+        logger.info(f"[Fold {fold}] Epoch {epoch+1} training time: {train_elapsed_time:.2f} seconds")
         
         train_losses.append(train_loss)
         
@@ -315,7 +316,7 @@ def train_one_fold(
         # 计时结束
         patch_val_end_time = time.time()
         patch_val_elapsed_time = patch_val_end_time - patch_val_start_time
-        print(f"[Fold {fold}] Epoch {epoch+1} val time: {patch_val_elapsed_time:.2f} seconds")
+        logger.info(f"[Fold {fold}] Epoch {epoch+1} val time: {patch_val_elapsed_time:.2f} seconds")
         
         num_classes = len(patch_val_dice)
         patch_val_mean_dice = sum(patch_val_dice.values()) / num_classes
@@ -329,11 +330,11 @@ def train_one_fold(
         # 日志输出
         val_dice_str = " | ".join([f"{k}: {v:.4f}" for k, v in patch_val_dice.items()])
 
-        print(f"[Fold {fold}] Epoch {epoch+1}/{num_epochs} | "
+        logger.info(f"[Fold {fold}] Epoch {epoch+1}/{num_epochs} | "
               f"Train Loss: {train_loss:.4f} | Val Loss: {patch_val_loss:.4f}")
-        print(f"Dice: {val_dice_str} | Mean: {patch_val_mean_dice:.4f}")
+        logger.info(f"Dice: {val_dice_str} | Mean: {patch_val_mean_dice:.4f}")
         if compute_hd:
-            print(f"95HD: {patch_val_hd95:.4f}")
+            logger.info(f"95HD: {patch_val_hd95:.4f}")
                   
         # 保存检查点
         ckpt_dir = "checkpoints"
@@ -342,12 +343,12 @@ def train_one_fold(
             patch_best_dice = patch_val_mean_dice
             checkpoint_path = os.path.join(ckpt_dir, f'best_model_fold{fold}.pth')
             torch.save(model.state_dict(), checkpoint_path)
-            print(f"[Fold {fold}] Epoch {epoch+1}: New best Patch Dice = {patch_val_mean_dice:.4f}, model saved.")
+            logger.info(f"[Fold {fold}] Epoch {epoch+1}: New best Patch Dice = {patch_val_mean_dice:.4f}, model saved.")
 
             # 滑动窗口验证
             if cfg.val_crop_mode != 'sliding_window' and cfg.sliding_window_val:
                 if  patch_val_mean_dice >= sliding_window_threshold:
-                    print(f"[Fold {fold}] Epoch {epoch+1}: Performing sliding window validation...")
+                    logger.info(f"[Fold {fold}] Epoch {epoch+1}: Performing sliding window validation...")
                     # 计时开始
                     entire_val_start_time = time.time()
                     entire_val_loss, entire_val_dice, entire_val_hd95 = validate(
@@ -355,7 +356,7 @@ def train_one_fold(
                         val_crop_mode='sliding_window', compute_hd=compute_hd, use_amp=use_amp)
                     entire_val_end_time = time.time()
                     entire_val_elapsed_time = entire_val_end_time - entire_val_start_time
-                    print(f"[Fold {fold}] Epoch {epoch+1} entire val time: {entire_val_elapsed_time:.2f} seconds")
+                    logger.info(f"[Fold {fold}] Epoch {epoch+1} entire val time: {entire_val_elapsed_time:.2f} seconds")
                     num_classes = len(entire_val_dice) 
                     entire_val_mean_dice = sum(entire_val_dice.values()) / num_classes
                     entire_val_losses.append(entire_val_loss)
@@ -367,34 +368,34 @@ def train_one_fold(
 
                     val_dice_str = " | ".join([f"{k}: {v:.4f}" for k, v in entire_val_dice.items()])
 
-                    print(f"Sliding Window Validation Results | ")
-                    print(f"Dice: {val_dice_str} | Mean: {entire_val_mean_dice:.4f}")
+                    logger.info(f"Sliding Window Validation Results | ")
+                    logger.info(f"Dice: {val_dice_str} | Mean: {entire_val_mean_dice:.4f}")
                     if compute_hd:
-                        print(f"95HD: {entire_val_hd95:.4f}")
+                        logger.info(f"95HD: {entire_val_hd95:.4f}")
                         
                     if entire_val_mean_dice > entire_best_dice:
                         entire_best_dice = entire_val_mean_dice
                         torch.save(model.state_dict(), os.path.join(ckpt_dir, f'best_model_fold{fold}_entire.pth'))
-                        print(f"[Fold {fold}] Epoch {epoch+1}: Sliding Window New best Dice = {entire_val_mean_dice:.4f}, model saved.")
+                        logger.info(f"[Fold {fold}] Epoch {epoch+1}: Sliding Window New best Dice = {entire_val_mean_dice:.4f}, model saved.")
 
         # 保存初始最佳损失
         if not first_loss_saved:
             best_val_loss = patch_val_loss
             torch.save(model.state_dict(), os.path.join(ckpt_dir, f'best_model_fold{fold}_loss.pth'))
-            print(f"[Fold {fold}] Epoch {epoch+1}: Initial best val loss = {patch_val_loss:.4f}, model saved.")
+            logger.info(f"[Fold {fold}] Epoch {epoch+1}: Initial best val loss = {patch_val_loss:.4f}, model saved.")
             first_loss_saved = True
         # 保存后续最佳损失
         elif patch_val_loss < best_val_loss - 1e-6:  # 防止浮点误差
             best_val_loss = patch_val_loss
             torch.save(model.state_dict(), os.path.join(ckpt_dir, f'best_model_fold{fold}_loss.pth'))
-            print(f"[Fold {fold}] Epoch {epoch+1}: New best val loss = {patch_val_loss:.4f}, model saved.")  
+            logger.info(f"[Fold {fold}] Epoch {epoch+1}: New best val loss = {patch_val_loss:.4f}, model saved.")  
                       
         # ===== 学习率调度 =====
         if scheduler is not None:
             scheduler.step()  # 更新学习率
             # 打印当前学习率
             current_lrs = [param_group['lr'] for param_group in optimizer.param_groups]
-            print(f"Epoch {epoch+1} learning rate(s): {current_lrs[0]}")
+            logger.info(f"Epoch {epoch+1} learning rate(s): {current_lrs[0]}")
             lr_history.append(current_lrs[0]) 
             
             
@@ -406,13 +407,13 @@ def train_one_fold(
                 stop_flag = patch_val_mean_dice
             early_stopping(stop_flag, epoch+1)
             if early_stopping.early_stop:
-                print(f"[Fold {fold}] Early stopping at epoch {epoch+1}")
+                logger.info(f"[Fold {fold}] Early stopping at epoch {epoch+1}")
                 break
 
     # 保存最后的模型
     last_checkpoint_path = os.path.join(ckpt_dir, f'last_model_fold{fold}.pth')
     torch.save(model.state_dict(), last_checkpoint_path)
-    print(f"[Fold {fold}] Training finished at epoch {epoch+1}, last model saved to {last_checkpoint_path}")
+    logger.info(f"[Fold {fold}] Training finished at epoch {epoch+1}, last model saved to {last_checkpoint_path}")
 
     return train_losses, patch_val_losses, patch_val_dices, patch_val_mean_dices, patch_val_hd95s, lr_history
 
@@ -423,7 +424,7 @@ def train_fold(train_loader, val_loader, sliding_window_val_loader,
                num_epochs, fold, compute_hd, cfg,
                scheduler, early_stopping, use_amp,
                use_grad_accum, accumulation_steps):
-    print(f"\n[Fold {fold+1}] Training Started")
+    logger.info(f"\n[Fold {fold+1}] Training Started")
     
     train_losses, val_losses, val_dices, val_mean_dices, val_hd95s, lr_history = train_one_fold(
         train_loader, val_loader, sliding_window_val_loader, model, optimizer, criterion, device, 
@@ -432,7 +433,7 @@ def train_fold(train_loader, val_loader, sliding_window_val_loader,
         use_grad_accum=use_grad_accum, accumulation_steps=accumulation_steps
     )
     
-    print(f"[Fold {fold+1}] Training Completed")
+    logger.info(f"[Fold {fold+1}] Training Completed")
     
     return train_losses, val_losses, val_dices, val_mean_dices, val_hd95s, lr_history
 

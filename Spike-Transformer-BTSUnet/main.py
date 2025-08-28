@@ -8,14 +8,15 @@ from model.spike_former_unet_model import spike_former_unet3D_8_384, spike_forme
 # from model.simple_unet_model import spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
 from training.losses import (BratsDiceLoss, BratsDiceLossOptimized, BratsFocalLoss, 
                              BratsDiceLosswithFPPenalty, BratsTverskyLoss, AdaptiveRegionalLoss)
-from training.utils import init_weights, save_metrics_to_file, save_case_list
+from utilities.utils import init_weights, save_metrics_to_file, save_case_list
 from training.train import train_fold, get_scheduler, EarlyStopping
 from training.plot import plot_metrics
-from training.data_loader import get_data_loaders
+from dataset.data_loader import get_data_loaders
 from config import config as cfg        
 from glob import glob
 import random
 import numpy as np
+from utilities.logger import logger
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy("file_system")
 
@@ -89,8 +90,8 @@ def main():
     case_dirs = collect_case_dirs(cfg.root_dirs)
             
     # 打印配置名
-    print(cfg.device)
-    print("CUDA_VISIBLE_DEVICES:", os.environ["CUDA_VISIBLE_DEVICES"])
+    logger.info(f"Device: {cfg.device}")
+    logger.info(f"CUDA_VISIBLE_DEVICES: {os.environ['CUDA_VISIBLE_DEVICES']}")
 
     # 设置损失函数
     criterion = get_loss_function(cfg)
@@ -106,7 +107,7 @@ def main():
         train_val_dirs = case_dirs
         test_dirs = []
     # 打印数据集信息
-    print(f"Total cases: {len(case_dirs)} | Train+Val: {len(train_val_dirs)} | Test: {len(test_dirs)}")
+    logger.info(f"Total cases: {len(case_dirs)} | Train+Val: {len(train_val_dirs)} | Test: {len(test_dirs)}")
 
     # 交叉验证
     kf = KFold(n_splits=cfg.k_folds, shuffle=True, random_state=cfg.seed)
@@ -149,7 +150,7 @@ def main():
             train_losses, val_losses,  val_dices, val_mean_dices, val_hd95s, lr_history, fold
         )
 
-    print("\nTraining and Validation completed across all folds.")
+    logger.info("\nTraining and Validation completed across all folds.")
 
 if __name__ == "__main__":
     main()

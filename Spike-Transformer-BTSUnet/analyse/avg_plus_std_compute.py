@@ -1,4 +1,5 @@
 import numpy as np
+from utilities.logger import logger
 
 def compute_metrics(fold_results):
     """
@@ -29,11 +30,20 @@ def compute_metrics(fold_results):
 
 # 每行为一个fold的WT, TC, ET, Mean
 fold_results = [
-[0.8859, 0.8398, 0.7313, 0.8190],
-[0.9219, 0.8668, 0.7407, 0.8431],
-[0.8231, 0.8097, 0.7815, 0.8047],
-[0.8521, 0.8296, 0.7969, 0.8262],
-[0.8705, 0.8310, 0.7029, 0.8015],
+[0.8779, 	0.8222, 	0.7663, 	0.8221],
+[0.8802, 	0.8406, 	0.6912, 	0.8040],
+[0.8827, 	0.8060, 	0.7222, 	0.8037],
+[0.8655, 	0.8275, 	0.7595, 	0.8175],
+[0.8552, 	0.8265, 	0.7156, 	0.7991],
+
+
+
+
+
+
+
+
+
 
 
 
@@ -46,6 +56,6 @@ fold_results = [
 
 metrics = compute_metrics(fold_results)
 for name, values in metrics.items():
-    print(f"{name}: {values['formatted']}")
+    logger.info(f"{name}: {values['formatted']}")
 
 

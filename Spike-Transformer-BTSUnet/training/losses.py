@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from utilities.logger import logger
 
 class DiceCrossEntropyLoss(nn.Module):
     def __init__(self, weight=None, dice_weight=1.0, smooth=1e-6):
@@ -80,7 +81,7 @@ class BratsDiceLoss(nn.Module):
         # 如果pred带背景通道，忽略背景通道，取通道1开始
         if not self.include_background:
             if n_pred_ch == 1:
-                print("[Warning] single channel prediction, `include_background=False` ignored.")
+                logger.warning("[Warning] single channel prediction, `include_background=False` ignored.")
             elif n_pred_ch <= 3:
                 # No background channel to remove, assume input is only [TC, WT, ET]
                 pass
@@ -90,7 +91,7 @@ class BratsDiceLoss(nn.Module):
                 pred = pred[:, 1:]
         else:
             if n_pred_ch != 3:
-                print("[Warning] `include_background=True` but input has no background channel.")
+                logger.warning("[Warning] `include_background=True` but input has no background channel.")
 
         if self.squared_pred:
             pred_sq = pred ** 2
@@ -243,7 +244,7 @@ class BratsDiceLosswithFPPenalty(nn.Module):
 
         if not self.include_background:
             if n_pred_ch == 1:
-                print("Warning: single channel prediction, `include_background=False` ignored.")
+                logger.warning("Warning: single channel prediction, `include_background=False` ignored.")
             elif n_pred_ch <= 3:
                 # No background channel to remove, assume input is only [TC, WT, ET]
                 pass
@@ -252,7 +253,7 @@ class BratsDiceLosswithFPPenalty(nn.Module):
                 pred = pred[:, 1:]
         else:
             if n_pred_ch != 3:
-                print("Warning: `include_background=True` but input has no background channel.")
+                logger.warning("Warning: `include_background=True` but input has no background channel.")
 
         if self.squared_pred:
             pred_sq = pred ** 2
@@ -340,7 +341,7 @@ class BratsTverskyLoss(nn.Module):
 
         if not self.include_background:
             if n_pred_ch == 1:
-                print("Warning: single channel prediction, `include_background=False` ignored.")
+                logger.warning("Warning: single channel prediction, `include_background=False` ignored.")
             elif n_pred_ch <= 3:
                 # No background channel to remove, assume input is only [TC, WT, ET]
                 pass
@@ -349,7 +350,7 @@ class BratsTverskyLoss(nn.Module):
                 pred = pred[:, 1:]
         else:
             if n_pred_ch != 3:
-                print("Warning: `include_background=True` but input has no background channel.")
+                logger.warning("Warning: `include_background=True` but input has no background channel.")
                 
         pred = pred.float()
         target = target.float()
@@ -654,7 +655,7 @@ class AdaptiveRegionalLoss(nn.Module):
         # ---------- 通道处理 ----------
         if not self.include_background:
             if n_pred_ch == 1:
-                print("[Warning] single channel prediction, `include_background=False` ignored.")
+                logger.warning("[Warning] single channel prediction, `include_background=False` ignored.")
             elif n_pred_ch <= 3:
                 pass
             else:
@@ -663,7 +664,7 @@ class AdaptiveRegionalLoss(nn.Module):
                 pred = pred[:, 1:]
         else:
             if n_pred_ch != 3:
-                print("[Warning] `include_background=True` but input has no background channel.")
+                logger.warning("[Warning] `include_background=True` but input has no background channel.")
 
         if self.squared_pred:
             pred = pred ** 2
@@ -723,20 +724,19 @@ def main():
     # pred = torch.randn(3, 3, 128, 128, 128)  # logits
     # target = torch.randint(0, 1, (3, 3, 128, 128, 128)).float()  # one-hot mask
     # loss = loss_fn(pred, target)
-    # print("Loss:", loss.item())
+    # logger.info(f"Loss: {loss.item()}")
     
     # loss_fn = BratsFocalLoss(alpha=0.25, gamma=2.0)
     # pred = torch.randn(1, 3, 128, 128, 128)  # logits
     # target = torch.randint(0, 1, (1, 3, 128, 128, 128)).float()  # one-hot mask
     # loss = loss_fn(pred, target)  # pred_logits: raw output before sigmoid
-    # print("Loss:", loss.item())
+    # logger.info(f"Loss: {loss.item()}")
     
     loss_fn = AdaptiveRegionalLoss(global_weight=0.7, regional_weight=0.3, smooth=1e-6, pool_size=8)
     pred = torch.randn(1, 3, 128, 128, 128)  # logits
     target = torch.randint(0, 1, (1, 3, 128, 128, 128)).float()  # one-hot mask
     loss = loss_fn(pred, target)  # pred_logits: raw output before sigmoid
-    print("Loss:", loss.item())    
-    
-    
+    logger.info(f"Loss: {loss.item()}")
+
 if __name__ == "__main__":
     main()
