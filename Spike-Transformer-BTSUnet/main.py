@@ -131,8 +131,14 @@ def main():
         else:
             logger.info(f"Finetuning disabled. Training from scratch for fold {fold+1}.")
 
-        optimizer = optim.AdamW(model.parameters(), lr=learning_rate, eps=1e-8, weight_decay=1e-4)
-        scheduler = get_scheduler(optimizer, cfg.num_warmup_epochs, cfg.num_epochs, 
+        # 设置优化器
+        if cfg.optimizer == 'AdamW':
+            optimizer = optim.AdamW(model.parameters(), lr=learning_rate, eps=1e-8, weight_decay=1e-4)
+        elif cfg.optimizer == 'SGD':
+            optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=0.99, weight_decay=3e-5)
+
+        # 设置学习率调度器
+        scheduler = get_scheduler(optimizer, cfg.num_warmup_epochs, cfg.num_epochs,
                                   learning_rate, cfg.min_lr, cfg.scheduler, cfg.power)
         early_stopping = EarlyStopping(patience=cfg.early_stop_patience, delta=0, monitor=cfg.early_stop_monitor)
 

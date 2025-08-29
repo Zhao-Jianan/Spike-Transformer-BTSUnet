@@ -224,6 +224,16 @@ nohup python spikeformerunet112/main.py > New-112-log_bra20_spikeformerunet_144c
 nohup python spikeformerunet113/main.py > New-113-log_bra20_spikeformerunet_144c64p4b_1e3_1e6_poly20_paralif_tauthread_diceloss111_lifaddskip_seed42_aware08_stoploss100.out 2>&1 &
 [114] 
 nohup python spikeformerunet114/main.py > New-114-log_bra20_spikeformerunet_144c128p1b1T_finetune_1e4_1e6_poly20_paralif_tauthread_diceloss111_lifaddskip_seed42_random_stoploss30.log 2>&1 &
+[115] 
+nohup python spikeformerunet115/main.py > New-115-log_bra20_spikeformerunet_144c64p16b1T_1e3_1e6_poly20_paralif_tauthread_diceloss111_lifaddskip_seed42_aware08_stoploss100.log 2>&1 &
+[116] 
+nohup python spikeformerunet116/main.py > New-116-log_bra20_spikeformerunet_144c64p2b1T_1e3_1e6_poly09_paralif_tauthread_lifaddskip_insnorm_SGD_diceloss111_seed42_aware08_stoploss100.log 2>&1 &
+[117] 
+nohup python spikeformerunet117/main.py > New-117-log_bra20_spikeformerunet_144c128p2b1T_1e3_1e6_poly09_paralif_tauthread_lifaddskip_insnorm_SGD_diceloss111_seed42_randomcrop_stoploss100.log 2>&1 &
+[118] 
+nohup python spikeformerunet118/main.py > New-118-log_bra20_spikeformerunet_144c128p2b1T_1e3_1e6_poly09_paralif_tauthread_lifaddskip_groupnorm_SGD_diceloss111_seed42_randomcrop_stoploss100.log 2>&1 &
+[119] NEXT
+nohup python spikeformerunet119/main.py > New-119-log_bra20_spikeformerunet_144c128p2b1T_1e3_1e6_poly09_paralif_tauthread_lifaddskip_groupnorm_AdamW_diceloss111_seed42_randomcrop_stoploss100.log 2>&1 &
 
 ps -u $USER -f | grep python
 pgrep -u $USER -a python
@@ -231,6 +241,8 @@ pkill -f filename.py
 pkill -f spikeformerunet114/main.py
 pkill -f spikeformerunet90/inference_resemble.py
 pkill -f spikeformerunet90/inference_val_data.py
+
+
 
 [infer]
 nohup python spikeformerunet113/inference_val_data.py > inference_log_exp113_val_data.log 2>&1 &

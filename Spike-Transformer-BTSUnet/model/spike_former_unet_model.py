@@ -2,6 +2,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch import Tensor
 from typing import Callable
 from spikingjelly.activation_based import neuron, functional, surrogate, layer, base
 from timm.layers import trunc_normal_, DropPath
@@ -75,6 +76,50 @@ class GeneralParametricLIFNode(neuron.BaseNode):
         return self.surrogate_function(self.v - self.v_threshold)
     
     
+class InstanceNorm(nn.InstanceNorm3d, base.StepModule):
+    def __init__(
+            self,
+            num_features: int,
+            eps: float = 1e-5,
+            momentum: float = 0.1,
+            affine: bool = True,
+            track_running_stats: bool = False,
+            step_mode: str = 's'
+    ):
+        """
+        * :ref:`API in English <InstanceNorm-en>`
+
+        .. _InstanceNorm-cn:
+
+        :param step_mode: 步进模式，可以为 `'s'` (单步) 或 `'m'` (多步)
+        :type step_mode: str
+
+        其他参数参考 :class:`torch.nn.InstanceNorm3d`
+
+        * :ref:`中文 API <InstanceNorm-cn>`
+
+        .. _InstanceNorm-en:
+
+        :param step_mode: the step mode, which can be `s` (single-step) or `m` (multi-step)
+        :type step_mode: str
+
+        Refer to :class:`torch.nn.InstanceNorm3d` for other parameters' API
+        """
+        super().__init__(num_features, eps=eps, momentum=momentum, affine=affine, track_running_stats=track_running_stats)
+        self.step_mode = step_mode
+
+    def extra_repr(self):
+        return super().extra_repr() + f', step_mode={self.step_mode}'
+
+    def forward(self, x: Tensor):
+        if self.step_mode == 's':
+            return super().forward(x)
+        elif self.step_mode == 'm':
+            return functional.seq_to_ann_forward(x, super().forward)
+        else:
+            raise ValueError(f"Unknown step_mode: {self.step_mode}")
+        
+        
 
 class NormAndPad3DLayer(nn.Module):
     def __init__(self, pad_voxels, num_features, norm_type='group', step_mode='m', num_groups=8, **norm_kwargs):
@@ -96,6 +141,8 @@ class NormAndPad3DLayer(nn.Module):
             self.norm = layer.BatchNorm3d(num_features, step_mode=step_mode, **norm_kwargs)
         elif norm_type == 'group':
             self.norm = layer.GroupNorm(num_groups=num_groups, num_channels=num_features, step_mode=step_mode)
+        elif norm_type == 'instance':
+            self.norm = InstanceNorm(num_features=num_features, step_mode=step_mode)
         else:
             raise ValueError(f"Unsupported norm_type: {norm_type}")
 
@@ -114,6 +161,11 @@ class NormAndPad3DLayer(nn.Module):
                 pad_value = self.norm.bias.detach()
             else:
                 pad_value = torch.zeros(self.norm.num_channels, device=self.norm.weight.device)
+        elif self.norm_type == 'instance':
+            if self.norm.affine:
+                pad_value = self.norm.bias.detach()
+            else:
+                pad_value = torch.zeros(self.norm.num_features, device=self.norm.weight.device)
         else:
             raise NotImplementedError
 
@@ -211,6 +263,8 @@ class RepConv3D(nn.Module):
             self.out_norm = layer.BatchNorm3d(num_features=out_channel, step_mode=step_mode)
         elif norm_type == 'group':
             self.out_norm = layer.GroupNorm(num_groups=8, num_channels=out_channel, step_mode=step_mode)
+        elif norm_type == 'instance':
+            self.out_norm = InstanceNorm(num_features=out_channel, step_mode=step_mode)
 
     def forward(self, x):  
         x = self.proj_conv(x)          # 1×1 conv
@@ -286,7 +340,8 @@ class SepConv3D(nn.Module):
             self.norm1 = layer.BatchNorm3d(med_channels, step_mode=step_mode)
         elif norm_type == 'group':
             self.norm1 = layer.GroupNorm(num_groups=8, num_channels=med_channels, step_mode=step_mode)
-        
+        elif norm_type == 'instance':
+            self.norm1 = InstanceNorm(num_features=med_channels, step_mode=step_mode)
 
         # spike layer 2        
         if lif_type == 'lif':
@@ -338,6 +393,8 @@ class SepConv3D(nn.Module):
             self.norm2 = layer.BatchNorm3d(dim, step_mode=step_mode)
         elif norm_type == 'group':
             self.norm2 = layer.GroupNorm(num_groups=8, num_channels=dim, step_mode=step_mode)
+        elif norm_type == 'instance':
+            self.norm2 = InstanceNorm(num_features=dim, step_mode=step_mode)
 
     def forward(self, x):
         # x: [T, B, C, D, H, W]
@@ -408,6 +465,8 @@ class MS_SpikeConvBlock3D(nn.Module):
             self.norm1 = layer.BatchNorm3d(num_features=hidden_dim, step_mode=step_mode)
         elif norm_type == 'group':
             self.norm1 = layer.GroupNorm(num_groups=8, num_channels=hidden_dim, step_mode=step_mode)
+        elif norm_type == 'instance':
+            self.norm1 = InstanceNorm(num_features=hidden_dim, step_mode=step_mode)
 
         # Spike + Conv + Norm block2
         if lif_type == 'lif':
@@ -453,6 +512,8 @@ class MS_SpikeConvBlock3D(nn.Module):
             self.norm2 = layer.BatchNorm3d(num_features=dim, step_mode=step_mode)
         elif norm_type == 'group':
             self.norm2 = layer.GroupNorm(num_groups=8, num_channels=dim, step_mode=step_mode)
+        elif norm_type == 'instance':
+            self.norm2 = InstanceNorm(num_features=dim, step_mode=step_mode)
 
     def forward(self, x):
         # x: [T, B, C, D, H, W]
@@ -498,8 +559,10 @@ class MS_SpikeMLP3D(nn.Module):
             self.fc1_norm = layer.BatchNorm3d(hidden_features, step_mode=step_mode)
         elif norm_type == 'group':
             self.fc1_norm = layer.GroupNorm(num_groups=8, num_channels=hidden_features, step_mode=step_mode)
-            
-        if lif_type == 'lif':    
+        elif norm_type == 'instance':
+            self.fc1_norm = InstanceNorm(num_features=hidden_features, step_mode=step_mode)
+
+        if lif_type == 'lif':
             self.fc1_lif = neuron.LIFNode(
                 tau=tau,
                 decay_input=True,
@@ -540,8 +603,10 @@ class MS_SpikeMLP3D(nn.Module):
             self.fc2_norm = layer.BatchNorm3d(out_features, step_mode=step_mode)
         elif norm_type == 'group':
             self.fc2_norm = layer.GroupNorm(num_groups=8, num_channels=out_features, step_mode=step_mode)
- 
-        if lif_type == 'lif':           
+        elif norm_type == 'instance':
+            self.fc2_norm = InstanceNorm(num_features=out_features, step_mode=step_mode)
+
+        if lif_type == 'lif':
             self.fc2_lif = neuron.LIFNode(
                 tau=tau,
                 decay_input=True,
@@ -653,6 +718,11 @@ class MS_SpikeAttention_RepConv3D_qkv_id(nn.Module):
             k_norm = layer.GroupNorm(num_groups=8, num_channels=dim, step_mode=step_mode)
             v_norm = layer.GroupNorm(num_groups=8, num_channels=dim, step_mode=step_mode)
             proj_norm = layer.GroupNorm(num_groups=8, num_channels=dim, step_mode=step_mode)
+        elif norm_type == 'instance':
+            q_norm = InstanceNorm(num_features=dim, step_mode=step_mode)
+            k_norm = InstanceNorm(num_features=dim, step_mode=step_mode)
+            v_norm = InstanceNorm(num_features=dim, step_mode=step_mode)
+            proj_norm = InstanceNorm(num_features=dim, step_mode=step_mode)
         else:
             raise ValueError(f"Unsupported norm_type: {norm_type}")
 
@@ -937,6 +1007,8 @@ class MS_SpikeDownSampling3D(nn.Module):
             self.encode_norm = layer.BatchNorm3d(num_features=embed_dims, step_mode=step_mode)
         elif norm_type == 'group':
             self.encode_norm = layer.GroupNorm(num_groups=8, num_channels=embed_dims, step_mode=step_mode)
+        elif norm_type == 'instance':
+            self.encode_norm = InstanceNorm(num_features=embed_dims, step_mode=step_mode)
 
         # self.relu = TimeDistributed(nn.ReLU())
         self.use_lif = not first_layer
@@ -1017,6 +1089,8 @@ class MS_SpikeUpSampling3D(nn.Module):
             self.decode_norm = layer.BatchNorm3d(num_features=out_channels, step_mode=step_mode)
         elif norm_type == 'group':
             self.decode_norm = layer.GroupNorm(num_groups=8, num_channels=out_channels, step_mode=step_mode)
+        elif norm_type == 'instance':
+            self.decode_norm = InstanceNorm(num_features=out_channels, step_mode=step_mode)
 
         self.use_lif = not last_layer
         if self.use_lif:
@@ -1106,6 +1180,8 @@ class MS_SpikeUpSampling3D(nn.Module):
 #             self.norm = layer.BatchNorm3d(num_features=channels, step_mode=step_mode)
 #         elif norm_type == 'group':
 #             self.norm = layer.GroupNorm(num_groups=8, num_channels=channels, step_mode=step_mode)
+#         elif norm_type == 'instance':
+#             self.norm = InstanceNorm(num_features=channels, step_mode=step_mode)
 
 #     def forward(self, x1, x2):
 #         x = x1 + x2  # skip connection by addition
@@ -1186,6 +1262,8 @@ class AddConverge3D(base.MemoryModule):
             self.norm = layer.BatchNorm3d(num_features=channels, step_mode=step_mode)
         elif norm_type == 'group':
             self.norm = layer.GroupNorm(num_groups=8, num_channels=channels, step_mode=step_mode)
+        elif norm_type == 'instance':
+            self.norm = InstanceNorm(num_features=channels, step_mode=step_mode)
 
     def forward(self, x1, x2):
         x1 = self.lif1(x1)
@@ -1270,6 +1348,8 @@ class MS_SpikeCatConverge3D(base.MemoryModule):
             self.norm = layer.BatchNorm3d(num_features=channels, step_mode=step_mode)
         elif norm_type == 'group':
             self.norm = layer.GroupNorm(num_groups=8, num_channels=channels, step_mode=step_mode)
+        elif norm_type == 'instance':
+            self.norm = InstanceNorm(num_features=channels, step_mode=step_mode)
 
     def forward(self, x1, x2):
         x1 = self.lif1(x1)
@@ -1360,6 +1440,8 @@ class Gated_SpikeConverge3D(base.MemoryModule):
             self.norm = layer.BatchNorm3d(num_features=channels, step_mode=step_mode)
         elif norm_type == 'group':
             self.norm = layer.GroupNorm(num_groups=8, num_channels=channels, step_mode=step_mode)
+        elif norm_type == 'instance':
+            self.norm = InstanceNorm(num_features=channels, step_mode=step_mode)
 
         self.sigmoid = torch.nn.Sigmoid()
 
@@ -1496,6 +1578,8 @@ class MS_SpikeAttentionConverge3D(base.MemoryModule):
             self.norm = layer.BatchNorm3d(num_features=channels, step_mode=step_mode)
         elif norm_type == 'group':
             self.norm = layer.GroupNorm(num_groups=8, num_channels=channels, step_mode=step_mode)
+        elif norm_type == 'instance':
+            self.norm = InstanceNorm(num_features=channels, step_mode=step_mode)
 
         self.sigmoid = torch.nn.Sigmoid()
 

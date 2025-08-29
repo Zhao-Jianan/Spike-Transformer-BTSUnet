@@ -55,12 +55,13 @@ class Config:
         self.num_classes = 3
         self.model_type = 'spike_former_unet3D_8_384'  # spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
         self.T = 1
-        self.norm_type = 'group'  # group, batch
+        self.norm_type = 'group'  # group, batch, instance
         # self.num_norm_groups = [8, 12, 24, 32]
         self.num_epochs = 1000
-        self.batch_size = 1
+        self.batch_size = 2
         self.k_folds = 5
-        
+        self.optimizer = 'AdamW' # AdamW, SGD
+
         self.loss_function = 'dice' # dice, focal, dice_with_fp_penalty, tversky, adaptive_regional
         self.loss_weights = [1.0, 1.0, 1.0] # [2.0, 1.0, 4.0] [1.0, 1.0, 1.0]
         self.double_crop = False  # 是否使用双重裁剪（肿瘤区域和全脑区域）
@@ -73,12 +74,12 @@ class Config:
         self.compute_hd = False
 
         self.scheduler = 'polynomial' # cosine, polynomial
-        self.power = 2.0  # 300-2.0
+        self.power = 0.9  # 300-2.0
         self.num_warmup_epochs = -1  # -1表示不使用warmup
         self.early_stop_monitor = 'loss'  # 监控的指标  dice loss
-        self.early_stop_patience = 30
+        self.early_stop_patience = 100
         
-        self.finetune = True  # 是否进行微调
+        self.finetune = False  # 是否进行微调
         self.pretrained_experiment_num = 113
         self.pretrained_ckpt_dir = f'/hpc/ajhz839/checkpoint/experiment_{self.pretrained_experiment_num}'  # 预训练权重目录
 
