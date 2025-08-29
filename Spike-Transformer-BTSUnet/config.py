@@ -46,26 +46,26 @@ class Config:
         
         self.encode_method = 'none'  # poisson, latency, weighted_phase, none
 
-        self.tumor_crop_ratio = 0.8 # 肿瘤区域裁剪比例
-        self.patch_size = [64, 64, 64] # [64, 64, 64] [96, 96, 96] [128, 128, 128]
+        self.tumor_crop_ratio = 1 # 肿瘤区域裁剪比例
+        self.patch_size = [128, 128, 128] # [64, 64, 64] [96, 96, 96] [128, 128, 128]
         self.inference_patch_size = [128, 128, 128]  # 推理时的patch大小
         self.use_grad_accum = False  # 是否使用梯度累积
         self.accumulation_steps = 4
 
         self.num_classes = 3
         self.model_type = 'spike_former_unet3D_8_384'  # spike_former_unet3D_8_384, spike_former_unet3D_8_512, spike_former_unet3D_8_768
-        self.T = 4
+        self.T = 1
         self.norm_type = 'group'  # group, batch
         # self.num_norm_groups = [8, 12, 24, 32]
         self.num_epochs = 1000
-        self.batch_size = 4
+        self.batch_size = 1
         self.k_folds = 5
         
         self.loss_function = 'dice' # dice, focal, dice_with_fp_penalty, tversky, adaptive_regional
         self.loss_weights = [1.0, 1.0, 1.0] # [2.0, 1.0, 4.0] [1.0, 1.0, 1.0]
         self.double_crop = False  # 是否使用双重裁剪（肿瘤区域和全脑区域）
-        self.train_crop_mode = "tumor_aware_random"  # tumor_aware_random, warmup_weighted_random, random, tumor_center
-        self.val_crop_mode = 'tumor_aware_random' # tumor_aware_random, sliding_window, random, tumor_center
+        self.train_crop_mode = "random"  # tumor_aware_random, warmup_weighted_random, random, tumor_center
+        self.val_crop_mode = 'random' # tumor_aware_random, sliding_window, random, tumor_center
         self.sliding_window_val = False # 是否在best_patch_dice_score的epoch使用滑动窗口验证
         self.overlap = 0.125
         self.num_workers = 8
@@ -76,9 +76,14 @@ class Config:
         self.power = 2.0  # 300-2.0
         self.num_warmup_epochs = -1  # -1表示不使用warmup
         self.early_stop_monitor = 'loss'  # 监控的指标  dice loss
-        self.early_stop_patience = 100
+        self.early_stop_patience = 30
         
+        self.finetune = True  # 是否进行微调
+        self.pretrained_experiment_num = 113
+        self.pretrained_ckpt_dir = f'/hpc/ajhz839/checkpoint/experiment_{self.pretrained_experiment_num}'  # 预训练权重目录
+
         self.base_lr = 1e-3 # 1e-3  5e-4
+        self.finetune_lr = 1e-4
         self.min_lr = 1e-6
 
         self.step_mode = 'm'

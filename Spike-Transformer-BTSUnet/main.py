@@ -112,11 +112,28 @@ def main():
     # 交叉验证
     kf = KFold(n_splits=cfg.k_folds, shuffle=True, random_state=cfg.seed)
 
+    learning_rate = cfg.finetune_lr if cfg.finetune else cfg.base_lr
+
     for fold, (train_idx, val_idx) in enumerate(kf.split(train_val_dirs)):
+        # 创建模型
         model = get_model(cfg)
-        optimizer = optim.AdamW(model.parameters(), lr=cfg.base_lr, eps=1e-8, weight_decay=1e-4)
+        
+        # 读取对应 fold 的预训练权重进行 finetune
+        if cfg.finetune:
+            logger.info(f"Finetuning enabled. Loading pretrained weights for fold {fold+1}.")
+            pretrained_ckpt_path = os.path.join(cfg.pretrained_ckpt_dir, f'best_model_fold{fold+1}.pth')
+            if os.path.exists(pretrained_ckpt_path):
+                logger.info(f"Loading pretrained checkpoint for fold {fold+1} from {pretrained_ckpt_path}")
+                checkpoint = torch.load(pretrained_ckpt_path, map_location=cfg.device)
+                model.load_state_dict(checkpoint)
+            else:
+                logger.warning(f"No pretrained checkpoint found for fold {fold+1}, training from scratch.")
+        else:
+            logger.info(f"Finetuning disabled. Training from scratch for fold {fold+1}.")
+
+        optimizer = optim.AdamW(model.parameters(), lr=learning_rate, eps=1e-8, weight_decay=1e-4)
         scheduler = get_scheduler(optimizer, cfg.num_warmup_epochs, cfg.num_epochs, 
-                                  cfg.base_lr, cfg.min_lr, cfg.scheduler, cfg.power)
+                                  learning_rate, cfg.min_lr, cfg.scheduler, cfg.power)
         early_stopping = EarlyStopping(patience=cfg.early_stop_patience, delta=0, monitor=cfg.early_stop_monitor)
 
         # 根据交叉验证划分数据集

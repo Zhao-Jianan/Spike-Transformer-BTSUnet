@@ -259,7 +259,7 @@ def inference_dice_compute_for_brats20_val_data(experiment_index, dice_score_sty
 
 def inference_dice_compute_for_brats20_test_data(experiment_index, dice_score_style, prefix=None, metric_obj=None, 
                                                  metadata_json_path = None):   
-        gt_root = '../../data/BraTS2020/MICCAI_BraTS2020_TrainingData'
+        gt_root = 'Z:/Datasets/BraTS2020/MICCAI_BraTS2020_TrainingData'
         if not os.path.exists(gt_root):
             logger.warning(f"Ground truth directory does not exist: {gt_root}")
             return
@@ -386,8 +386,8 @@ def main():
         
 
         # BraTS 2020 Validation or Test
-        mode = 'val'  # 'val' or 'test'
-        experiment_index = 109
+        mode = 'test'  # 'val' or 'test'
+        experiment_index = 92
         dice_score_style = 1
         prefix = None
         if mode == 'val':

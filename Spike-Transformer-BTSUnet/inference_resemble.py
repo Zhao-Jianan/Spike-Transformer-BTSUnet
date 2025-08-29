@@ -18,7 +18,7 @@ from inference.inference_helper import TemporalSlidingWindowInference, TemporalS
 from inference.inference_preprocess import preprocess_for_inference_test
 from inference.inference_postprocess import (
     postprocess_brats_label_nnstyle, postprocess_brats_label, 
-    postprocess_brats_label_etminsize, apply_postprocessing_brats
+    postprocess_brats_label_etminsize, apply_postprocessing_brats, postprocess_brats_label_nnstyle_v2
     )
 from inference.inference_utils import (
     convert_prediction_to_label_suppress_fp, check_all_folds_ckpt_exist, check_test_txt_exist, 
@@ -157,7 +157,8 @@ def soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list, dice_style=
     return metadata_json_path if center_crop else None
 
 
-def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, metadata_json_path=None, dataset_flag=None):
+def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, 
+                         metadata_json_path=None, dataset_flag=None, postprocess_method='solid'):
     os.makedirs(output_dir, exist_ok=True)
     
     if metadata_json_path and center_crop:
@@ -173,16 +174,17 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, meta
             prob_path = os.path.join(prob_root, f"fold{fold}", f"{case}_prob.npy")
             prob = np.load(prob_path)
             # 读取该 fold 的后处理策略
-            pkl_path = os.path.join(prob_root, f"fold{fold}", "postprocessing_strategy.pkl")
-            if os.path.exists(pkl_path):
-                with open(pkl_path, "rb") as f:
-                    strategy = pickle.load(f)
-                label_fold = convert_prediction_to_label_suppress_fp(prob, dataset_flag=dataset_flag)
-                label_fold = apply_postprocessing_brats(label_fold, strategy)  # 应用独立策略
-                prob = np.eye(cfg.num_classes)[label_fold]  # 重新转为 one-hot 概率图
-                prob = np.transpose(prob, (3, 0, 1, 2))  # (C, D, H, W)
-            else:
-                logger.warning(f"[Warning] No postprocessing_strategy.pkl found for fold {fold}. Skipping postprocessing.")
+            if postprocess_method == 'strategy':
+                pkl_path = os.path.join(prob_root, f"fold{fold}", "postprocessing_strategy.pkl")
+                if os.path.exists(pkl_path):
+                    with open(pkl_path, "rb") as f:
+                        strategy = pickle.load(f)
+                    label_fold = convert_prediction_to_label_suppress_fp(prob, dataset_flag=dataset_flag)
+                    label_fold = apply_postprocessing_brats(label_fold, strategy)  # 应用独立策略
+                    prob = np.eye(cfg.num_classes)[label_fold]  # 重新转为 one-hot 概率图
+                    prob = np.transpose(prob, (3, 0, 1, 2))  # (C, D, H, W)
+                else:
+                    logger.warning(f"[Warning] No postprocessing_strategy.pkl found for fold {fold}. Skipping postprocessing.")
 
             prob_list.append(prob)
 
@@ -204,7 +206,14 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, meta
             restored_label = label_np
 
         logger.info(f"Label shape before transposing: {restored_label.shape}")  # (D, H, W)
+        
+        # Apply postprocessing if no specific strategy is provided
+        if postprocess_method == 'solid':
+            # Apply default postprocessing
+            final_label = postprocess_brats_label_nnstyle_v2(final_label)
+            
         final_label = np.transpose(restored_label, (1, 2, 0))
+                   
         if dataset_flag== 'BraTS23':
             ref_nii_path = os.path.join(case_dir, case, f"{case}-{cfg.modalities[cfg.modalities.index('t1c')]}.nii.gz")
         else:
@@ -217,7 +226,7 @@ def ensemble_soft_voting(prob_root, case_dir, output_dir, center_crop=True, meta
 
 
 
-def inference_BraTS2020_test_data(experiment_id, dice_style, center_crop=True, prefix=None):
+def inference_BraTS2020_test_data(experiment_id, dice_style, center_crop=True, prefix=None, postprocess_method='solid'):
     # BraTS2020 test data inference
     logger.info(f"Starting inference for BraTS2020 test data with experiment ID {experiment_id} and dice style {dice_style}...")
  
@@ -238,12 +247,13 @@ def inference_BraTS2020_test_data(experiment_id, dice_style, center_crop=True, p
     test_case_list = read_case_list(test_cases_txt)
     metadata_json_path=soft_ensemble(prob_base_dir, case_dir, ckpt_dir, test_case_list, dice_style=dice_style, center_crop=center_crop, prefix=prefix)
 
-    ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir, center_crop=center_crop, metadata_json_path=metadata_json_path)
+    ensemble_soft_voting(prob_base_dir, case_dir, ensemble_output_dir, 
+                         center_crop=center_crop, metadata_json_path=metadata_json_path, postprocess_method=postprocess_method)
 
     logger.info("Inference completed.")
     
 
-def inference_BraTS2023_test_data(experiment_id, dice_style, center_crop=True, prefix=None):
+def inference_BraTS2023_test_data(experiment_id, dice_style, center_crop=True, prefix=None, postprocess_method='solid'):
     # BraTS2020 test data inference
     logger.info(f"Starting inference for BraTS2023 test data with experiment ID {experiment_id} and dice style {dice_style}...")
  
@@ -270,7 +280,8 @@ def inference_BraTS2023_test_data(experiment_id, dice_style, center_crop=True, p
 
     ensemble_soft_voting(
         prob_base_dir, case_dir, ensemble_output_dir, 
-        center_crop=center_crop, metadata_json_path=metadata_json_path, dataset_flag='BraTS23'
+        center_crop=center_crop, metadata_json_path=metadata_json_path, dataset_flag='BraTS23',
+        postprocess_method=postprocess_method
         )
 
     logger.info("Inference completed.")
@@ -289,12 +300,14 @@ def main():
     
     
     # BraTS2020 test data inference
-    experiment_id = 93
+    experiment_id = 92
     dice_style = 1
     prefix = None  # "slidingwindow"
-    inference_BraTS2020_test_data(experiment_id, dice_style, center_crop=True, prefix=prefix)
-    
-    
+    postprocess_method='solid' # 'solid', 'strategy', or 'none'
+    inference_BraTS2020_test_data(experiment_id, dice_style, center_crop=True, prefix=prefix, 
+                                  postprocess_method=postprocess_method)
+
+
     # # BraTS2023 test data inference
     # experiment_id = 75
     # dice_style = 2

@@ -14,7 +14,10 @@ import json
 from utilities.logger import logger
 from inference.inference_helper import TemporalSlidingWindowInference, TemporalSlidingWindowInferenceWithROI
 from inference.inference_preprocess import preprocess_for_inference_valid
-from inference.inference_postprocess import postprocess_brats_label_nnstyle, postprocess_brats_label, determine_postprocessing_brats
+from inference.inference_postprocess import (
+    postprocess_brats_label_nnstyle, postprocess_brats_label, 
+    determine_postprocessing_brats, postprocess_brats_label_nnstyle_v2
+    )
 from inference.inference_utils import (
     convert_prediction_to_label_suppress_fp, check_all_folds_ckpt_exist,
     check_all_folds_val_txt_exist, restore_to_original_shape, convert_label_to_onehot
@@ -419,7 +422,7 @@ def inference_BraTS2023_val_data(experiment_id, dice_style, center_crop=True, pr
 
 def main():
     # BraTS 2020 validation data inference
-    experiment_id = 112
+    experiment_id = 113
     dice_style = 1
     prefix = None
     fold_to_run=1
